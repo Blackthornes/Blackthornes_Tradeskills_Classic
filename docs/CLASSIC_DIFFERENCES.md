@@ -102,6 +102,13 @@ loads them, and every reader asks for them first.
 - `README.md` names the Classic CurseForge project.
 - `docs/handoff/classic-port.md` is the plan.
 
+### Discord release posts
+- `tools/announce_discord.py` and `tools/post_general.py` start both
+  posts with "Classic Era: " (their `GAME`), where Forever's start with
+  "Forever: ", so the two games' releases read apart. A catch-up that
+  touches these tools keeps Classic's word. Tested in
+  `tools/test_announce_discord.py` and `tools/test_post_general.py`.
+
 ## Not yet done
 - Steps 3b (Craft buttons through `DoTradeSkill`/`DoCraft`, the craft panel
   beside the old window), 4 (the auction house), 5 (the probe in Era) and
