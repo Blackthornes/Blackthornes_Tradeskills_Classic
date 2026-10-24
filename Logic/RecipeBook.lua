@@ -16,7 +16,8 @@
 --     recipe item teaches it, with who sells or drops that item.
 --   * Data/ForeverRecipes.lua, generated from the Forever client's game
 --     tables: the recipes Forever added, laid into that book (f = 1), so
---     they show before anyone has opened a profession window.
+--     they show before anyone has opened a profession window. The Classic
+--     Era copy leaves it out of the TOC, so the book is Classic's alone.
 --   * What profession windows have shown on this account, learned or not
 --     (`seenRecipes`, written by Recipes:Harvest). Where Forever differs
 --     from Classic, the game wins, and recipes Forever added are listed from

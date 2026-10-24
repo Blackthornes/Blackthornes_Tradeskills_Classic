@@ -37,6 +37,14 @@ Forever addon. So:
   files kept in the repo so Forever changes merge cleanly. The plan is
   `docs/handoff/classic-port.md`. Era's auction house is the old one (no
   `C_AuctionHouse`), the biggest piece of work.
+- Step 1 is done (2026-10-24): `Data/ForeverRecipes.lua` and
+  `Data/ForeverVendorSpots.lua` are out of the TOC, so the recipe book is
+  Classic's and only spots seen in game lie over Classic's.
+  `VendorPins:Known` reads `ns.FOREVER_VENDOR_SPOTS` and
+  `ns.FOREVER_TRAINER_SPOTS` only when they exist. `tools/test_era.lua`
+  checks the TOC and loads every file it lists, then logs in, with no
+  sister addon and no `C_AuctionHouse` (a loose client of its own, since
+  this repo has no shared one).
 - Calls to the other Blackthornes addons stay inside a pcall, and
   Tradeskills works on its own without them.
 - Not yet seen in an Era client. Read client calls in a pcall as everywhere

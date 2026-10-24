@@ -58,7 +58,7 @@ accounts and guild, the Butler, Farmer and Equipment calls.
 
 ## The order
 
-1. **Forever data out.** `ForeverRecipes`, `ForeverVendorSpots` out of the
+1. **Forever data out.** (Done, 2026-10-24.) `ForeverRecipes`, `ForeverVendorSpots` out of the
    TOC; a `tools/test_era.lua` (as Farmer's and Butler's) checks the TOC
    and that the addon loads and logs in without them and with no sister.
 2. **Forever features out.** Legacy, Merchant's Favor, Writs, Waylaid
