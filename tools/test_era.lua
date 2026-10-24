@@ -39,6 +39,8 @@ check("the TOC is not Forever's", not toc:find("## Interface: 16001", 1, true))
 check("the TOC names Era's interface", toc:find("## Interface: 11509", 1, true) ~= nil)
 check("the TOC never names Forever's CurseForge project",
     not toc:find("^## X%-Curse%-Project%-ID:%s*1710638") and not toc:find("\n## X%-Curse%-Project%-ID:%s*1710638"))
+check("the TOC names the Tradeskills Classic CurseForge project",
+    toc:find("\n## X%-Curse%-Project%-ID: 1763353%s") ~= nil)
 check("the TOC leaves out Forever's recipes", not toc:find("ForeverRecipes.lua", 1, true))
 check("the TOC leaves out Forever's vendor spots", not toc:find("ForeverVendorSpots.lua", 1, true))
 check("the TOC keeps Classic's recipe book", toc:find("\nData\\RecipeBook.lua", 1, true) ~= nil)

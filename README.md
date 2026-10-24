@@ -73,7 +73,7 @@ Releases are cut by pushing a tag like `v0.2.0`.
 4. checks that zip is clear to post (`tools/check_package.py`): only the
    addon's own files, and nothing that looks private, such as a Windows path,
    an email address, a saved-variables dump or a token;
-5. only then uploads that same zip to CurseForge (project 1710638) and
+5. only then uploads that same zip to CurseForge (project 1763353, Tradeskills Classic) and
    attaches it to a GitHub release.
 
 To release from GitHub Desktop: add the new version's section to the top of
