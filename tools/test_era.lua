@@ -3,8 +3,10 @@
 -- This repo is Tradeskills for WoW Classic Era. What Forever's client gave
 -- (its own recipes, Data/ForeverRecipes.lua, and the vendor and trainer
 -- spots seen there, Data/ForeverVendorSpots.lua) does not fit Era, so the
--- TOC leaves both out, and it must never point a tag at the Forever
--- project on CurseForge. Then every file the TOC lists has to load, and
+-- TOC leaves both out, and so do Forever's own features (Legacy perks,
+-- Merchant's Favor, the Craftsman's Writs, sending data to Forever
+-- characters). It must never point a tag at the Forever project on
+-- CurseForge. Then every file the TOC lists has to load, and
 -- the addon has to log in, with no sister addon loaded, since Era may have
 -- none of them.
 --
@@ -47,6 +49,19 @@ check("the TOC keeps Classic's recipe book", toc:find("\nData\\RecipeBook.lua", 
 check("the TOC keeps Classic's vendor spots", toc:find("\nData\\VendorSpots.lua", 1, true) ~= nil)
 check("the files stay in the repo", io.open(lfs_cwd .. "/Data/ForeverRecipes.lua") ~= nil
     and io.open(lfs_cwd .. "/Data/ForeverVendorSpots.lua") ~= nil)
+
+-- Forever's own features (step 2): Legacy perks, Merchant's Favor and its
+-- Waylaid Crates, the Craftsman's Writs, and sending data to Forever
+-- characters. Out of the TOC, kept in the repo.
+local FOREVER_FEATURES = {
+    "Data\\WaylaidCrates.lua", "Data\\CraftsmansWrits.lua", "Logic\\Legacy.lua",
+    "Logic\\MerchantsFavor.lua", "Logic\\Writs.lua", "Logic\\Contribute.lua",
+    "UI\\FavorsView.lua", "UI\\DealsFavor.lua", "UI\\DealsWrits.lua",
+}
+for _, path in ipairs(FOREVER_FEATURES) do
+    check("the TOC leaves out " .. path, not toc:find(path, 1, true))
+    check(path .. " stays in the repo", io.open(lfs_cwd .. "/" .. (path:gsub("\\", "/"))) ~= nil)
+end
 
 --------------------------------------------------------------------------------
 -- A loose client: anything not named below is an empty stand-in whose
@@ -214,6 +229,12 @@ check("no Forever recipes in the book", (function()
 end)())
 check("no Forever vendor spots", ns.FOREVER_VENDOR_SPOTS == nil)
 check("no Forever trainer spots", ns.FOREVER_TRAINER_SPOTS == nil)
+for _, name in ipairs({ "Legacy", "MerchantsFavor", "Writs", "Contribute", "FavorsView",
+    "DealsFavor", "DealsWrits", "WAYLAID_CRATES", "CRAFTSMANS_WRITS" }) do
+    check("no " .. name, ns[name] == nil)
+end
+check("no Favors and Writs tab", ns.UI ~= nil and ns.UI.tabs ~= nil and ns.UI.tabs.characters ~= nil
+    and ns.UI.tabs.deals == nil)
 
 -- Log in, as the client would: the saved variables are empty on a new
 -- install, then ADDON_LOADED and PLAYER_LOGIN.

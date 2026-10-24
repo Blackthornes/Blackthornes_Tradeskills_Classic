@@ -1098,10 +1098,15 @@ function UI.DealsSetView(view)
     if module then module:ScrollToTop() elseif widgets.list then widgets.list:ScrollToTop() end
 end
 
-UI:RegisterTab({
-    key = "deals",
-    text = SHOW_FLIPS and L["Deals"] or L["Favors and Writs"],
-    order = 7,
-    build = Build,
-    refresh = Refresh,
-})
+-- On Era neither Merchant's Favor nor the writs exist (their files are out
+-- of the TOC), so with the flips put away the tab has nothing to show and
+-- is left out.
+if SHOW_FLIPS or ns.DealsFavor or ns.DealsWrits then
+    UI:RegisterTab({
+        key = "deals",
+        text = SHOW_FLIPS and L["Deals"] or L["Favors and Writs"],
+        order = 7,
+        build = Build,
+        refresh = Refresh,
+    })
+end
