@@ -64,6 +64,14 @@ local function ClientProfessionNames()
         end
     end
 
+    -- Era names a profession only through a spell it teaches.
+    if not any and ns.EraRecipes then
+        for name, english in pairs(ns.EraRecipes:ClientNames()) do
+            names[name] = english
+            any = true
+        end
+    end
+
     if any then clientProfessionNames = names end
     return names
 end
@@ -111,7 +119,9 @@ end
 -- we keep the first sighting per name and drop the rest.
 function Recipes:GetProfessions()
     local trade = ns.Compat:Get().tradeskill
-    if not trade.hasAllProfessionLines then return {} end
+    if not trade.hasAllProfessionLines then
+        return ns.EraRecipes and ns.EraRecipes:GetProfessions() or {}
+    end
 
     local ok, skillLines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
     if not ok or type(skillLines) ~= "table" then return {} end
@@ -161,7 +171,10 @@ local function ReadProfessionLines()
     local lines, anyLearned = {}, false
 
     local trade = ns.Compat:Get().tradeskill
-    if not trade.hasAllProfessionLines then return lines, false end
+    if not trade.hasAllProfessionLines then
+        if ns.EraRecipes then return ns.EraRecipes:ProfessionLines() end
+        return lines, false
+    end
 
     local ok, skillLines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
     if not ok or type(skillLines) ~= "table" then return lines, false end
@@ -745,6 +758,10 @@ end
 --- open: how many recipes it lists, and every profession's skill level (a
 --- point gained turns recipe colours). Nil when the client will not say.
 function Recipes:HarvestSignature()
+    if ns.Compat:Get().tradeskill.mode ~= "modern" then
+        return ns.EraRecipes and ns.EraRecipes:Signature() or nil
+    end
+
     local ok, recipeIDs = pcall(C_TradeSkillUI.GetAllRecipeIDs)
     if not ok or type(recipeIDs) ~= "table" then return nil end
 
@@ -796,6 +813,7 @@ end
 
 function Recipes:Harvest()
     local trade = ns.Compat:Get().tradeskill
+    if trade.mode == "legacy" and ns.EraRecipes then return ns.EraRecipes:Harvest() end
     if trade.mode ~= "modern" then return false end
     if self.harvesting then return false end
     if ShowingSomeoneElses() then return false end
