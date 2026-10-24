@@ -32,7 +32,8 @@ Forever addon. So:
   Era client reports, 2026-10-24).
 - Never put Forever's CurseForge ID (1710638) in the TOC:
   `tools/check_release.py` refuses a tag that does. The owner makes the Era
-  project himself; its ID goes on the TOC's `X-Curse-Project-ID` line then.
+  project himself: Tradeskills Classic is **1763353** (2026-10-24), on the
+  TOC's `X-Curse-Project-ID` line, and `tools/test_era.lua` checks it is there.
 - What only Forever has comes out of the TOC a small PR at a time, its
   files kept in the repo so Forever changes merge cleanly. The plan is
   `docs/handoff/classic-port.md`. Era's auction house is the old one (no

@@ -9,8 +9,7 @@
 ## IconTexture: Interface\Icons\Trade_BlackSmithing
 
 # Where tagged releases upload. The packager reads this; the client ignores it.
-# X-Curse-Project-ID: (the Classic Era project's own ID goes here once it exists;
-# never Forever's 1710638)
+## X-Curse-Project-ID: 1763353
 
 Locale\Locale.lua
 Locale\deDE.lua
