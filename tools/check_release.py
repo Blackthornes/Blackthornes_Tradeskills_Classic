@@ -37,6 +37,9 @@ TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$")
 HEADING = re.compile(r"^##\s+v?(\S+)")
 RELEASED = re.compile(r'^ns\.RELEASED_VERSION\s*=\s*"([^"]*)"', re.M)
 
+# Forever Tradeskills' CurseForge project. This repo is the Classic Era copy.
+FOREVER_PROJECT = "1710638"
+
 
 def released_version(init):
     """The version Core/Init.lua shows from a checkout, or None."""
@@ -69,6 +72,11 @@ def check(tag, changelog, toc, init=None):
     if not re.search(r"^## Version: @project-version@\s*$", toc, re.M):
         problems.append("Blackthornes_TS.toc must say "
                         "'## Version: @project-version@' so the tag sets it")
+
+    # The Classic Era copy must never upload to the Forever project on CurseForge.
+    if re.search(r"^## X-Curse-Project-ID:\s*%s\b" % FOREVER_PROJECT, toc, re.M):
+        problems.append("Blackthornes_TS.toc names the Forever project "
+                        "(%s); the Classic Era copy needs its own" % FOREVER_PROJECT)
 
     if init is not None and released_version(init) != version:
         problems.append("Core/Init.lua says ns.RELEASED_VERSION = %r; make it "
