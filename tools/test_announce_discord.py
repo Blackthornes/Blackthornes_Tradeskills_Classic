@@ -29,7 +29,7 @@ expect("the project ID is read", toc_field(TOC, "X-Curse-Project-ID") == "123")
 
 body = message("Blackthornes Example", "123", "0.2.0", section(LOG, "0.2.0"))
 embed = body["embeds"][0]
-expect("titled with name and version", embed["title"] == "Blackthornes Example 0.2.0")
+expect("titled with name and version", embed["title"] == "Classic Era: Blackthornes Example 0.2.0")
 expect("links to CurseForge", embed["url"] == "https://www.curseforge.com/projects/123")
 expect("the notes are posted", "- New thing." in embed["description"])
 expect("nothing in it can ping", body["allowed_mentions"] == {"parse": []})

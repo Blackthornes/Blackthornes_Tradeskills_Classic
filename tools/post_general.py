@@ -46,6 +46,7 @@ from check_package import PRIVATE  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIMIT = 1800  # Discord allows 2000 characters in a message; leave room for the heading
 POINTER = "(full list of changes in #announcements)"
+GAME = "Classic Era"  # leads every post, so each game's releases read apart
 SUPPRESS_EMBEDS = 4  # Discord's message flag: no link previews or cards
 
 # A player's name never goes in a report (the owner, 2026-10-09), except this
@@ -95,7 +96,8 @@ def message(title, version, post):
     if len(text) > LIMIT:
         cut = text.rfind("\n", 0, LIMIT)
         text = text[:cut if cut > 0 else LIMIT].rstrip() + "\n..."
-    heading = "**%s %s**" % (title, version) if title else "**%s**" % version
+    heading = ("**%s: %s %s**" % (GAME, title, version) if title
+               else "**%s: %s**" % (GAME, version))
     text = "%s %s\n%s" % (heading, POINTER, text)
     return {"username": "Blackthornes AddOns", "content": text,
             "flags": SUPPRESS_EMBEDS, "allowed_mentions": {"parse": []}}

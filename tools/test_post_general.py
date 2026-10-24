@@ -26,7 +26,7 @@ post = section(NEWS, "0.2.0")
 body = message("Blackthornes Farmer", "0.2.0", post)
 lines = body["content"].split("\n")
 expect("opens with the addon and version, pointing to #announcements",
-       lines[0] == "**Blackthornes Farmer 0.2.0** (full list of changes in #announcements)")
+       lines[0] == "**Classic Era: Blackthornes Farmer 0.2.0** (full list of changes in #announcements)")
 expect("the bullets follow, wrapped lines joined",
        lines[1] == "- The map shows herbs again." and lines[2] == "- Goals sort by name.")
 expect("the thanks line is left out (the bot posts it with @mentions)",
@@ -39,7 +39,7 @@ expect("no CurseForge link", "curseforge" not in body["content"].lower())
 expect("no link previews or cards", body["flags"] == 4)
 expect("nothing in it can ping", body["allowed_mentions"] == {"parse": []})
 expect("posted as the house name", body["username"] == "Blackthornes AddOns")
-expect("no title, still the version", message(None, "0.2.0", "- Hi.")["content"].startswith("**0.2.0** ("))
+expect("no title, still the version", message(None, "0.2.0", "- Hi.")["content"].startswith("**Classic Era: 0.2.0** ("))
 long_post = "\n\n".join("Paragraph %d of a very long post about the update." % i for i in range(200))
 expect("a long post fits in one message", len(message("Blackthornes Farmer", "0.2.0", long_post)["content"]) <= 2000)
 

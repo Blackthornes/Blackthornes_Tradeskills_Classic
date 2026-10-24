@@ -25,6 +25,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$")
 HEADING = re.compile(r"^##\s+v?(\S+)")
+GAME = "Classic Era"  # leads every post, so each game's releases read apart
 GOLD = 0xE8B530
 LIMIT = 3800  # Discord allows 4096 in an embed's text; leave room for the link
 
@@ -71,7 +72,7 @@ def message(title, project_id, version, notes):
         text = text[:cut if cut > 0 else LIMIT].rstrip() + "\n..."
     if url:
         text += "\n\n[Download on CurseForge](%s)" % url
-    embed = {"title": "%s %s%s" % (title, version, " (beta)" if "-" in version else ""),
+    embed = {"title": "%s: %s %s%s" % (GAME, title, version, " (beta)" if "-" in version else ""),
              "description": text, "color": GOLD}
     if url:
         embed["url"] = url
