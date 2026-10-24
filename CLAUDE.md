@@ -13,6 +13,37 @@ Nothing private goes in this file (no local paths, emails or account names).
 It never ships: `.pkgmeta` leaves it out of the zip and
 `tools/check_package.py` refuses it.
 
+## This repo is the Classic Era copy
+
+`Blackthornes/Blackthornes_Tradeskills_Classic` is Tradeskills for WoW
+Classic Era, copied from `Blackthornes/Blackthornes_Tradeskills` (Forever)
+with its history on 2026-10-24 (the owner asked, after Farmer's, Butler's,
+Pets' and Equipment's Era copies). Its releases, tests and CurseForge page
+are its own. Forever comes first, and nothing done here may ever touch the
+Forever addon. So:
+
+- Never push to, or open PRs on, the Forever repo from work here. Changes
+  come over from Forever on purpose (cherry-pick or copy), never the other
+  way.
+- The addon folder and TOC stay `Blackthornes_TS`, the saved data
+  `BlackthornesTSDB` and `BlackthornesTSCharDB`, the global and `/bts`, so
+  nothing is renamed.
+- The TOC names Era's interface, `## Interface: 11509` (what the owner's
+  Era client reports, 2026-10-24).
+- Never put Forever's CurseForge ID (1710638) in the TOC:
+  `tools/check_release.py` refuses a tag that does. The owner makes the Era
+  project himself; its ID goes on the TOC's `X-Curse-Project-ID` line then.
+- What only Forever has comes out of the TOC a small PR at a time, its
+  files kept in the repo so Forever changes merge cleanly. The plan is
+  `docs/handoff/classic-port.md`. Era's auction house is the old one (no
+  `C_AuctionHouse`), the biggest piece of work.
+- Calls to the other Blackthornes addons stay inside a pcall, and
+  Tradeskills works on its own without them.
+- Not yet seen in an Era client. Read client calls in a pcall as everywhere
+  else.
+- The rest of this file describes the Forever addon; read it as the
+  starting point, not as what Era has.
+
 ## What the Farmer project did here
 
 - **Release setup (PR #77, merged 2026-09-25).** Pushing a `vX.Y.Z` tag on
