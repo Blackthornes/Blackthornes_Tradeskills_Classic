@@ -99,9 +99,9 @@ check("the old Classic ID still finds Alchemy's", Book:Get(2330).recipeID, 12400
 
 print("\nwhere to learn it")
 local _, lines = Book:LearnFrom(bracers)
-check("its recipe item is new on Forever", lines[1], "New on Forever. Where to get it isn't known yet.")
+check("its recipe item names no Forever", lines[1], nil)
 local _, firstLines = Book:LearnFrom(firstAid)
-check("one with no recipe item says so too", firstLines[1], "New on Forever. Where to learn it isn't known yet.")
+check("nor one with no recipe item", firstLines[1], nil)
 
 print("\na window wins")
 ns.db.seenRecipes[1255019] = { name = "Blue Suede Bracers", outputItemID = 252000, skillLineID = 165,

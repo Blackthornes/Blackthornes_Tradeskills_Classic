@@ -119,6 +119,14 @@ loads them, and every reader asks for them first.
   touches these tools keeps Classic's word. Tested in
   `tools/test_announce_discord.py` and `tools/test_post_general.py`.
 
+### No Forever words for players
+- The owner asked (2026-10-24) for no "Forever" a player can see. A recipe
+  marked `forever` gets no "New on Forever" line in `RecipeBook:LearnFrom`
+  (none ships on Era, but one could come from a catch-up). A catch-up that
+  brings the lines back keeps Classic's. Tested in
+  `tools/test_foreverrecipes.lua`. The TOC's Notes line and the About
+  note wait on the owner's wording.
+
 ## Not yet done
 - Steps 3b (Craft buttons through `DoTradeSkill`/`DoCraft`, the craft panel
   beside the old window), 4 (the auction house), 5 (the probe in Era) and

@@ -727,17 +727,14 @@ function RecipeBook:LearnFrom(record)
         end
     end
 
-    if otherItem and record.forever then
-        lines[#lines + 1] = L["New on Forever. Where to get it isn't known yet."]
-    elseif otherItem then
+    -- Classic Era names no Forever recipe (docs/CLASSIC_DIFFERENCES.md).
+    if otherItem and not record.forever then
         short = short or L["Quest or other"]
         lines[#lines + 1] = L["Recipe item from a quest, reputation or the other faction"]
     end
 
     if not short and record.seenInGame and not record.recipeItems then
         lines[#lines + 1] = L["Seen in a profession window, but where it's learned isn't known yet"]
-    elseif not short and record.forever and not record.recipeItems then
-        lines[#lines + 1] = L["New on Forever. Where to learn it isn't known yet."]
     end
 
     return short or L["Unknown"], lines
