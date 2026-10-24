@@ -1,7 +1,7 @@
 # Tradeskills Classic Era port: the plan
 
 Written 2026-10-24, after PR #1 (Interface 11509, Forever's CurseForge ID
-out and refused). Nothing below is done yet. Each step is one small PR,
+out and refused). Steps 1 and 2 are done. Each step is one small PR,
 built only after the owner's yes, merged only on his "merge it".
 
 Rules for every step: never touch the Forever repo; keep Forever-only
@@ -61,9 +61,18 @@ accounts and guild, the Butler, Farmer and Equipment calls.
 1. **Forever data out.** (Done, 2026-10-24.) `ForeverRecipes`, `ForeverVendorSpots` out of the
    TOC; a `tools/test_era.lua` (as Farmer's and Butler's) checks the TOC
    and that the addon loads and logs in without them and with no sister.
-2. **Forever features out.** Legacy, Merchant's Favor, Writs, Waylaid
-   Crates out of the TOC, each reader guarded; the Deals tab and the
-   drawer lose those views. Contribute's recipients emptied.
+2. **Forever features out.** (Done, 2026-10-24.) `Logic/Legacy.lua`,
+   `Logic/MerchantsFavor.lua`, `Data/WaylaidCrates.lua`, `UI/DealsFavor.lua`,
+   `UI/FavorsView.lua`, `Logic/Writs.lua`, `Data/CraftsmansWrits.lua`,
+   `UI/DealsWrits.lua` and `Logic/Contribute.lua` are out of the TOC (as
+   Equipment's Era copy did with its Contribute). Every reader already
+   asked for the module first. The Favors and Writs tab has nothing left,
+   so `UI/Tab_Deals.lua` registers it only with the flips or one of its
+   views; the drawer's Favors switch never shows (no goal can be set); the
+   "Crate Costs:" row in Settings shows only with `ns.MerchantsFavor`;
+   the share-data tick box and `/bts share data` go with Contribute.
+   Saved settings (`favorGoal`, `writGoal`, `merchantsFavor`, `shareData`
+   and the rest) stay in the save, unread. `tools/test_era.lua` checks it.
 3. **Profession windows, the Era way.** A reader for
    `GetTradeSkillInfo`/`GetTradeSkillReagentInfo` (and `GetCraft*` for
    Enchanting) that fills the same recipe records, picked by
@@ -82,9 +91,8 @@ accounts and guild, the Butler, Farmer and Equipment calls.
 Steps 1 and 2 are a day or so. Steps 3 and 4 are the weeks the memory
 warned about; the auction house alone is most of it.
 
-## Open questions for the owner
+## Answered by the owner
 
-- Should the Merchant's Favor and Writs views just disappear on Era (the
-  plan), or show nothing at all of the Deals tab parts they live in?
-- Is it fine for the auction house parts to come one at a time, hidden on
-  Era until each one works?
+- The Merchant's Favor and Writs views just disappear on Era (2026-10-24).
+- The auction house parts come one at a time, hidden on Era until each
+  one works (2026-10-24).

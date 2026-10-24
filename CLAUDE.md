@@ -46,6 +46,11 @@ Forever addon. So:
   checks the TOC and loads every file it lists, then logs in, with no
   sister addon and no `C_AuctionHouse` (a loose client of its own, since
   this repo has no shared one).
+- Step 2 is done (2026-10-24): Legacy, Merchant's Favor and its Waylaid
+  Crates, the Craftsman's Writs and Contribute are out of the TOC (their
+  files stay). The Favors and Writs tab is not registered without them
+  (`UI/Tab_Deals.lua`), and the "Crate Costs:" Settings row shows only
+  with `ns.MerchantsFavor`. Saved settings for them stay, unread.
 - Calls to the other Blackthornes addons stay inside a pcall, and
   Tradeskills works on its own without them.
 - Not yet seen in an Era client. Read client calls in a pcall as everywhere

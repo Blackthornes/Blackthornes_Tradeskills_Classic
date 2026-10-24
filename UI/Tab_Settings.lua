@@ -1326,9 +1326,12 @@ local function Build(outer)
     end)
 
     -- Asked 2026-10-20: what a Waylaid Crate costs to fill, on its tooltip.
-    local crateTipRow = CreateRow(pages.look, 1, L["Crate Costs:"])
+    -- Only where the crates exist (not on Era).
+    if ns.MerchantsFavor then
+        local crateTipRow = CreateRow(pages.look, 1, L["Crate Costs:"])
 
-    widgets.crateTooltips = ShiftDropdown(crateTipRow, "crate", "tooltipCrateCosts")
+        widgets.crateTooltips = ShiftDropdown(crateTipRow, "crate", "tooltipCrateCosts")
+    end
 
     -- Its own row (a player's report, 2026-10-09): beside the tick box it
     -- started 340 pixels in and ran past the column into the next one.
@@ -2280,7 +2283,7 @@ local function Refresh()
     end
     ShowShiftMode(widgets.recipeTooltips)
     ShowShiftMode(widgets.enchantTooltips)
-    ShowShiftMode(widgets.crateTooltips)
+    if widgets.crateTooltips then ShowShiftMode(widgets.crateTooltips) end
     widgets.openWithShops:SetChecked(Config:Get("openWithShops") == true)
     widgets.effects:SetValue(ns.Motion and ns.Motion.Level() or "full")
     local textSize = Config:Get("textSize")

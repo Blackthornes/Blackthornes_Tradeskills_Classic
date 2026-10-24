@@ -44,12 +44,9 @@ Data\VendorSpots.lua
 Data\RecipeBook.lua
 Data\LearnSpots.lua
 Data\Vendor.lua
-Data\WaylaidCrates.lua
-Data\CraftsmansWrits.lua
 Data\Travel.lua
 Data\TravelZones.lua
 
-Logic\Legacy.lua
 Logic\Cost.lua
 Logic\CraftTime.lua
 Logic\Disenchant.lua
@@ -89,8 +86,6 @@ Logic\MailHaul.lua
 Logic\Demand.lua
 Logic\FarmerGoals.lua
 Logic\VendorFlips.lua
-Logic\MerchantsFavor.lua
-Logic\Writs.lua
 Logic\Banks.lua
 Logic\Upgrades.lua
 Logic\KeepHere.lua
@@ -100,7 +95,6 @@ Logic\AccountLink.lua
 Logic\GuildPrices.lua
 Logic\GuildCrafters.lua
 Logic\RealmPrices.lua
-Logic\Contribute.lua
 Logic\TSMPrices.lua
 Logic\AuctionatorPrices.lua
 Logic\Cooldowns.lua
@@ -131,7 +125,6 @@ UI\KeepBox.lua
 UI\NeverMakeBox.lua
 UI\BuyQuantity.lua
 UI\AuctionsView.lua
-UI\FavorsView.lua
 UI\CraftPanel.lua
 UI\ProfessionOpener.lua
 UI\Disenchanter.lua
@@ -155,8 +148,6 @@ UI\RoadView.lua
 UI\Tab_LevelUp.lua
 UI\Welcome.lua
 UI\Tab_Disenchanting.lua
-UI\DealsFavor.lua
-UI\DealsWrits.lua
 UI\Tab_Deals.lua
 UI\Tab_Queue.lua
 UI\Tab_Gather.lua
