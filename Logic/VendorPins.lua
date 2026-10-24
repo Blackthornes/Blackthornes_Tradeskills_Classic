@@ -21,7 +21,9 @@
 -- wins over Classic's spot (the owner, 2026-10-22). Trainers the same way:
 -- each trainer window keeps where it stands (VendorPins:LearnTrainer) in
 -- `trainerSpots[npc ID] = { name, mapID, x, y, side, at }` (never rename
--- it), over the shipped `ns.FOREVER_TRAINER_SPOTS`.
+-- it), over the shipped `ns.FOREVER_TRAINER_SPOTS`. The Classic Era copy
+-- leaves the shipped file out of the TOC, so only what the game showed
+-- lies over Classic's spots there.
 -- One whose stock runs out is pinned only while the auction house has
 -- none (limited-stock items take the auction price when listed). Only
 -- vendors of the player's side, or of neither.
@@ -92,7 +94,9 @@ end
 function VendorPins:Known(kind)
     local trainer = kind == "trainer"
     local known = {}
-    for npcID, row in pairs((trainer and ns.FOREVER_TRAINER_SPOTS or ns.FOREVER_VENDOR_SPOTS) or {}) do
+    local shipped
+    if trainer then shipped = ns.FOREVER_TRAINER_SPOTS else shipped = ns.FOREVER_VENDOR_SPOTS end
+    for npcID, row in pairs(type(shipped) == "table" and shipped or {}) do
         if type(row) == "table" then
             known[npcID] = { name = row[1], mapID = row[2], x = row[3], y = row[4],
                 side = row[5], items = type(row[6]) == "table" and row[6] or {}, at = 0 }

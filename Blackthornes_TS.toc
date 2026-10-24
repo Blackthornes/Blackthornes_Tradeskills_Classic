@@ -42,9 +42,7 @@ Data\Mail.lua
 Data\Auctions.lua
 Data\VendorPrices.lua
 Data\VendorSpots.lua
-Data\ForeverVendorSpots.lua
 Data\RecipeBook.lua
-Data\ForeverRecipes.lua
 Data\LearnSpots.lua
 Data\Vendor.lua
 Data\WaylaidCrates.lua
