@@ -36,6 +36,7 @@ Data\PriceHistory.lua
 Data\StatsLog.lua
 Data\Scanner.lua
 Data\Recipes.lua
+Data\EraRecipes.lua
 Data\Inventory.lua
 Data\Mail.lua
 Data\Auctions.lua

@@ -1,7 +1,7 @@
 # Tradeskills Classic Era port: the plan
 
 Written 2026-10-24, after PR #1 (Interface 11509, Forever's CurseForge ID
-out and refused). Steps 1 and 2 are done. Each step is one small PR,
+out and refused). Steps 1, 2 and 3a are done. Each step is one small PR,
 built only after the owner's yes, merged only on his "merge it".
 
 Rules for every step: never touch the Forever repo; keep Forever-only
@@ -73,11 +73,28 @@ accounts and guild, the Butler, Farmer and Equipment calls.
    the share-data tick box and `/bts share data` go with Contribute.
    Saved settings (`favorGoal`, `writGoal`, `merchantsFavor`, `shareData`
    and the rest) stay in the save, unread. `tools/test_era.lua` checks it.
-3. **Profession windows, the Era way.** A reader for
-   `GetTradeSkillInfo`/`GetTradeSkillReagentInfo` (and `GetCraft*` for
-   Enchanting) that fills the same recipe records, picked by
-   `Compat:TradeskillMode()`; Craft buttons through `DoTradeSkill`/`DoCraft`.
-   Probably two PRs (reading, then crafting).
+3. **Profession windows, the Era way.** Two PRs.
+   - *3a, reading.* (Done, 2026-10-24.) `Data/EraRecipes.lua` reads the
+     old profession window (`GetTradeSkillInfo` and friends), Enchanting's
+     own window (`GetCraftInfo` and friends; Beast Training's is skipped)
+     and the professions and levels in the skill list (`GetSkillLineInfo`)
+     into the same records Forever's harvest makes, with Classic's skill
+     lines. A recipe is kept by its spell ID: the recipe link when the
+     client gives one, else Classic's book by what it makes, then by
+     name; one none of them finds is left out. A German client knows its
+     professions by a spell each teaches (`PROFESSION_SPELLS`). Recipes.lua
+     hands over only when the modern calls are missing (`GetProfessions`,
+     `ReadProfessionLines`, `HarvestSignature`, `Harvest`, the client's
+     profession names) and `SkillUp:ReadSkillLevels` likewise, so Forever
+     merges stay small. A bag change mid-craft reads nothing again unless
+     the lines or the skill moved. Tested in `tools/test_eraharvest.lua`.
+     Known gaps: a heading the player folded, or the window's filters, hide
+     those recipes until they show; Herbalism is known by name on an
+     English client only (it has no recipes).
+   - *3b, crafting.* Craft buttons through `DoTradeSkill`/`DoCraft`, and
+     the craft panel beside the old window (`UI/CraftPanel.lua`,
+     `Logic/Crafting.lua`). Mid-craft skipping then also uses the craft
+     under way.
 4. **Auction house, the Era way.** In several PRs: page scan of one item
    and of the shopping list; the whole-house scan; posting through the
    old sell slot (much of it exists); buying a row; your auctions and

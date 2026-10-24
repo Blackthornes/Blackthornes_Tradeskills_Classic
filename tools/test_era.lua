@@ -47,6 +47,7 @@ check("the TOC leaves out Forever's recipes", not toc:find("ForeverRecipes.lua",
 check("the TOC leaves out Forever's vendor spots", not toc:find("ForeverVendorSpots.lua", 1, true))
 check("the TOC keeps Classic's recipe book", toc:find("\nData\\RecipeBook.lua", 1, true) ~= nil)
 check("the TOC keeps Classic's vendor spots", toc:find("\nData\\VendorSpots.lua", 1, true) ~= nil)
+check("the TOC reads Era's profession windows", toc:find("\nData\\EraRecipes.lua", 1, true) ~= nil)
 check("the files stay in the repo", io.open(lfs_cwd .. "/Data/ForeverRecipes.lua") ~= nil
     and io.open(lfs_cwd .. "/Data/ForeverVendorSpots.lua") ~= nil)
 

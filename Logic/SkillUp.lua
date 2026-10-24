@@ -236,7 +236,9 @@ end
 function SkillUp:ReadSkillLevels()
     local levels = {}
 
-    if not Util.HasFunction("C_TradeSkillUI.GetAllProfessionTradeSkillLines") then return levels end
+    if not Util.HasFunction("C_TradeSkillUI.GetAllProfessionTradeSkillLines") then
+        return ns.EraRecipes and ns.EraRecipes:SkillLevels() or levels
+    end
     if not Util.HasFunction("C_TradeSkillUI.GetProfessionInfoBySkillLineID") then return levels end
 
     local ok, skillLines = pcall(C_TradeSkillUI.GetAllProfessionTradeSkillLines)
