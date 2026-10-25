@@ -130,6 +130,13 @@ loads them, and every reader asks for them first.
   paragraph (the owner, 2026-10-24). `UI/About.lua` is shared with Forever;
   a catch-up that brings the paragraph back keeps Classic's.
 
+- A vendor's list is read with `GetMerchantItemInfo` when the client has
+  no `C_MerchantFrame.GetItemInfo` (Era), laid into the same shape
+  (`Vendor.MerchantItemInfo` in `Data/Vendor.lua`), so the Buy materials
+  run and Butler's Buy button work at Era's vendors. A catch-up that brings
+  `Vendor:Scan` back keeps the fallback. Tested in
+  `tools/test_eramerchant.lua`.
+
 ## Not yet done
 - Steps 3b (Craft buttons through `DoTradeSkill`/`DoCraft`, the craft panel
   beside the old window), 4 (the auction house), 5 (the probe in Era) and

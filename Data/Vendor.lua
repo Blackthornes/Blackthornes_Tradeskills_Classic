@@ -208,8 +208,29 @@ local function GetMerchantItemID(index, info)
     return nil, "unresolved"
 end
 
+-- Era has no C_MerchantFrame.GetItemInfo, only the classic call, whose
+-- returns are laid into the same shape here.
+local function MerchantItemInfo(index)
+    if Util.HasFunction("C_MerchantFrame.GetItemInfo") then
+        local ok, info = pcall(C_MerchantFrame.GetItemInfo, index)
+        if ok and type(info) == "table" then return info end
+    end
+    if Util.HasFunction("GetMerchantItemInfo") then
+        local ok, name, _, price, stackCount, numAvailable, _, _, extendedCost =
+            pcall(GetMerchantItemInfo, index)
+        if ok and name then
+            return { name = name, price = price, stackCount = stackCount,
+                numAvailable = numAvailable, hasExtendedCost = extendedCost }
+        end
+    end
+    return nil
+end
+Vendor.MerchantItemInfo = MerchantItemInfo
+
 function Vendor:Scan()
-    if not Util.HasFunction("C_MerchantFrame.GetItemInfo") then return 0 end
+    if not (Util.HasFunction("C_MerchantFrame.GetItemInfo") or Util.HasFunction("GetMerchantItemInfo")) then
+        return 0
+    end
 
     -- Rebuilt every scan: merchant slot indices are only valid for the vendor
     -- currently open.
@@ -229,9 +250,9 @@ function Vendor:Scan()
     local learned, unresolved = 0, 0
 
     for index = 1, numItems do
-        local ok, info = pcall(C_MerchantFrame.GetItemInfo, index)
+        local info = MerchantItemInfo(index)
 
-        if ok and info and info.price and info.price > 0 then
+        if info and type(info.price) == "number" and info.price > 0 then
             local itemID, method = GetMerchantItemID(index, info)
 
             if itemID then
