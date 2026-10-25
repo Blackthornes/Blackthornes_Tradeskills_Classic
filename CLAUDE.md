@@ -1475,7 +1475,11 @@ saw the item a whole day later (the owner said yes to a player's idea,
 2026-10-22; `AuctionatorPrices:NewerThan`, from
 `Auctionator.API.v1.GetAuctionAgeByItemID`, kept 60 s), as guild and
 realm prices may; only for a stale price neither of those replaced. "Auctionator prices" (`auctionatorPrices`, on unless unticked,
-never rename it). Tested in `tools/test_auctionatorprices.lua`.
+never rename it). "Price Order:" under OTHER PRICE ADDONS (the
+owner, 2026-10-25) picks TSM First or Auctionator First (`priceOrder`,
+"tsm" unless picked, never rename it): it only swaps which of the two
+fills a gap; your scans, guild, realm and set prices still come first.
+Farmer has the same choice for when Tradeskills isn't loaded. Tested in `tools/test_auctionatorprices.lua`.
 
 Farmer shares its own counts the same way (2026-10-11): its `Core/Comm.lua`
 and `Core/Serialize.lua` are copies of ours (prefix `BFRshare` instead of

@@ -785,7 +785,8 @@ end
 -- Rival stays the auction house's own, since it is the price to undercut.
 -- Gaps take your guild's prices, then your realm's (Logic/GuildPrices.lua,
 -- Logic/RealmPrices.lua); an item nobody has priced may take TradeSkillMaster's (Logic/TSMPrices.lua),
--- then Auctionator's (Logic/AuctionatorPrices.lua). A stale price of your
+-- then Auctionator's (Logic/AuctionatorPrices.lua), or the other way round
+-- when "Price Order:" says Auctionator first (`priceOrder`). A stale price of your
 -- own also gives way to Auctionator's when Auctionator saw the item later.
 -- GetScanValue answers from the scans alone.
 function Prices:GetValue(itemID, which)
@@ -828,6 +829,16 @@ function Prices:GetValue(itemID, which)
 
     -- TradeSkillMaster's price (Logic/TSMPrices.lua, on unless unticked)
     -- only for an item neither you, your guildmates nor your realm have priced.
+    -- With "Price Order:" set to Auctionator first (`priceOrder`), Auctionator
+    -- is asked before TSM here.
+    local auctionatorFirst = ns.Config and ns.Config:Get("priceOrder") == "auctionator"
+    if not scanned and auctionatorFirst then
+        local auctionator = ns.AuctionatorPrices
+        if auctionator and auctionator.GetValue then
+            scanned = auctionator:GetValue(itemID, which)
+            if scanned and auctionator.Used then auctionator:Used() end
+        end
+    end
     if not scanned then
         local tsm = ns.TSMPrices
         if tsm and tsm.GetValue then

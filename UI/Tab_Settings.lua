@@ -1843,6 +1843,19 @@ local function Build(outer)
     widgets.auctionatorStatus:SetWidth(COLUMN_WIDTH)
     widgets.auctionatorStatus:SetWordWrap(true)
 
+    -- Price Order (the owner, 2026-10-25): which of TSM and Auctionator
+    -- fills a gap first. Your own scans and set prices always come first.
+    local orderRow = CreateRow(pages.sharing, 2, L["Price Order:"],
+        L["Picks which addon's price is used first when both have one. Your own scans always win."])
+    widgets.priceOrder = Widgets.CreateDropdown(orderRow, {
+        { text = L["TSM First"], value = "tsm" },
+        { text = L["Auctionator First"], value = "auctionator" },
+    }, function(value)
+        Config:Set("priceOrder", value)
+        UI:RefreshActiveTab()
+    end, { width = 130 })
+    widgets.priceOrder:SetPoint("TOPLEFT", CONTROL_X, 0)
+
     -- The buttons standing on their own, so the search finds them too.
     Searchable(pages.queue, exportButton, L["Export queue Copy your queue, settings and stock limits as a code"])
     Searchable(pages.queue, importButton, L["Import Load a code"])
@@ -2320,6 +2333,7 @@ local function Refresh()
     widgets.arrowRoute:SetChecked(type(ns.db) == "table" and ns.db.arrowRoute ~= false)
     widgets.useTomTom:SetChecked(type(ns.db) ~= "table" or ns.db.useTomTom ~= false)
     widgets.goldTracker:SetChecked(Config:Get("goldTracker") == true)
+    widgets.priceOrder:SetValue(Config:Get("priceOrder") == "auctionator" and "auctionator" or "tsm", true)
     widgets.goldCount:SetValue(Config:Get("goldTrackerCount") == "character" and "character" or "all", true)
     local goldGoal = ns.GoldGoal and ns.GoldGoal:Goal()
     widgets.goldSeeThrough:SetValue(ns.GoldGoalUI and ns.GoldGoalUI.SeeThroughLevel()
