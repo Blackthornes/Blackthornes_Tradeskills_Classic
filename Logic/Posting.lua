@@ -312,6 +312,41 @@ end
 -- Finding stock
 --------------------------------------------------------------------------------
 
+-- Era's auction slot (2026-10-25, the owner saw "Internal auction error"):
+-- a stack put in the auction slot and listed in the same click is refused,
+-- since the server has not taken the stack into the slot yet. So the next
+-- stack goes in ahead of the click (Posting:PrepareNext), and a click lists
+-- only what the slot already holds. While it sits there its bag slot is
+-- locked; that one slot still counts as the item's.
+local held   -- { itemID, bag, slot, at, ready }
+local HELD_SETTLE = 1   -- seconds before a stack put in counts as taken
+
+--- The auction slot's item: its name and item ID (nil when the client
+--- does not say), or nil when it is empty.
+local function SellSlotItem()
+    if type(_G.GetAuctionSellItemInfo) ~= "function" then return nil end
+    local ok, name, _, _, _, _, _, _, _, _, id = pcall(GetAuctionSellItemInfo)
+    if not ok or not name then return nil end
+    return name, tonumber(id)
+end
+
+--- Whether the auction slot holds this item.
+local function SellSlotHolds(itemID)
+    local name, id = SellSlotItem()
+    if not name then return false end
+    if id then return id == itemID end
+    local getInfo = (type(C_Item) == "table" and C_Item.GetItemInfo) or _G.GetItemInfo
+    if type(getInfo) ~= "function" then return false end
+    local ok, wanted = pcall(getInfo, itemID)
+    return ok and wanted ~= nil and wanted == name
+end
+
+--- The bag slot whose stack sits in the auction slot, for this item.
+local function HeldSlot(itemID)
+    if not held or held.itemID ~= itemID or not SellSlotHolds(itemID) then return nil end
+    return held.bag, held.slot
+end
+
 --- Bag slot holding an item, skipping locked slots.
 -- @return bag, slot, stackCount
 local function FindInBags(itemID)
@@ -331,6 +366,15 @@ local function FindInBags(itemID)
             end
         end
     end
+
+    -- Era: the stack waiting in the auction slot, its bag slot locked.
+    local heldBag, heldSlot = HeldSlot(itemID)
+    if heldBag then
+        local infoOk, info = pcall(C_Container.GetContainerItemInfo, heldBag, heldSlot)
+        if infoOk and info and info.itemID == itemID then
+            return heldBag, heldSlot, info.stackCount or 1
+        end
+    end
 end
 
 --- Everything the character is carrying, from one walk of the bags.
@@ -348,6 +392,8 @@ end
 --   the same as FindInBags finding nothing: it cannot be listed right now.
 local function IndexBags()
     local order, slots = {}, {}
+    local heldBag, heldSlot
+    if held then heldBag, heldSlot = HeldSlot(held.itemID) end
 
     for _, bag in ipairs(ns.Inventory:GetCarriedBags()) do
         local slotsOk, count = pcall(C_Container.GetContainerNumSlots, bag)
@@ -366,7 +412,9 @@ local function IndexBags()
                         order[#order + 1] = itemID
                     end
 
-                    if not entry.bag and not info.isLocked then
+                    local usable = not info.isLocked
+                        or (bag == heldBag and slot == heldSlot)
+                    if not entry.bag and usable then
                         entry.bag, entry.slot = bag, slot
                         entry.stackCount = info.stackCount or 1
                         -- The copy that will be listed, so a random suffix
@@ -1431,9 +1479,15 @@ function Posting:OnEnable()
     -- Walking away with a confirmation still up takes it down too. Left up,
     -- its Yes could list later, back at the auction house, at a price
     -- checked minutes before.
+    -- Era: the auction slot changed. A stack put in has been taken.
+    ns.RegisterEvent(self, "NEW_AUCTION_UPDATE", function()
+        if held and SellSlotHolds(held.itemID) then held.ready = true end
+    end)
+
     ns.RegisterEvent(self, "AUCTION_HOUSE_CLOSED", function()
         -- Prices move while away: the next visit checks them again.
         Posting:ForgetChecks()
+        held = nil
 
         local data = Posting.confirming
         Posting.confirming = nil
@@ -1489,44 +1543,67 @@ function Posting.IsLegacy()
     return ns.LegacyScan ~= nil and ns.LegacyScan.Applies ~= nil and ns.LegacyScan:Applies() == true
 end
 
---- List one stack the Era way: the bag slot into the auction slot, then
---- PostAuction with the stack's price. Bid and buyout are the same, so
+--- Put a bag slot's stack in Era's auction slot, sending back whatever was
+--- there. Needs no click, so it can be done ahead of one.
+-- @return true when the stack went in
+local function PlaceInSellSlot(itemID, bag, slot)
+    local pickup = C_Container and C_Container.PickupContainerItem or _G.PickupContainerItem
+    if type(pickup) ~= "function" or type(_G.ClickAuctionSellItemButton) ~= "function" then
+        return false
+    end
+    local button = _G.AuctionsItemButton
+
+    pcall(ClearCursor)
+
+    -- Something already in the auction slot goes back to the bags first.
+    if SellSlotItem() then
+        pcall(ClickAuctionSellItemButton, button, "LeftButton")
+        pcall(ClearCursor)
+    end
+
+    if not pcall(pickup, bag, slot) then
+        pcall(ClearCursor)
+        return false
+    end
+    local placed = pcall(ClickAuctionSellItemButton, button, "LeftButton")
+    pcall(ClearCursor)
+    if not placed then return false end
+
+    held = { itemID = itemID, bag = bag, slot = slot, at = GetTime() }
+    return true
+end
+
+--- Whether the stack put in the auction slot has had time to be taken.
+local function HeldReady(itemID)
+    if not HeldSlot(itemID) then return false end
+    return held.ready == true or GetTime() - (held.at or 0) >= HELD_SETTLE
+end
+
+--- List one stack the Era way: PostAuction on the stack already in the
+--- auction slot, at the stack's price. Bid and buyout are the same, so
 --- nobody wins it for less than the price shown. The click that called it
 --- is the hardware event PostAuction needs.
+--
+-- A stack not yet in the slot is put in, and this click lists nothing
+-- ("placed"): listing in the same click is refused with the game's
+-- "Internal auction error" (seen 2026-10-25).
 --
 -- Never StartAuction while PostAuction is there: Era still has the old
 -- name, but calling it is refused and the game's "This addon has been
 -- disabled" box comes up (seen 2026-10-25). StartAuction is only for a
 -- client with no PostAuction.
--- @return true, or false and the game's reason (may be nil)
-local function LegacyStart(bag, slot, quantity, unitPrice, duration)
-    local pickup = C_Container and C_Container.PickupContainerItem or _G.PickupContainerItem
+-- @return true; or false and "placed"; or false and the game's reason (may be nil)
+local function LegacyStart(itemID, bag, slot, quantity, unitPrice, duration)
     local postAuction = type(_G.PostAuction) == "function" and _G.PostAuction or nil
     local start = not postAuction and type(_G.StartAuction) == "function" and _G.StartAuction or nil
-    if type(pickup) ~= "function" or type(_G.ClickAuctionSellItemButton) ~= "function"
-            or not (postAuction or start) then
-        return false, nil
-    end
+    if not (postAuction or start) then return false, nil end
 
-    pcall(ClearCursor)
-
-    -- Something already in the auction slot would be listed instead: put it
-    -- back in the bags first.
-    if type(_G.GetAuctionSellItemInfo) == "function" then
-        local okInfo, name = pcall(GetAuctionSellItemInfo)
-        if okInfo and name then
-            pcall(ClickAuctionSellItemButton)
-            pcall(ClearCursor)
-        end
+    local heldBag, heldSlot = HeldSlot(itemID)
+    if heldBag ~= bag or heldSlot ~= slot then
+        if not PlaceInSellSlot(itemID, bag, slot) then return false, nil end
+        return false, "placed"
     end
-
-    if not pcall(pickup, bag, slot) then
-        pcall(ClearCursor)
-        return false, nil
-    end
-    local placed = pcall(ClickAuctionSellItemButton)
-    pcall(ClearCursor)
-    if not placed then return false, nil end
+    if not HeldReady(itemID) then return false, "placed" end
 
     local stackPrice = math.max(1, math.floor(unitPrice * quantity))
     local ok, err
@@ -1538,7 +1615,28 @@ local function LegacyStart(bag, slot, quantity, unitPrice, duration)
         ok, err = pcall(start, stackPrice, stackPrice, duration, quantity, 1)
     end
     pcall(ClearCursor)
+    if ok then held = nil end
     return ok, err
+end
+
+--- Era: put the next stack List Next will list in the auction slot, so the
+--- click after lists it. Out of a fight, at the auction house, with nothing
+--- on the cursor; a stack already there for it stays.
+function Posting:PrepareNext()
+    if not Posting.IsLegacy() or not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+    if CursorHasItem and CursorHasItem() then return end
+
+    local lines
+    if ns.PostPanel and ns.PostPanel.ShownLines then
+        local ok, shown = pcall(ns.PostPanel.ShownLines, ns.PostPanel)
+        lines = ok and shown or nil
+    end
+    local line = self:GetNextPostable({ skipSettling = true }, lines)
+    if not line or HeldSlot(line.itemID) then return end
+
+    local bag, slot = FindInBags(line.itemID)
+    if bag then PlaceInSellSlot(line.itemID, bag, slot) end
 end
 
 function Posting:Post(itemID, quantity, unitPrice, byHand)
@@ -1698,7 +1796,7 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
 
     local ok, err
     if legacy then
-        ok, err = LegacyStart(bag, slot, quantity, unitPrice, duration)
+        ok, err = LegacyStart(itemID, bag, slot, quantity, unitPrice, duration)
     elseif isCommodity then
         ok, err = pcall(C_AuctionHouse.PostCommodity, location, duration, quantity, unitPrice)
     else
@@ -1721,7 +1819,12 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
         self.pending = savedPending
         self.others = savedOthers
 
-        if err == nil then
+        if err == "placed" then
+            -- Era: the stack is going into the auction slot; the next
+            -- click lists it.
+            ns.Print(L.Format("%s is ready to list. Click again to list it.",
+                Util.GetItemLabel(itemID)))
+        elseif err == nil then
             -- Era: the stack never reached the auction slot.
             ns.Warn(L["could not find that item in your bags"])
         elseif tostring(err):lower():find("addon") then
@@ -1750,6 +1853,9 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     -- wait, then ask the server what is actually listed.
     local listing = self.pending
     C_Timer.After(POST_VERIFY_DELAY, function() Posting:VerifyPending(listing) end)
+
+    -- Era: the next stack goes in the auction slot once the bags catch up.
+    if legacy then C_Timer.After(HELD_SETTLE, function() Posting:PrepareNext() end) end
     return true
 end
 
@@ -2359,6 +2465,7 @@ function Posting:CheckAllLegacy(lines)
             if check.found > 0 then
                 ns.Print(L.Format("checked the prices of %d items. Each click on List all now lists one.", check.found))
             end
+            Posting:PrepareNext()
             if ns.UI and ns.UI.RefreshActiveTab then pcall(ns.UI.RefreshActiveTab, ns.UI) end
             Redraw()
             return

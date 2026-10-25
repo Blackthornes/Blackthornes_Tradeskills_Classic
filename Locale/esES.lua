@@ -466,6 +466,7 @@ L["%s: you have %d listed now. This was the first check since the auction house 
 L["%s did not appear in your auctions."] = "%s no apareció en tus subastas."
 L["listing several at once may not work here, so the next click lists one."] = "publicar varios a la vez puede que no funcione aquí, así que el siguiente clic publica uno."
 L["Nothing was listed. Click it again to try once more."] = "No se puso nada a la venta. Haz clic otra vez para volver a intentarlo."
+L["%s is ready to list. Click again to list it."] = "%s está listo para poner a la venta. Haz clic otra vez para ponerlo."
 L["could not tell whether that listing went up. Check your Auctions tab"] = "no se pudo saber si esa subasta se publicó. Mira tu pestaña Subastas"
 L["check how often the auction house is ready for requests"] = "revisa cada cuánto está lista la casa de subastas para recibir peticiones"
 L["try one listing and show every step: /bts posttest [name]"] = "prueba una subasta y muestra cada paso: /bts posttest [nombre]"

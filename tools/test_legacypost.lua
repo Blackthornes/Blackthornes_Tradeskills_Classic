@@ -12,6 +12,9 @@
 --      saying so once, and the clicks after it list with no box.
 --   5. Your auctions are read from Era's own list, so a listing is
 --      confirmed as gone up.
+--   6. A stack put in the auction slot is never listed in the same click
+--      (Era answers "Internal auction error"): the first click puts it in,
+--      the next lists it, and the next stack goes in ahead of its click.
 
 local GLOBALS = { "CreateFrame", "C_Container", "ItemLocation", "GetTime", "time", "C_Timer",
     "StaticPopupDialogs", "StaticPopup_Show", "StaticPopup_Hide", "StaticPopup_Visible",
@@ -65,13 +68,16 @@ local function FillBags()
 end
 FillBags()
 
--- The cursor and the auction slot, as Era keeps them.
+-- The cursor and the auction slot, as Era keeps them. A stack in the
+-- auction slot stays in its bag slot, locked; a listed one is gone.
 local cursor, sellSlot, calls = nil, nil, {}
 C_Container = {
     GetContainerNumSlots = function(bag) return bags[bag] and #bags[bag] or 0 end,
     GetContainerItemInfo = function(bag, slot)
         local e = bags[bag] and bags[bag][slot]
-        if e then return { itemID = e.itemID, stackCount = e.stackCount } end
+        if e and not e.gone then
+            return { itemID = e.itemID, stackCount = e.stackCount, isLocked = e == sellSlot }
+        end
     end,
     GetContainerItemLink = function() return nil end,
     PickupContainerItem = function(bag, slot)
@@ -85,7 +91,11 @@ ClickAuctionSellItemButton = function()
     calls[#calls + 1] = "slot"
     cursor, sellSlot = sellSlot, cursor
 end
-GetAuctionSellItemInfo = function() if sellSlot then return "item" end end
+GetAuctionSellItemInfo = function()
+    if sellSlot then
+        return "item", nil, sellSlot.stackCount, nil, nil, nil, nil, nil, nil, sellSlot.itemID
+    end
+end
 
 -- Your auctions: { itemID, count, buyout }.
 local owned = {}
@@ -95,7 +105,10 @@ local function Listed(bid, buyout, duration, stackSize, numStacks, acknowledged)
     started[#started + 1] = { bid = bid, buyout = buyout, duration = duration,
         stackSize = stackSize, numStacks = numStacks, item = sellSlot and sellSlot.itemID,
         acknowledged = acknowledged }
-    if sellSlot then owned[#owned + 1] = { sellSlot.itemID, stackSize, buyout } end
+    if sellSlot then
+        owned[#owned + 1] = { sellSlot.itemID, stackSize, buyout }
+        sellSlot.gone = true
+    end
     sellSlot = nil
 end
 PostAuction = Listed
@@ -130,7 +143,12 @@ local ns = {}
 ns.COLORS = setmetatable({}, { __index = function() return "ffffffff" end })
 ns.NewModule = function(name) local m = {}; ns[name] = m; return m end
 ns.RegisterCommand = noop
-ns.RegisterEvent = function() return true end
+local handlers = {}
+ns.RegisterEvent = function(_, event, fn)
+    handlers[event] = handlers[event] or {}
+    table.insert(handlers[event], fn)
+    return true
+end
 ns.Print = function(text) said[#said + 1] = text end
 ns.Warn = function(text) said[#said + 1] = "WARN " .. text end
 ns.PrintRaw, ns.Debug = noop, noop
@@ -190,6 +208,9 @@ ns.AHQueue = {
     Request = function() return true end,
 }
 ns.UI = { RefreshActiveTab = noop, UpdatePostButton = noop, OnAuctionsUpdated = noop }
+-- What the drawer's Sell list shows, for the stack put in ahead.
+local shown = {}
+ns.PostPanel = { ShownLines = function() return shown end }
 
 assert(loadfile(lfs_cwd .. "/Core/Util.lua"))("Blackthornes_TS", ns)
 assert(loadfile(lfs_cwd .. "/Logic/Posting.lua"))("Blackthornes_TS", ns)
@@ -215,10 +236,19 @@ end
 
 local function Reset()
     said, popup, searches, started, calls, owned, timers = {}, nil, {}, {}, {}, {}, {}
-    cursor, sellSlot = nil, nil
+    cursor, sellSlot, shown = nil, nil, {}
     Posting.confirming, Posting.pending, Posting.others, Posting.requesting = nil, nil, nil, {}
     Posting:ForgetChecks()
     FillBags()
+    -- Leaving the auction house forgets a stack put in.
+    for _, h in ipairs(handlers.AUCTION_HOUSE_CLOSED or {}) do h() end
+end
+
+-- A click that lists: the first puts the stack in, the next lists it.
+local function PostTwice(itemID, quantity, price)
+    Posting:Post(itemID, quantity, price)
+    Advance(1)
+    return pcall(Posting.Post, Posting, itemID, quantity, price)
 end
 
 print("")
@@ -226,7 +256,17 @@ print("one listing")
 
 Reset()
 local ok = pcall(Posting.Post, Posting, SCORPID, 10, 11)
-check("it does not raise", ok, true)
+check("the first click does not raise", ok, true)
+check("it lists nothing yet", #started, 0)
+check("the stack is in the auction slot", sellSlot and sellSlot.itemID, SCORPID)
+check("it says the next click lists it", Said("is ready to list"), 1)
+check("no warning", Said("WARN"), 0)
+Posting:Post(SCORPID, 10, 11)
+check("a click straight after still waits", #started, 0)
+check("and keeps the stack in the slot", sellSlot and sellSlot.itemID, SCORPID)
+Advance(1)
+ok = pcall(Posting.Post, Posting, SCORPID, 10, 11)
+check("the next click does not raise", ok, true)
 check("PostAuction is called", #started, 1)
 check("never the old StartAuction", oldCalls, 0)
 check("with the maintenance warning read", started[1] and started[1].acknowledged, true)
@@ -239,6 +279,15 @@ check("of the item asked for", started[1] and started[1].item, SCORPID)
 check("nothing left on the cursor", cursor, nil)
 
 print("")
+print("the game says the slot took it")
+
+Reset()
+Posting:Post(SCORPID, 10, 11)
+for _, h in ipairs(handlers.NEW_AUCTION_UPDATE or {}) do h() end
+Posting:Post(SCORPID, 10, 11)
+check("the next click lists it at once", #started, 1)
+
+print("")
 print("Yes on the box")
 
 Reset()
@@ -247,14 +296,17 @@ check("the box shows", popup ~= nil, true)
 local accept = StaticPopupDialogs.BLACKTHORNES_TS_CONFIRM_POST.OnAccept
 ok = pcall(accept, popup)
 check("Yes does not raise", ok, true)
-check("Yes lists it", #started, 1)
+check("Yes puts the stack in", sellSlot and sellSlot.itemID, SCORPID)
+Advance(1)
+Posting:Post(SCORPID, 10, 11)
+check("and the next click lists it", #started, 1)
 
 print("")
 print("something left in the auction slot")
 
 Reset()
 sellSlot = { itemID = 9999 }
-Posting:Post(LINEN, 17, 29)
+PostTwice(LINEN, 17, 29)
 check("it goes back first", calls[1], "slot")
 check("then the stack goes in", started[1] and started[1].item, LINEN)
 
@@ -262,7 +314,8 @@ print("")
 print("checking the list, then listing")
 
 Reset()
-local lines = { { itemID = SCORPID }, { itemID = LINEN } }
+local lines = { { itemID = SCORPID, unitPrice = 11 }, { itemID = LINEN, unitPrice = 29 } }
+shown = lines
 local began, count = Posting:CheckAll(lines)
 check("the first click checks", began, true)
 check("both items", count, 2)
@@ -275,12 +328,16 @@ Answer(2)
 Advance(0.1)
 check("the check is done", Posting:CheckingAll(), false)
 check("said once when done", Said("checked the prices of 2 items"), 1)
+check("the first stack goes in ahead", sellSlot and sellSlot.itemID, SCORPID)
 check("no line for each item", Said("checking the current price"), 0)
 check("now the button lists", Posting:WouldCheckAll(lines[1], lines), false)
+check("nothing listed by the check", #started, 0)
+Advance(1)
 Posting:Request(SCORPID, 10, 11)
 check("a click lists it", #started, 1)
 check("with no box", popup, nil)
 check("and no search", #searches, 2)
+-- The check put the first stack in, so the click above listed it.
 
 print("")
 print("a search that never answers")
@@ -295,7 +352,7 @@ print("the listing is confirmed")
 
 Reset()
 ns.Auctions:ReadOwned()   -- as on opening the auction house
-Posting:Post(SCORPID, 10, 11)
+PostTwice(SCORPID, 10, 11)
 check("waiting to be confirmed", Posting.pending ~= nil, true)
 Advance(20)
 check("confirmed", Posting.pending, nil)
@@ -303,12 +360,35 @@ check("said it went up", Said("listed 10 x"), 1)
 check("your auctions read from Era's list", ns.Auctions:GetOwnPostedCount(SCORPID), 10)
 
 print("")
+print("after a listing, the next stack goes in")
+
+Reset()
+shown = { { itemID = SCORPID, unitPrice = 11 }, { itemID = LINEN, unitPrice = 29 } }
+ns.Auctions:ReadOwned()
+PostTwice(SCORPID, 10, 11)
+check("listed", #started, 1)
+Advance(20)
+check("the next stack is in the slot", sellSlot and sellSlot.itemID, LINEN)
+Posting:Post(LINEN, 17, 29)
+check("one click lists it", #started, 2)
+
+print("")
+print("walking away")
+
+Reset()
+Posting:Post(SCORPID, 10, 11)
+for _, h in ipairs(handlers.AUCTION_HOUSE_CLOSED or {}) do h() end
+sellSlot = nil   -- the game sends it back to the bags
+Posting:Post(SCORPID, 10, 11)
+check("the stack goes in again, nothing listed", #started, 0)
+
+print("")
 print("a client with only the old StartAuction")
 
 Reset()
 PostAuction = nil
 StartAuction = Listed
-Posting:Post(SCORPID, 10, 11)
+PostTwice(SCORPID, 10, 11)
 check("lists with StartAuction", #started, 1)
 check("at the stack's price", started[1] and started[1].buyout, 110)
 

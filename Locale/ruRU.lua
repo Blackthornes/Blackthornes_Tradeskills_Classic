@@ -467,6 +467,7 @@ L["%s: you have %d listed now. This was the first check since the auction house 
 L["%s did not appear in your auctions."] = "%s не появился в твоих аукционах."
 L["listing several at once may not work here, so the next click lists one."] = "выставлять несколько сразу здесь может не получиться, поэтому следующее нажатие выставит один."
 L["Nothing was listed. Click it again to try once more."] = "Ничего не выставлено. Нажми ещё раз, чтобы попробовать снова."
+L["%s is ready to list. Click again to list it."] = "%s готово к выставлению. Нажми ещё раз, чтобы выставить."
 L["could not tell whether that listing went up. Check your Auctions tab"] = "не удалось понять, выставился ли лот. Загляни на свою вкладку аукционов"
 L["check how often the auction house is ready for requests"] = "проверяет, как часто аукцион готов к запросам"
 L["try one listing and show every step: /bts posttest [name]"] = "пробует один лот и показывает каждый шаг: /bts posttest [название]"

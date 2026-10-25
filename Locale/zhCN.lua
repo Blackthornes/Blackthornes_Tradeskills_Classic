@@ -463,6 +463,7 @@ L["%s: you have %d listed now. This was the first check since the auction house 
 L["%s did not appear in your auctions."] = "%s 没有出现在你的拍卖里。"
 L["listing several at once may not work here, so the next click lists one."] = "在这里一次上架好几件可能不行，所以下次点击只上架一件。"
 L["Nothing was listed. Click it again to try once more."] = "没有上架任何物品。再点一次重试。"
+L["%s is ready to list. Click again to list it."] = "%s 已准备好上架。再点一次即可上架。"
 L["could not tell whether that listing went up. Check your Auctions tab"] = "看不出那件拍卖有没有上架。看看你的拍卖标签页"
 L["check how often the auction house is ready for requests"] = "检查拍卖行多久能接受一次请求"
 L["try one listing and show every step: /bts posttest [name]"] = "试着上架一件并显示每一步：/bts posttest [name]"
