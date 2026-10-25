@@ -83,6 +83,16 @@ check("and asked again after", #asked == before + 1)
 TSM_API = { GetCustomPriceValue = function() return 500 end }
 Auc:Forget()
 check("TSM's price comes before Auctionator's", Prices:GetValue(2590) == 500)
+-- Price Order set to Auctionator first (the owner, 2026-10-25).
+settings.priceOrder = "auctionator"
+Auc:Forget()
+check("Auctionator first takes Auctionator's price", Prices:GetValue(2590) == 778)
+price = nil
+Auc:Forget()
+check("Auctionator first still falls back to TSM", Prices:GetValue(2590) == 500)
+price = 777.6
+settings.priceOrder = nil
+Auc:Forget()
 TSM_API = nil
 
 priceTable[2589] = { market = 300, scans = 1, history = {}, seen = time() }

@@ -3239,3 +3239,7 @@ L["Shows guildmates online who can make a craft. Your guild sees which recipes y
 L["Guildmates who can make it:"] = "Compañeros de hermandad que pueden fabricarlo:"
 L["Click to whisper %s."] = "Haz clic para susurrar a %s."
 L["+%d more"] = "+%d más"
+L["Price Order:"] = "Orden de precios:"
+L["Picks which addon's price is used first when both have one. Your own scans always win."] = "Elige qué addon da su precio primero cuando los dos tienen uno. Tus propios escaneos siempre van primero."
+L["TSM First"] = "Primero TSM"
+L["Auctionator First"] = "Primero Auctionator"

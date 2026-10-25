@@ -3236,3 +3236,7 @@ L["Shows guildmates online who can make a craft. Your guild sees which recipes y
 L["Guildmates who can make it:"] = "能制作它的公会成员："
 L["Click to whisper %s."] = "点击密语 %s。"
 L["+%d more"] = "还有 +%d"
+L["Price Order:"] = "价格顺序："
+L["Picks which addon's price is used first when both have one. Your own scans always win."] = "两个插件都有价格时，选择先用哪一个。你自己的扫描始终优先。"
+L["TSM First"] = "TSM 优先"
+L["Auctionator First"] = "Auctionator 优先"
