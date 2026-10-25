@@ -157,4 +157,34 @@ check("a second click buys no more", #ns.db.queueBuys == 1)
 check("never an upgrade to buy", Queue:ForUpgrade(GAUNTLETS) == nil)
 bags[GAUNTLETS] = nil
 
+print("\nlearning the recipe queues the craft (Road to 300's Queue Step)")
+
+ns.db.queue, ns.db.queueBuys = {}, {}
+ns.db.characters = { ["Ana-Realm"] = { recipes = {} } }
+selfKey = "Ana-Realm"
+Queue:EnsureBuy(BAR, 40, nil, { recipeID = GAUNTLETS_RECIPE, name = "Gauntlets", crafts = 5 })
+Queue:EnsureBuy(STONE, 10, nil, { recipeID = GAUNTLETS_RECIPE, name = "Gauntlets", crafts = 5 })
+check("the line keeps how many crafts it was for", ns.db.queueBuys[1].forRecipeCrafts == 5)
+check("nothing is queued while the recipe is unknown", Queue:QueueLearned() == 0
+    and #ns.db.queue == 0 and #ns.db.queueBuys == 2)
+ns.db.characters["Ana-Realm"].recipes[GAUNTLETS_RECIPE] = recipes[GAUNTLETS_RECIPE]
+check("once learned, the craft goes in the queue", Queue:QueueLearned() == 1)
+local _, entry = Queue:Find(GAUNTLETS_RECIPE, true)
+check("as many crafts as the step asked for", entry and entry.quantity == 5)
+check("and its materials leave the list to buy", #ns.db.queueBuys == 0)
+check("a second look queues nothing more", Queue:QueueLearned() == 0)
+
+ns.db.queue, ns.db.queueBuys = {}, {}
+table.insert(ns.db.queueBuys, { itemID = BAR, count = 24, forRecipe = GAUNTLETS_RECIPE,
+    forRecipeName = "Gauntlets", owner = "Ana-Realm" })
+Queue:QueueLearned()
+_, entry = Queue:Find(GAUNTLETS_RECIPE, true)
+check("an older line works out its crafts from its count", entry and entry.quantity == 3)
+
+ns.db.queue, ns.db.queueBuys = {}, {}
+table.insert(ns.db.queueBuys, { itemID = BAR, count = 8, forRecipe = GAUNTLETS_RECIPE,
+    forRecipeCrafts = 1, owner = "Bob-Realm" })
+check("another character's line is left alone", Queue:QueueLearned() == 0 and #ns.db.queueBuys == 1)
+ns.db.characters = nil
+
 print(("\n%d checks passed"):format(checks))

@@ -486,6 +486,9 @@ function EraRecipes:Harvest()
                 ns.Debug(("saved %d new and %d updated recipe(s)"):format(added, updated))
             end
             if added > 0 and ns.Mail and ns.Mail.ForgetOutputSet then ns.Mail:ForgetOutputSet() end
+            -- A recipe learned since Queue Step put its materials on the list
+            -- to buy: the craft goes in the queue now.
+            if ns.Queue and ns.Queue.QueueLearned then pcall(ns.Queue.QueueLearned, ns.Queue) end
 
             if ns.UI and ns.UI.OnRecipesUpdated then
                 ns.UI:OnRecipesUpdated()

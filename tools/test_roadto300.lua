@@ -206,6 +206,14 @@ check("materials from bags then bank", texts.lines[1],
 check("where it is learned, with the trainer's zone", texts.lines[2],
   "Learn it from the Blacksmithing trainer in " .. tostring(beltStep.learn.zone) .. ".")
 check("the trainer has a zone", beltStep.learn.zone ~= nil, true)
+local vendorStep = { kind = "craft", crafts = 44, from = 1, to = 45, orange = true, name = "Slitherskin Mackerel",
+  needs = {}, learn = { kind = "vendor", zone = "Tirisfal Glades" } }
+check("a vendor recipe says it isn't known yet, and where to buy it",
+  Road.Texts(vendorStep, "Cooking", 9, 185).lines[1],
+  "You don't know this recipe yet. Buy it from a vendor in Tirisfal Glades.")
+vendorStep.learn.zone = nil
+check("and without a zone", Road.Texts(vendorStep, "Cooking", 9, 185).lines[1],
+  "You don't know this recipe yet. Buy it from a vendor.")
 check("sells some back", texts.lines[#texts.lines], "Sells for about 1800c each, so it pays some back.")
 check("cost: what to buy and the recipe", beltStep.cost, 5 * 20 + 50)
 
