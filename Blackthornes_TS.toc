@@ -35,6 +35,7 @@ Data\Prices.lua
 Data\PriceHistory.lua
 Data\StatsLog.lua
 Data\Scanner.lua
+Data\LegacyScan.lua
 Data\Recipes.lua
 Data\EraRecipes.lua
 Data\Inventory.lua

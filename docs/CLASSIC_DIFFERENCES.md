@@ -88,9 +88,19 @@ loads them, and every reader asks for them first.
 ### The old auction house
 - Era has no `C_AuctionHouse`. `Core/Compat.lua` already reports
   `auction.mode = "legacy"`, and `Logic/Posting.lua` already has an old
-  `StartAuction` way to post. Scanning, buying, your auctions and the
-  drawer's views are still modern only (step 4 of the plan): until a part
-  is done its button stays hidden on Era rather than raising.
+  `StartAuction` way to post. Buying, your auctions and the drawer's
+  views are still modern only (step 4 of the plan): until a part is done
+  its button stays hidden on Era rather than raising.
+- Scan works on Era (2026-10-25, the owner picked "full scan, page scan
+  backup"): `Data/LegacyScan.lua` asks for the quick full scan
+  (`QueryAuctionItems` with getAll) when `CanSendAuctionQuery` says it is
+  free, else reads page by page, 50 rows a page, each page sent only when
+  the game takes a query. `Scanner:StartFullScan` hands over to it when
+  `auction.mode` is "legacy", and the rows go through
+  `Scanner:ReadReplicateResults` (now with a `source`), a few a frame, into
+  the same prices. The player's own search mid-scan is caught by a
+  post-hook on `QueryAuctionItems`: a page is asked again, and nothing is
+  marked sold out. No new words. Tested in `tools/test_legacyscan.lua`.
 
 ### Tests
 - `tools/test_era.lua` checks the TOC and loads every file it lists, then

@@ -51,6 +51,10 @@ Forever addon. So:
   files stay). The Favors and Writs tab is not registered without them
   (`UI/Tab_Deals.lua`), and the "Crate Costs:" Settings row shows only
   with `ns.MerchantsFavor`. Saved settings for them stay, unread.
+- Scan works on Era's older auction house (2026-10-25): `Data/LegacyScan.lua`,
+  the quick full scan when the game allows it, else page by page (see
+  `docs/CLASSIC_DIFFERENCES.md`). Buying, your auctions and the drawer's
+  other views are still to come.
 - Calls to the other Blackthornes addons stay inside a pcall, and
   Tradeskills works on its own without them.
 - Not yet seen in an Era client. Read client calls in a pcall as everywhere

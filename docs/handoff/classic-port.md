@@ -95,7 +95,9 @@ accounts and guild, the Butler, Farmer and Equipment calls.
      the craft panel beside the old window (`UI/CraftPanel.lua`,
      `Logic/Crafting.lua`). Mid-craft skipping then also uses the craft
      under way.
-4. **Auction house, the Era way.** In several PRs: page scan of one item
+4. **Auction house, the Era way.** The whole-house scan is done
+   (`Data/LegacyScan.lua`, 2026-10-25: quick full scan, page by page
+   while it waits). Still to come, in several PRs: page scan of one item
    and of the shopping list; the whole-house scan; posting through the
    old sell slot (much of it exists); buying a row; your auctions and
    undercuts (`GetOwnerAuctionItems`). Until a part is done its button
