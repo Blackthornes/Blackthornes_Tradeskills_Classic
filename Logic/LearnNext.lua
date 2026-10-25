@@ -430,7 +430,7 @@ function LearnNext:QueueMaterials(row)
     end
     -- Tied to the recipe, not to its item: the first craft makes the item,
     -- and a line for owned gear lets itself go.
-    local forRecipe = { recipeID = record.recipeID, name = row.name }
+    local forRecipe = { recipeID = record.recipeID, name = row.name, crafts = crafts }
     local added = 0
     for _, reagent in ipairs(record.reagents or {}) do
         local ok, done = pcall(ns.Queue.EnsureBuy, ns.Queue, reagent.itemID,

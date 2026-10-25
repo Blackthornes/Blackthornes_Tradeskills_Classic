@@ -1337,10 +1337,11 @@ end
 -- @param itemID   what to buy
 -- @param count    how many
 -- @param forItem  the gear it is for (the item itself when buying the gear)
--- @param forRecipe  optional { recipeID, name }: materials for a recipe to
---   learn and skill up with (Level Up's Learn next). Such a line is not tied
---   to owning an item, which the first craft would, so it stays until its x
---   or Clear all.
+-- @param forRecipe  optional { recipeID, name, crafts }: materials for a
+--   recipe to learn and skill up with (Level Up's Learn next and Road to 300).
+--   Such a line is not tied to owning an item, which the first craft would,
+--   so it stays until its x, Clear all, or the recipe is learned
+--   (Queue:QueueLearned turns it into the craft).
 -- @return true, or nil and why
 function Queue:EnsureBuy(itemID, count, forItem, forRecipe)
     itemID, forItem = tonumber(itemID), tonumber(forItem)
@@ -1360,8 +1361,10 @@ function Queue:EnsureBuy(itemID, count, forItem, forRecipe)
     for _, line in ipairs(buys) do
         if type(line) == "table" and line.itemID == itemID and line.forItem == forItem
             and line.forRecipe == recipeID and MineToSee(line, selfKey) then
-            if line.count == count then return true end
+            local crafts = recipeID and tonumber(forRecipe.crafts) or nil
+            if line.count == count and line.forRecipeCrafts == crafts then return true end
             line.count = count
+            line.forRecipeCrafts = crafts
             self:Notify()
             return true
         end
@@ -1370,10 +1373,57 @@ function Queue:EnsureBuy(itemID, count, forItem, forRecipe)
     buys[#buys + 1] = {
         itemID = itemID, count = count, forItem = forItem,
         forRecipe = recipeID, forRecipeName = recipeID and forRecipe.name or nil,
+        forRecipeCrafts = recipeID and tonumber(forRecipe.crafts) or nil,
         owner = selfKey, addedAt = time(),
     }
     self:Notify()
     return true
+end
+
+--- Once this character knows a recipe whose materials went on the list to
+--- buy (Queue Step or Queue materials on a recipe still to learn), queue the
+--- craft itself and take those lines off, so the materials count once.
+-- @return how many crafts went in the queue
+function Queue:QueueLearned()
+    local selfKey = SelfKey()
+    local record = CharacterRecord(selfKey)
+    local known = record and type(record.recipes) == "table" and record.recipes
+    if not known then return 0 end
+    local buys = Buys(false)
+
+    -- How many crafts each learned recipe's lines were for.
+    local crafts = {}
+    for _, line in ipairs(buys) do
+        local recipeID = type(line) == "table" and line.forRecipe
+        local recipe = recipeID and known[recipeID]
+        if recipe and MineToSee(line, selfKey) then
+            local want = tonumber(line.forRecipeCrafts)
+            if not want then
+                -- An older line: as many crafts as its count covers.
+                for _, reagent in ipairs(recipe.reagents or {}) do
+                    if reagent.itemID == line.itemID then
+                        want = math.ceil(line.count / math.max(1, reagent.quantity or 1))
+                    end
+                end
+            end
+            if want and want > 0 then crafts[recipeID] = math.max(crafts[recipeID] or 0, want) end
+        end
+    end
+
+    local queued = 0
+    for recipeID, count in pairs(crafts) do
+        if self:Ensure(recipeID, count) then
+            queued = queued + 1
+            for index = #buys, 1, -1 do
+                local line = buys[index]
+                if type(line) == "table" and line.forRecipe == recipeID and MineToSee(line, selfKey) then
+                    table.remove(buys, index)
+                end
+            end
+        end
+    end
+    if queued > 0 then self:Notify() end
+    return queued
 end
 
 --- Take an item off this character's list to buy (the x on its row).

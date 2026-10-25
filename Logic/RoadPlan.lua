@@ -425,7 +425,7 @@ function RoadPlan:QueueStep(step)
         return ok and done and true or false
     end
     if not queue.EnsureBuy then return false end
-    local forRecipe = { recipeID = step.recipeID, name = step.name }
+    local forRecipe = { recipeID = step.recipeID, name = step.name, crafts = step.crafts }
     local any = false
     for _, need in ipairs(step.needs or {}) do
         if need.count > 0 then
