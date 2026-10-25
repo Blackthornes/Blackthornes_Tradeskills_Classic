@@ -1721,7 +1721,7 @@ local function Build(outer)
     CreateSection(pages.sharing, 1, L["ACCOUNT LINK"])
 
     local linkRow = CreateRow(pages.sharing, 1, L["Your Other Account:"],
-        L["Type your other account's characters, first and last name, with commas. Type this character's name over there too."])
+        L["Type your other account's character names, with commas. Type this character's name over there too."])
 
     widgets.linkNames = Widgets.CreateSearchBox(linkRow, L["Character names"], function(text)
         if ns.AccountLink then ns.AccountLink:SetNames(text) end

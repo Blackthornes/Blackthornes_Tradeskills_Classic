@@ -187,6 +187,10 @@ loads them, and every reader asks for them first.
   `Vendor:Scan` back keeps the fallback. Tested in
   `tools/test_eramerchant.lua`.
 
+- One-word names (the owner, 2026-10-25): Era characters have one name.
+  The mail panel no longer asks for a last name, the account link hint
+  asks for names only, and a record without a GUID reads "older record".
+
 ## Not yet done
 - Steps 4 (the auction house), 5 (the probe in Era) and
   6 (data from Era's tables, such as recipe skills in `Data/LearnSpots.lua`)
