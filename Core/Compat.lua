@@ -45,6 +45,7 @@ local LEGACY_GLOBALS = {
     "CanSendAuctionQuery",
     "CalculateAuctionDeposit",
     "PlaceAuctionBid",
+    "PostAuction",
     "StartAuction",
     "SortAuctionItems",
     "GetTradeSkillInfo",

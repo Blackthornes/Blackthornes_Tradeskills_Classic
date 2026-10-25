@@ -123,8 +123,10 @@ loads them, and every reader asks for them first.
   `tools/test_legacyscan.lua`.
 - Listing works on Era (2026-10-25, the owner: Yes on the box did
   nothing): `Posting:Post` lists through `LegacyStart` (the bag slot into
-  the auction slot, then `StartAuction` with the stack's price as bid and
-  buyout, one stack a click) when `Posting.IsLegacy()`; `GetSellInfo` asks
+  the auction slot, then `PostAuction` with the stack's price as bid and
+  buyout, one stack a click; never `StartAuction` while `PostAuction` is
+  there, since Era refuses the old name with the game's "This addon has been
+  disabled" box, seen the same day) when `Posting.IsLegacy()`; `GetSellInfo` asks
   no item location there. List Next's first click checks the Sell list one
   item at a time (`Posting:CheckAllLegacy`, each search by name, at most
   `LEGACY_CHECK_WAIT` seconds each, said once when done), so the clicks and
