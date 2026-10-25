@@ -545,8 +545,9 @@ function Posting:GetSellInfo(itemID, held)
 
     if not bag then return false, 0 end
 
+    -- Era asks nothing of a location; the bag slot is enough there.
     local location = MakeLocation(bag, slot)
-    if not location then return false, 0 end
+    if not location and not Posting.IsLegacy() then return false, 0 end
 
     local sellable = true
     if Util.HasFunction("C_AuctionHouse.IsSellItemValid") then
@@ -1483,6 +1484,49 @@ end)
 --------------------------------------------------------------------------------
 
 --- List one item. Must be called from a hardware event.
+--- True on Era's older auction house, which has no C_AuctionHouse.
+function Posting.IsLegacy()
+    return ns.LegacyScan ~= nil and ns.LegacyScan.Applies ~= nil and ns.LegacyScan:Applies() == true
+end
+
+--- List one stack the Era way: the bag slot into the auction slot, then
+--- StartAuction with the stack's price. Bid and buyout are the same, so
+--- nobody wins it for less than the price shown. The click that called it
+--- is the hardware event StartAuction needs.
+-- @return true, or false and the game's reason (may be nil)
+local function LegacyStart(bag, slot, quantity, unitPrice, duration)
+    local pickup = C_Container and C_Container.PickupContainerItem or _G.PickupContainerItem
+    if type(pickup) ~= "function" or type(_G.ClickAuctionSellItemButton) ~= "function"
+            or type(_G.StartAuction) ~= "function" then
+        return false, nil
+    end
+
+    pcall(ClearCursor)
+
+    -- Something already in the auction slot would be listed instead: put it
+    -- back in the bags first.
+    if type(_G.GetAuctionSellItemInfo) == "function" then
+        local okInfo, name = pcall(GetAuctionSellItemInfo)
+        if okInfo and name then
+            pcall(ClickAuctionSellItemButton)
+            pcall(ClearCursor)
+        end
+    end
+
+    if not pcall(pickup, bag, slot) then
+        pcall(ClearCursor)
+        return false, nil
+    end
+    local placed = pcall(ClickAuctionSellItemButton)
+    pcall(ClearCursor)
+    if not placed then return false, nil end
+
+    local stackPrice = math.max(1, math.floor(unitPrice * quantity))
+    local ok, err = pcall(StartAuction, stackPrice, stackPrice, duration, quantity, 1)
+    pcall(ClearCursor)
+    return ok, err
+end
+
 function Posting:Post(itemID, quantity, unitPrice, byHand)
     local allowed, reason = self:CanPost(itemID)
     if not allowed then
@@ -1507,14 +1551,18 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     -- for the commodity question below, which the client only answers for a
     -- location, and for the post call itself.
     local bag, slot, slotStack = FindInBags(itemID)
-    local location = bag and MakeLocation(bag, slot)
 
-    if not location then
+    -- Era's older auction house posts from the bag slot itself
+    -- (LegacyStart), so it needs no item location.
+    local legacy = Posting.IsLegacy()
+    local location = bag and not legacy and MakeLocation(bag, slot)
+
+    if not bag or (not legacy and not location) then
         ns.Warn(L["could not find that item in your bags"])
         return false
     end
 
-    local isCommodity = ns.Scanner:IsCommodity(itemID, location)
+    local isCommodity = not legacy and ns.Scanner:IsCommodity(itemID, location)
 
     -- An item auction draws from the one slot it references, so gear goes up
     -- one listing at a time, unless it is copies of an item that does not
@@ -1522,7 +1570,8 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     local many = false
     if not isCommodity then
         local okLink, link = pcall(C_Container.GetContainerItemLink, bag, slot)
-        if quantity > 1 and self:CanPostMany(itemID, okLink and link or nil) then
+        -- Era: one stack a click, from the slot found.
+        if quantity > 1 and not legacy and self:CanPostMany(itemID, okLink and link or nil) then
             many = true
         else
             quantity = math.min(quantity, slotStack or 1)
@@ -1634,7 +1683,9 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     end
 
     local ok, err
-    if isCommodity then
+    if legacy then
+        ok, err = LegacyStart(bag, slot, quantity, unitPrice, duration)
+    elseif isCommodity then
         ok, err = pcall(C_AuctionHouse.PostCommodity, location, duration, quantity, unitPrice)
     else
         -- Buyout only, with no starting bid. Blizzard's own Sell tab does this
@@ -1656,7 +1707,10 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
         self.pending = savedPending
         self.others = savedOthers
 
-        if tostring(err):lower():find("addon") then
+        if err == nil then
+            -- Era: the stack never reached the auction slot.
+            ns.Warn(L["could not find that item in your bags"])
+        elseif tostring(err):lower():find("addon") then
             self:MarkBlocked()
         else
             ns.Warn(L.Format("the game refused the listing: %s",
@@ -2149,12 +2203,14 @@ end
 function Posting:WouldCheckAll(line, lines)
     if not (line and line.itemID) then return false end
     if not self:FastListing() then return false end
-    if self:IsFresh(line.itemID) or self:BulkTried(line.itemID) then return false end
+    if self:IsFresh(line.itemID) then return false end
+    if self:CheckingAll() then return true end
+    if self:BulkTried(line.itemID) then return false end
     if ns.Config:Get("verifyPriceBeforePosting") == false then return false end
 
     local scanner = ns.Scanner
     if not (scanner and scanner.isAuctionHouseOpen) or scanner.isScanning then return false end
-    if not (Util.HasFunction("C_AuctionHouse.SearchForItemKeys")
+    if not self.IsLegacy() and not (Util.HasFunction("C_AuctionHouse.SearchForItemKeys")
             and Util.HasFunction("C_AuctionHouse.MakeItemKey")) then
         return false
     end
@@ -2179,6 +2235,7 @@ function Posting:CheckAll(lines)
         return false, L["the auction house must be open"]
     end
     if scanner.isScanning then return false, L["wait for the scan to finish"] end
+    if self.IsLegacy() then return self:CheckAllLegacy(lines) end
     if not (Util.HasFunction("C_AuctionHouse.SearchForItemKeys")
             and Util.HasFunction("C_AuctionHouse.MakeItemKey")) then
         return false
@@ -2226,6 +2283,98 @@ function Posting:CheckAll(lines)
     })
 
     return true, #keys
+end
+
+-- Era: how long one item's check may take before the next goes out.
+local LEGACY_CHECK_WAIT = 6
+
+--- Is Era's check of the whole list still going, one item at a time?
+function Posting:CheckingAll()
+    local check = rawget(self, "checkAll")
+    return type(check) == "table" and check.legacy == true
+end
+
+--- CheckAll on Era's older auction house, which searches one item at a
+--- time. Each item on the list is searched by name in turn, and each answer
+--- marks it checked (Scanner:FinishItemScan), so the clicks after it list
+--- straight away with no Yes/No box. One check up front, then one listing a
+--- click.
+-- @return true and how many were asked about, or false
+function Posting:CheckAllLegacy(lines)
+    if self:CheckingAll() then
+        local running = self.checkAll
+        return true, running.count, true
+    end
+
+    local queue, wanted = {}, {}
+    for _, line in ipairs(lines or {}) do
+        local itemID = line.itemID
+        if itemID and not line.link and not wanted[itemID] and not self:IsFresh(itemID) then
+            queue[#queue + 1] = itemID
+            wanted[itemID] = true
+            if #queue >= CHECK_ALL_MOST then break end
+        end
+    end
+    if #queue == 0 then return false end
+
+    local check = { wanted = wanted, queue = queue, count = #queue, found = 0, legacy = true }
+    self.checkAll = check
+
+    if type(rawget(self, "bulkTried")) ~= "table" then self.bulkTried = {} end
+    local now = GetTime()
+    for itemID in pairs(wanted) do self.bulkTried[itemID] = now end
+
+    local function Redraw()
+        if ns.PostPanel and ns.PostPanel.Refresh then pcall(ns.PostPanel.Refresh, ns.PostPanel) end
+    end
+
+    local Next
+    Next = function()
+        if rawget(Posting, "checkAll") ~= check then return end
+
+        local scanner = ns.Scanner
+        if not (scanner and scanner.isAuctionHouseOpen) or scanner.isScanning then
+            Posting.checkAll = nil
+            Redraw()
+            return
+        end
+
+        local itemID = table.remove(check.queue, 1)
+        if not itemID then
+            Posting.checkAll = nil
+            if check.found > 0 then
+                ns.Print(L.Format("checked the prices of %d items. Each click on List all now lists one.", check.found))
+            end
+            if ns.UI and ns.UI.RefreshActiveTab then pcall(ns.UI.RefreshActiveTab, ns.UI) end
+            Redraw()
+            return
+        end
+
+        local done = false
+        local function OnAnswer()
+            if done then return end
+            done = true
+            if Posting:IsFresh(itemID) then check.found = check.found + 1 end
+            check.wanted[itemID] = nil
+            Redraw()
+            C_Timer.After(0, Next)
+        end
+
+        C_Timer.After(LEGACY_CHECK_WAIT, function()
+            if done then return end
+            ns.Scanner:AbandonItemScan(OnAnswer)
+            done = true
+            Next()
+        end)
+
+        if not ns.Scanner:ScanItem(itemID, OnAnswer, { quiet = true }) then
+            done = true
+            C_Timer.After(0.2, Next)
+        end
+    end
+
+    Next()
+    return true, check.count
 end
 
 --- Browse results came in that the scanner did not ask for: read the ones

@@ -121,6 +121,18 @@ loads them, and every reader asks for them first.
   `CeilToSilver` and `IsWholeSilver` only make a price whole. A Forever
   change to either is a clash to blend. Tested in
   `tools/test_legacyscan.lua`.
+- Listing works on Era (2026-10-25, the owner: Yes on the box did
+  nothing): `Posting:Post` lists through `LegacyStart` (the bag slot into
+  the auction slot, then `StartAuction` with the stack's price as bid and
+  buyout, one stack a click) when `Posting.IsLegacy()`; `GetSellInfo` asks
+  no item location there. List Next's first click checks the Sell list one
+  item at a time (`Posting:CheckAllLegacy`, each search by name, at most
+  `LEGACY_CHECK_WAIT` seconds each, said once when done), so the clicks and
+  wheel turns after it list with no box; while it runs a click waits
+  (`Posting:CheckingAll`). Your auctions are read from Era's own list
+  (`Auctions.LegacyOwnedInfo`, `GetNumAuctionItems("owner")`,
+  `AUCTION_OWNED_LIST_UPDATE`), so a listing is confirmed. Tested in
+  `tools/test_legacypost.lua`.
 - Scan works on Era (2026-10-25, the owner picked "full scan, page scan
   backup"): `Data/LegacyScan.lua` asks for the quick full scan
   (`QueryAuctionItems` with getAll) when `CanSendAuctionQuery` says it is
