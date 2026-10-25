@@ -85,6 +85,26 @@ loads them, and every reader asks for them first.
   folded, or the window's filters, hide those recipes until they show;
   Herbalism is known by name on an English client only.
 
+### Crafting from the old windows (step 3b)
+- Era has no `C_TradeSkillUI.CraftRecipe`, so Craft raised "attempt to call
+  a nil value". `Crafting:Start` (`Logic/Crafting.lua`) hands over to
+  `EraRecipes:Craft` when `Crafting.EraWindows()` says the client is
+  legacy: `DoTradeSkill(index, count)` in the old window, `DoCraft(index)`
+  (one a click) in Enchanting's. The index comes from
+  `EraRecipes:OpenLines` (the window's lines matched to this character's
+  recipes by name, laid out again when the window or the recipe count
+  moves) and is checked by name again right before the call. A recipe a
+  folded heading or a filter hides says "cannot craft that".
+- `Crafting.isTradeSkillOpen` also follows Enchanting's window
+  (`CRAFT_SHOW`/`CRAFT_CLOSE`), so the two can be open at once.
+  `CraftPanel:GetOpenRecipeIDs` answers `EraRecipes:OpenRecipeIDs` (every
+  recipe this character knows in the open windows' professions; nothing
+  for Beast Training). `Crafting:Stop` falls back to
+  `StopTradeSkillRepeat`, and `IsStillCrafting` counts a run with crafts
+  left (`GetTradeskillRepeatCount`) as going for `REPEAT_GAP` seconds
+  after a cast. A Forever change to these is a clash to blend. No new
+  words. Tested in `tools/test_eracraft.lua`.
+
 ### The old auction house
 - Era has no `C_AuctionHouse`. `Core/Compat.lua` already reports
   `auction.mode = "legacy"`, and `Logic/Posting.lua` already has an old
@@ -138,8 +158,7 @@ loads them, and every reader asks for them first.
   `tools/test_eramerchant.lua`.
 
 ## Not yet done
-- Steps 3b (Craft buttons through `DoTradeSkill`/`DoCraft`, the craft panel
-  beside the old window), 4 (the auction house), 5 (the probe in Era) and
+- Steps 4 (the auction house), 5 (the probe in Era) and
   6 (data from Era's tables, such as recipe skills in `Data/LearnSpots.lua`)
   in `docs/handoff/classic-port.md`. Each adds its line here.
 - Calls to the other Blackthornes addons stay in a pcall, and Tradeskills

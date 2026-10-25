@@ -1,7 +1,7 @@
 # Tradeskills Classic Era port: the plan
 
 Written 2026-10-24, after PR #1 (Interface 11509, Forever's CurseForge ID
-out and refused). Steps 1, 2 and 3a are done. Each step is one small PR,
+out and refused). Steps 1, 2, 3a and 3b are done. Each step is one small PR,
 built only after the owner's yes, merged only on his "merge it".
 
 Rules for every step: never touch the Forever repo; keep Forever-only
@@ -91,10 +91,10 @@ accounts and guild, the Butler, Farmer and Equipment calls.
      Known gaps: a heading the player folded, or the window's filters, hide
      those recipes until they show; Herbalism is known by name on an
      English client only (it has no recipes).
-   - *3b, crafting.* Craft buttons through `DoTradeSkill`/`DoCraft`, and
-     the craft panel beside the old window (`UI/CraftPanel.lua`,
-     `Logic/Crafting.lua`). Mid-craft skipping then also uses the craft
-     under way.
+   - *3b, crafting.* (Done, 2026-10-25.) Craft buttons through
+     `DoTradeSkill`/`DoCraft` (`EraRecipes:Craft`, called by
+     `Crafting:Start`), and the craft pane scoped to the open windows
+     (`EraRecipes:OpenRecipeIDs`). Tested in `tools/test_eracraft.lua`.
 4. **Auction house, the Era way.** The whole-house scan is done
    (`Data/LegacyScan.lua`, 2026-10-25: quick full scan, page by page
    while it waits). Still to come, in several PRs: page scan of one item
