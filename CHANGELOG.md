@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.1.1
+
+- **Fixes:** Listing items on Era's auction house now works. List Next checks prices once up front, keeps copper prices, and posts each item with the game's own call.
+
 ## 0.1.0
 
 First release for WoW Classic Era.
