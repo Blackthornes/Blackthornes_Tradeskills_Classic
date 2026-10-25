@@ -414,14 +414,6 @@ function QueueMailPanel:FillFor(row)
             texts = { L["Free one bag slot to split a stack, then press the button again."],
                 L["Free a bag slot, then try again."] }
         end
-        -- Forever's characters share first names, so the mail needs the
-        -- last name too. One not yet on record (that character has not
-        -- logged in since last names were read) has to be typed.
-        local record = delivery.to and ns.db and ns.db.characters and ns.db.characters[delivery.to]
-        if type(record) == "table" and not record.surname then
-            texts = { L.Format("Type %s's last name after the first, then press Send.", short),
-                L["Add the last name, then Send."] }
-        end
         Theme.FitText(panel.status, texts, WIDTH - 2 * PAD)
         QueueMailPanel:Refresh()
     end)

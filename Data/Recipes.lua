@@ -437,7 +437,7 @@ local function Distinguish(record)
         return L.Format("level %d %s", record.level, record.class)
     end
     if record.class then return record.class end
-    if not record.guid then return L["saved before last names"] end
+    if not record.guid then return L["older record"] end
 end
 
 local function Text(value)
