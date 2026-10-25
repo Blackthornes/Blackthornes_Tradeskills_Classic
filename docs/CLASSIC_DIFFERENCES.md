@@ -124,8 +124,11 @@ loads them, and every reader asks for them first.
   marked `forever` gets no "New on Forever" line in `RecipeBook:LearnFrom`
   (none ships on Era, but one could come from a catch-up). A catch-up that
   brings the lines back keeps Classic's. Tested in
-  `tools/test_foreverrecipes.lua`. The TOC's Notes line and the About
-  note wait on the owner's wording.
+  `tools/test_foreverrecipes.lua`. The TOC's Notes line ends "keeps a
+  craft queue." with no "for WoW: Forever".
+- The About thank-you (`About.THANKS`) has no "WoW Forever is almost here"
+  paragraph (the owner, 2026-10-24). `UI/About.lua` is shared with Forever;
+  a catch-up that brings the paragraph back keeps Classic's.
 
 ## Not yet done
 - Steps 3b (Craft buttons through `DoTradeSkill`/`DoCraft`, the craft panel
