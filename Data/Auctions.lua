@@ -546,7 +546,20 @@ function Auctions:Refresh(opts)
     opts = opts or {}
 
     if not ns.Scanner.isAuctionHouseOpen then return false end
-    if not Util.HasFunction("C_AuctionHouse.QueryOwnedAuctions") then return false end
+
+    -- Era's older auction house keeps your auctions on the client: nothing
+    -- to query through the queue, only the list to read.
+    if not Util.HasFunction("C_AuctionHouse.QueryOwnedAuctions") then
+        if not Auctions.IsLegacy() then return false end
+        local now = GetTime()
+        if not opts.force and self.lastRefresh and (now - self.lastRefresh) < 5 then
+            return false
+        end
+        self.lastRefresh = now
+        if type(_G.GetOwnerAuctionItems) == "function" then pcall(GetOwnerAuctionItems) end
+        self:ScheduleConfirm()
+        return true
+    end
 
     -- Several things want this at once after a listing, and each one is a
     -- throttled request. Coalesce them.
@@ -622,9 +635,17 @@ function Auctions:ReadOwned(opts)
     -- said nothing was listed, and Keep in stock suggested crafting more.
     if ns.Scanner and ns.Scanner.isAuctionHouseOpen == false then return end
 
-    if not Util.HasFunction("C_AuctionHouse.GetNumOwnedAuctions") then return end
-
-    local ok, count = pcall(C_AuctionHouse.GetNumOwnedAuctions)
+    local GetInfo
+    local ok, count
+    if Util.HasFunction("C_AuctionHouse.GetNumOwnedAuctions") then
+        ok, count = pcall(C_AuctionHouse.GetNumOwnedAuctions)
+        GetInfo = C_AuctionHouse.GetOwnedAuctionInfo
+    elseif Auctions.IsLegacy() then
+        ok, count = pcall(GetNumAuctionItems, "owner")
+        GetInfo = Auctions.LegacyOwnedInfo
+    else
+        return
+    end
     if not ok or not count then return end
 
     local items = {}
@@ -639,7 +660,7 @@ function Auctions:ReadOwned(opts)
     local readAt = time()
 
     for index = 1, count do
-        local infoOk, info = pcall(C_AuctionHouse.GetOwnedAuctionInfo, index)
+        local infoOk, info = pcall(GetInfo, index)
 
         if infoOk and info then
             local itemID = info.itemKey and info.itemKey.itemID
@@ -794,6 +815,41 @@ function Auctions:ReadOwned(opts)
     end
 end
 
+--- True on Era's older auction house, which has no C_AuctionHouse.
+function Auctions.IsLegacy()
+    return ns.LegacyScan ~= nil and ns.LegacyScan.Applies ~= nil and ns.LegacyScan:Applies() == true
+end
+
+--- One of your auctions on Era, in the shape GetOwnedAuctionInfo gives.
+--- Era gives no auction ID and the stack's buyout; a sold one waits for
+--- its money in the list, so it is marked sold rather than active.
+function Auctions.LegacyOwnedInfo(index)
+    local _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, saleStatus, itemID =
+        GetAuctionItemInfo("owner", index)
+    if not itemID then return nil end
+
+    local link
+    if type(_G.GetAuctionItemLink) == "function" then
+        local okLink, value = pcall(GetAuctionItemLink, "owner", index)
+        if okLink and type(value) == "string" then link = value end
+    end
+
+    return {
+        itemKey = { itemID = itemID },
+        quantity = tonumber(count) or 1,
+        buyoutAmount = tonumber(buyout) or 0,
+        status = (saleStatus == 1) and (STATUS_ACTIVE + 1) or nil,
+        itemLink = link,
+    }
+end
+
+--- Era tells us when your list changed, after a listing goes up among
+--- other times. Only a read: the listing's own read back settles it.
+function Auctions:OnLegacyOwnedUpdate()
+    if not Auctions.IsLegacy() then return end
+    self:ReadOwned()
+end
+
 --- The client announcing that owned auctions changed, where it does so.
 function Auctions:OnOwnedAuctionsUpdated()
     -- Counted, because registering this event and actually receiving it are two
@@ -845,6 +901,7 @@ function Auctions:OnEnable()
     self.ownedEventCount = 0
     self.hasOwnedEvent = ns.RegisterEvent(
         self, "OWNED_AUCTIONS_UPDATED", self.OnOwnedAuctionsUpdated) and true or false
+    ns.RegisterEvent(self, "AUCTION_OWNED_LIST_UPDATE", self.OnLegacyOwnedUpdate)
 
     self.openRefreshes = 0
 

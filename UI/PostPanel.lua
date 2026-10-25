@@ -827,6 +827,12 @@ function PostPanel:ListNext()
         return
     end
 
+    -- The whole list is still being checked (Era, one item at a time):
+    -- this one lists once its price is in.
+    if fast and Posting.CheckingAll and Posting:CheckingAll() and not Posting:IsFresh(line.itemID) then
+        return
+    end
+
     -- Its price not checked lately: one search checks every price on the
     -- list, and the clicks after it list straight away. One the search
     -- could not price is searched for alone, as before.
