@@ -1490,14 +1490,21 @@ function Posting.IsLegacy()
 end
 
 --- List one stack the Era way: the bag slot into the auction slot, then
---- StartAuction with the stack's price. Bid and buyout are the same, so
+--- PostAuction with the stack's price. Bid and buyout are the same, so
 --- nobody wins it for less than the price shown. The click that called it
---- is the hardware event StartAuction needs.
+--- is the hardware event PostAuction needs.
+--
+-- Never StartAuction while PostAuction is there: Era still has the old
+-- name, but calling it is refused and the game's "This addon has been
+-- disabled" box comes up (seen 2026-10-25). StartAuction is only for a
+-- client with no PostAuction.
 -- @return true, or false and the game's reason (may be nil)
 local function LegacyStart(bag, slot, quantity, unitPrice, duration)
     local pickup = C_Container and C_Container.PickupContainerItem or _G.PickupContainerItem
+    local postAuction = type(_G.PostAuction) == "function" and _G.PostAuction or nil
+    local start = not postAuction and type(_G.StartAuction) == "function" and _G.StartAuction or nil
     if type(pickup) ~= "function" or type(_G.ClickAuctionSellItemButton) ~= "function"
-            or type(_G.StartAuction) ~= "function" then
+            or not (postAuction or start) then
         return false, nil
     end
 
@@ -1522,7 +1529,14 @@ local function LegacyStart(bag, slot, quantity, unitPrice, duration)
     if not placed then return false, nil end
 
     local stackPrice = math.max(1, math.floor(unitPrice * quantity))
-    local ok, err = pcall(StartAuction, stackPrice, stackPrice, duration, quantity, 1)
+    local ok, err
+    if postAuction then
+        -- The last true says the warning about upcoming maintenance was
+        -- read; without it a listing may fail before a maintenance.
+        ok, err = pcall(postAuction, stackPrice, stackPrice, duration, quantity, 1, true)
+    else
+        ok, err = pcall(start, stackPrice, stackPrice, duration, quantity, 1)
+    end
     pcall(ClearCursor)
     return ok, err
 end
@@ -2776,7 +2790,7 @@ function Posting:ResolvePending(posted, appeared, target)
         if pending.many and not pending.joined then
             ns.Warn(L["listing several at once may not work here, so the next click lists one."])
         else
-            ns.Warn(L["the auction house may be refusing listings; try Blizzard's own Sell tab."])
+            ns.Warn(L["Nothing was listed. Click it again to try once more."])
         end
     else
         ns.Warn(L["could not tell whether that listing went up. Check your Auctions tab"])
@@ -3009,7 +3023,7 @@ ns.RegisterCommand("sig", L["show which auction functions this version of the ga
 
     -- The Classic posting path, which may be what item auctions still want.
     local legacy = {}
-    for _, name in ipairs({ "StartAuction", "ClickAuctionSellItemButton",
+    for _, name in ipairs({ "PostAuction", "StartAuction", "ClickAuctionSellItemButton",
         "GetAuctionSellItemInfo", "CalculateAuctionDeposit", "PickupContainerItem" }) do
         local present = type(_G[name]) == "function"
             or (name == "PickupContainerItem" and C_Container

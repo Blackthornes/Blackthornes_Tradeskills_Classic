@@ -4,7 +4,8 @@
 -- PostItem, which Era does not have, so the click raised and nothing went
 -- up. What must hold:
 --   1. A listing puts the bag slot in the auction slot and calls
---      StartAuction with the stack's price, bid and buyout the same.
+--      PostAuction with the stack's price, bid and buyout the same. Never
+--      StartAuction while PostAuction is there: Era refuses the old name.
 --   2. Yes on the box lists the same way, and never raises.
 --   3. Something left in the auction slot goes back first.
 --   4. List Next's first click checks the Sell list one item at a time,
@@ -14,7 +15,7 @@
 
 local GLOBALS = { "CreateFrame", "C_Container", "ItemLocation", "GetTime", "time", "C_Timer",
     "StaticPopupDialogs", "StaticPopup_Show", "StaticPopup_Hide", "StaticPopup_Visible",
-    "C_AuctionHouse", "ClearCursor", "ClickAuctionSellItemButton", "StartAuction",
+    "C_AuctionHouse", "ClearCursor", "ClickAuctionSellItemButton", "StartAuction", "PostAuction",
     "GetAuctionSellItemInfo", "GetNumAuctionItems", "GetAuctionItemInfo", "GetAuctionItemLink",
     "GetOwnerAuctionItems" }
 local saved = {}
@@ -89,11 +90,19 @@ GetAuctionSellItemInfo = function() if sellSlot then return "item" end end
 -- Your auctions: { itemID, count, buyout }.
 local owned = {}
 local started = {}
-StartAuction = function(bid, buyout, duration, stackSize, numStacks)
+local oldCalls = 0
+local function Listed(bid, buyout, duration, stackSize, numStacks, acknowledged)
     started[#started + 1] = { bid = bid, buyout = buyout, duration = duration,
-        stackSize = stackSize, numStacks = numStacks, item = sellSlot and sellSlot.itemID }
+        stackSize = stackSize, numStacks = numStacks, item = sellSlot and sellSlot.itemID,
+        acknowledged = acknowledged }
     if sellSlot then owned[#owned + 1] = { sellSlot.itemID, stackSize, buyout } end
     sellSlot = nil
+end
+PostAuction = Listed
+-- Era still has the old name, and calling it is refused.
+StartAuction = function()
+    oldCalls = oldCalls + 1
+    error("StartAuction is refused")
 end
 GetNumAuctionItems = function(which) if which == "owner" then return #owned, #owned end return 0, 0 end
 GetAuctionItemInfo = function(which, index)
@@ -218,7 +227,9 @@ print("one listing")
 Reset()
 local ok = pcall(Posting.Post, Posting, SCORPID, 10, 11)
 check("it does not raise", ok, true)
-check("StartAuction is called", #started, 1)
+check("PostAuction is called", #started, 1)
+check("never the old StartAuction", oldCalls, 0)
+check("with the maintenance warning read", started[1] and started[1].acknowledged, true)
 check("with the stack's price as buyout", started[1] and started[1].buyout, 110)
 check("and the same as bid", started[1] and started[1].bid, 110)
 check("for the length picked", started[1] and started[1].duration, 2)
@@ -290,6 +301,16 @@ Advance(20)
 check("confirmed", Posting.pending, nil)
 check("said it went up", Said("listed 10 x"), 1)
 check("your auctions read from Era's list", ns.Auctions:GetOwnPostedCount(SCORPID), 10)
+
+print("")
+print("a client with only the old StartAuction")
+
+Reset()
+PostAuction = nil
+StartAuction = Listed
+Posting:Post(SCORPID, 10, 11)
+check("lists with StartAuction", #started, 1)
+check("at the stack's price", started[1] and started[1].buyout, 110)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
