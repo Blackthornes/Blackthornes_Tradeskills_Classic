@@ -1916,7 +1916,10 @@ local function RefreshProfessionOptions()
             end
 
             options[#options + 1] = {
-                text = name or savedNames[skillLineID] or L.Format("Skill line %s", skillLineID),
+                text = name or savedNames[skillLineID]
+                    or (ns.EraRecipes and ns.EraRecipes:LineName(skillLineID))
+                    or (ns.RecipeBook and ns.RecipeBook:ProfessionName(skillLineID))
+                    or L.Format("Skill line %s", skillLineID),
                 value = skillLineID,
             }
         end

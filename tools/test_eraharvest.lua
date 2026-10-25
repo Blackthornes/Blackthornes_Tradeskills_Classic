@@ -188,6 +188,8 @@ GetSpellInfo = function(id) return ({ [3908] = "Schneiderei", [7411] = "Verzaube
 skills[2][1], skills[3][1] = "Schneiderei", "Verzauberkunst"
 check("Schneiderei is Tailoring", Recipes.EnglishProfessionName("Schneiderei") == "Tailoring")
 check("and reads as its skill line", Era:SkillLevels()[197] == 75 and Era:SkillLevels()[333] == 40)
+check("a skill line is named in the client's words", Era:LineName(197) == "Schneiderei")
+check("an unknown line has no name", Era:LineName(99999) == nil)
 skills[2][1], skills[3][1] = "Tailoring", "Enchanting"
 Era._Forget()
 Recipes._ForgetProfessionNames()

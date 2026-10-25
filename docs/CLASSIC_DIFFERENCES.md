@@ -194,3 +194,7 @@ loads them, and every reader asks for them first.
 - Calls to the other Blackthornes addons stay in a pcall, and Tradeskills
   works alone.
 - Not yet seen in an Era client. Client calls are read in a pcall.
+- Profession names in the Level Up and Profit menus: Era has no call that
+  names a skill line by ID, so `EraRecipes:LineName` gives the client's own
+  word (the spell the profession teaches, else the skill list), then the
+  book's English name.

@@ -116,6 +116,14 @@ local function ProfessionInfo(skillLineID)
     return nil
 end
 
+--- A profession's name where the client gives no profession info (Era):
+-- the client's own word, else the book's English one.
+local function ProfessionName(skillLineID)
+    local name = ns.EraRecipes and ns.EraRecipes:LineName(skillLineID)
+    if name then return name end
+    return ns.RecipeBook and ns.RecipeBook.ProfessionName and ns.RecipeBook:ProfessionName(skillLineID) or nil
+end
+
 --- The game's colour for a tier, or plain text for one never read.
 local function TierColor(tier)
     if not tier or tier == "unknown" then return Theme.Unpack("muted") end
@@ -1527,7 +1535,8 @@ OnShow = function()
 
         if skillLineID and not nameBySkillLine[skillLineID] then
             local info = ProfessionInfo(skillLineID)
-            local name = (info and info.professionName) or L.Format("Skill line %s", skillLineID)
+            local name = (info and info.professionName ~= "" and info.professionName)
+                or ProfessionName(skillLineID) or L.Format("Skill line %s", skillLineID)
 
             nameBySkillLine[skillLineID] = name
 

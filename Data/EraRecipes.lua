@@ -89,6 +89,25 @@ function EraRecipes:ClientNames()
     return names
 end
 
+--- The client's own name for a profession's skill line, in its language.
+-- Era has no call that names a skill line by ID, so the name comes from
+-- the spell the profession teaches, else from the skill list.
+function EraRecipes:LineName(skillLineID)
+    local english = ns.Recipes and ns.Recipes.SKILL_LINE_PROFESSIONS
+        and ns.Recipes.SKILL_LINE_PROFESSIONS[skillLineID]
+    if not english then return nil end
+
+    for name, eng in pairs(self:ClientNames()) do
+        if eng == english then return name end
+    end
+
+    for _, skill in ipairs(self:ReadSkills()) do
+        if skill.english == english then return skill.name end
+    end
+
+    return nil
+end
+
 function EraRecipes._Forget()
     clientNames = nil
     EraRecipes.bookIndex = nil
