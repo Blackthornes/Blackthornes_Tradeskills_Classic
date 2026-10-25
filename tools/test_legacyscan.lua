@@ -1,0 +1,275 @@
+-- The Scan button on Era's older auction house (Data/LegacyScan.lua).
+--
+-- Era has no C_AuctionHouse. Scan asks for the quick full scan when the game
+-- allows it, reads page by page when it does not, and both go into the same
+-- prices as Forever's scan. A search of the player's own during the scan
+-- never ends up read as part of it.
+
+-- Tests share one Lua state, so every global replaced here is put back,
+-- including the ones that were not set at all.
+local GLOBALS = { "CreateFrame", "GetTime", "time", "C_Timer", "C_Item", "C_AuctionHouse",
+    "QueryAuctionItems", "GetAuctionItemInfo", "GetAuctionItemLink", "GetNumAuctionItems",
+    "CanSendAuctionQuery", "hooksecurefunc", "unpack" }
+local saved = {}
+for _, key in ipairs(GLOBALS) do saved[key] = _G[key] end
+
+local function noop() end
+unpack = unpack or table.unpack
+
+local function Blank()
+    return setmetatable({}, { __index = function(_, k)
+        if type(k) == "string" and k:match("^%u") then return noop end
+    end })
+end
+
+CreateFrame = function() return Blank() end
+C_AuctionHouse = nil
+local clock = 1000
+GetTime = function() return clock end
+time = function() return 100000 + clock end
+
+-- Timers run when the test says, in the order they were set.
+local timers = {}
+local function Timer(delay, fn)
+    local t = { at = clock + delay, fn = fn }
+    t.Cancel = function() t.cancelled = true end
+    timers[#timers + 1] = t
+    return t
+end
+C_Timer = { After = function(d, fn) Timer(d, fn) end, NewTimer = Timer,
+    NewTicker = function() return { Cancel = noop } end }
+local function Advance(seconds)
+    local target = clock + seconds
+    while true do
+        local nextTimer
+        for _, t in ipairs(timers) do
+            if not t.cancelled and not t.done and t.at <= target and (not nextTimer or t.at < nextTimer.at) then
+                nextTimer = t
+            end
+        end
+        if not nextTimer then break end
+        clock = math.max(clock, nextTimer.at)
+        nextTimer.done = true
+        nextTimer.fn()
+    end
+    clock = target
+end
+
+local LINEN, WOOL, SWORD = 2589, 2592, 9999
+local stackSizes = { [LINEN] = 20, [WOOL] = 20, [SWORD] = 1 }
+C_Item = {
+    GetItemInfo = function(itemID)
+        local stack = stackSizes[itemID]
+        if not stack then return nil end
+        return "item", "link", 1, 1, 1, "Trade Goods", "Cloth", stack
+    end,
+}
+
+-- The auction house. Rows are { count, whole stack's buyout, itemID }.
+local house = {}
+local list = {}        -- what the "list" holds now
+local listTotal = 0
+local canQuery, canQueryAll = true, true
+local queries = {}
+local answer = true    -- whether the server answers a query
+local hooks = {}
+hooksecurefunc = function(name, fn) hooks[name] = fn end
+
+QueryAuctionItems = function(text, minLevel, maxLevel, page, usable, rarity, getAll)
+    queries[#queries + 1] = { page = page, getAll = getAll }
+    if hooks.QueryAuctionItems then hooks.QueryAuctionItems(text, minLevel, maxLevel, page, usable, rarity, getAll) end
+    if not answer then return end
+    list = {}
+    if getAll then
+        for i, row in ipairs(house) do list[i] = row end
+    else
+        for i = page * 50 + 1, math.min(#house, page * 50 + 50) do list[#list + 1] = house[i] end
+    end
+    listTotal = #house
+end
+GetNumAuctionItems = function() return #list, listTotal end
+GetAuctionItemInfo = function(_, index)
+    local row = list[index]
+    if not row then return nil end
+    return "x", 0, row[1], 1, true, 1, "", 0, 0, row[2], 0, false, nil,
+        "Rival", "Rival-TestRealm", 0, row[3], true
+end
+GetAuctionItemLink = function(_, index)
+    local row = list[index]
+    return row and ("|Hitem:" .. row[3] .. "::::::::|h[x]|h") or nil
+end
+CanSendAuctionQuery = function() return canQuery, canQueryAll end
+
+local ns = {}
+ns.COLORS = setmetatable({}, { __index = function() return "ffffffff" end })
+local modules = {}
+ns.NewModule = function(name) local m = {}; ns[name] = m; modules[#modules + 1] = m; return m end
+ns.RegisterCommand = noop
+local events = {}
+ns.RegisterEvent = function(owner, event, fn) events[event] = function(...) fn(owner, event, ...) end; return true end
+local printed = {}
+ns.Print = function(text) printed[#printed + 1] = text end
+ns.Warn = ns.Print
+ns.PrintRaw, ns.Debug = noop, noop
+
+local realm = "TestRealm-Horde"
+local priceTables = {}
+ns.db = { commodity = {} }
+ns.Config = {
+    Get = function() return nil end,
+    GetRealmKey = function() return realm end,
+    GetPriceTable = function()
+        priceTables[realm] = priceTables[realm] or {}
+        return priceTables[realm]
+    end,
+}
+ns.Compat = { Get = function() return { auction = { mode = "legacy", hasLegacyQuery = true } } end }
+local completed = 0
+ns.UI = { OnScanComplete = function() completed = completed + 1 end }
+
+assert(loadfile(lfs_cwd .. "/Core/Util.lua"))("Blackthornes_TS", ns)
+assert(loadfile(lfs_cwd .. "/Data/Prices.lua"))("Blackthornes_TS", ns)
+assert(loadfile(lfs_cwd .. "/Data/Scanner.lua"))("Blackthornes_TS", ns)
+assert(loadfile(lfs_cwd .. "/Data/LegacyScan.lua"))("Blackthornes_TS", ns)
+
+local Prices, Scanner, LegacyScan = ns.Prices, ns.Scanner, ns.LegacyScan
+
+-- Run the worker straight through.
+ns.Util.NewWorker = function(opts)
+    return { Start = function(_, items)
+        for _, item in ipairs(items) do opts.onItem(item) end
+        if opts.onDone then opts.onDone() end
+    end, IsRunning = function() return false end }
+end
+
+Scanner:OnEnable()
+LegacyScan:OnEnable()
+
+local passed, failed = 0, 0
+local function check(label, condition)
+    if condition then
+        passed = passed + 1
+        print(("  ok    %s"):format(label))
+    else
+        failed = failed + 1
+        print(("  FAIL  %s"):format(label))
+    end
+end
+
+local function Fire() if events.AUCTION_ITEM_LIST_UPDATE then events.AUCTION_ITEM_LIST_UPDATE() end end
+local function Reset()
+    queries, printed, timers = {}, {}, {}
+    priceTables = {}
+    ns.db.commodity = {}
+    completed = 0
+    Scanner.isAuctionHouseOpen = true
+    Scanner.isScanning, Scanner.isReading = false, false
+    LegacyScan:Stop()
+end
+
+print("")
+print("the Scan button works without C_AuctionHouse")
+
+Reset()
+check("Scan is allowed", Scanner:CanFullScan() == true)
+
+print("")
+print("the quick full scan when the game allows it")
+
+house = { { 20, 800, LINEN }, { 5, 200, LINEN }, { 10, 1000, WOOL }, { 1, 5000, SWORD } }
+canQuery, canQueryAll = true, true
+Reset()
+Scanner:StartFullScan()
+check("it asks for the whole house at once", #queries == 1 and queries[1].getAll == true)
+check("the bar says it is asking", LegacyScan:Status() ~= nil)
+Fire()
+Advance(LegacyScan.FULL_SETTLE + 0.1)
+check("linen is priced for one", Prices:Get(LINEN) ~= nil and Prices:Get(LINEN).min == 40)
+check("wool too", Prices:Get(WOOL) ~= nil and Prices:Get(WOOL).min == 100)
+check("a sword is its buyout", Prices:Get(SWORD) ~= nil and Prices:Get(SWORD).min == 5000)
+check("the scan is over", not Scanner.isScanning and LegacyScan.state == nil and completed == 1)
+check("the fifteen minutes start", ns.db.lastReplicateRequest ~= nil and time() - ns.db.lastReplicateRequest < 5 and not ns.db.lastReplicateByOther)
+
+print("")
+print("page by page while the quick scan waits")
+
+house = {}
+for i = 1, 120 do house[i] = { 1, 300, (i % 2 == 0) and LINEN or WOOL } end
+canQuery, canQueryAll = true, false
+Reset()
+Scanner:StartFullScan()
+check("it asks for the first page", #queries == 1 and queries[1].getAll ~= true and queries[1].page == 0)
+check("and says why it is not the quick scan", #printed >= 1)
+for _ = 1, 3 do
+    Fire()
+    Advance(LegacyScan.PAGE_SETTLE + 0.1)
+end
+check("it read all three pages", #queries == 3 and queries[3].page == 2)
+check("every page is priced", Prices:Get(LINEN) ~= nil and Prices:Get(LINEN).min == 300
+    and Prices:Get(WOOL) ~= nil and Prices:Get(WOOL).min == 300)
+check("the scan is over", not Scanner.isScanning and LegacyScan.state == nil)
+
+print("")
+print("it waits for the game to take the next page")
+
+Reset()
+canQuery = false
+Scanner:StartFullScan()
+check("nothing is sent while the game says wait", #queries == 0)
+canQuery = true
+Advance(LegacyScan.POLL + 0.01)
+check("and it goes as soon as the game takes it", #queries == 1)
+LegacyScan:Stop()
+
+print("")
+print("the player's own search during a page scan")
+
+Reset()
+Scanner:StartFullScan()
+-- The player searches before our first page answers.
+answer = true
+hooks.QueryAuctionItems("cloth", nil, nil, 0, false, nil, false)
+Fire()
+Advance(LegacyScan.PAGE_SETTLE + 0.1)
+check("that answer is not read as page one; the page is asked again", #queries == 2 and queries[2].page == 0)
+for _ = 1, 3 do
+    Fire()
+    Advance(LegacyScan.PAGE_SETTLE + 0.1)
+end
+check("and the scan still finishes", not Scanner.isScanning and LegacyScan.state == nil)
+
+print("")
+print("a page that never answers")
+
+Reset()
+answer = false
+Scanner:StartFullScan()
+Advance(LegacyScan.PAGE_TIMEOUT + 1)
+check("the scan stops and gives the button back", not Scanner.isScanning and completed == 1)
+answer = true
+
+print("")
+print("another addon's quick full scan")
+
+Reset()
+ns.db.lastReplicateByOther = nil
+hooks.QueryAuctionItems("", nil, nil, 0, false, nil, true)
+check("its fifteen minutes are noted", ns.db.lastReplicateByOther == true)
+
+print("")
+print("closing the auction house stops the scan")
+
+Reset()
+canQueryAll = false
+Scanner:StartFullScan()
+Scanner:AUCTION_HOUSE_CLOSED()
+check("nothing is left running", LegacyScan.state == nil and not Scanner.isScanning)
+local sent = #queries
+Advance(LegacyScan.PAGE_TIMEOUT + 1)
+check("and no page is asked for after", #queries == sent)
+
+for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
+
+print("")
+print(("%d passed, %d failed"):format(passed, failed))
+assert(failed == 0, "legacy scan checks failed")

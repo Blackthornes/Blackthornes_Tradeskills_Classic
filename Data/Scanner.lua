@@ -289,7 +289,7 @@ function Scanner:CanFullScan()
     end
 
     local caps = ns.Compat:Get().auction
-    if not caps.hasReplicate and not caps.hasBrowseQuery then
+    if not caps.hasReplicate and not caps.hasBrowseQuery and not caps.hasLegacyQuery then
         return false, L["Scanning doesn't work here."]
     end
 
@@ -311,6 +311,11 @@ function Scanner:StartFullScan()
     if not allowed then
         ns.Print(reason)
         return false
+    end
+
+    -- Era's older auction house has its own reader (Data/LegacyScan.lua).
+    if ns.LegacyScan and ns.LegacyScan:Applies() then
+        return ns.LegacyScan:Start()
     end
 
     self.scanStartedAt = GetTime()
@@ -1013,8 +1018,23 @@ function Scanner:StopBrowse()
 end
 
 --- Walk the snapshot, accumulating per-item listings.
-function Scanner:ReadReplicateResults(numItems)
+--
+-- source, optional, reads the rows from somewhere else in the same shape:
+-- Era's older auction house (Data/LegacyScan.lua). Its fields: first (the
+-- first index, 0 when not given), info(index) (GetReplicateItemInfo's
+-- returns), link(index), partial (true when the rows may not be the whole
+-- house, so nothing is marked sold out) and onFinish (called once, done or
+-- cancelled).
+function Scanner:ReadReplicateResults(numItems, source)
     self.isReading = true
+
+    local readInfo = source and source.info or function(index)
+        return C_AuctionHouse.GetReplicateItemInfo(index)
+    end
+    local readSuffix = source and source.link
+        and function(index) return LinkSuffix(source.link(index)) end
+        or Scanner.ReplicateSuffix
+    local first = source and source.first or 0
 
     local observations = {}
     local skipped = 0
@@ -1033,7 +1053,7 @@ function Scanner:ReadReplicateResults(numItems)
     -- GetReplicateItemInfo is 0-based.
     local indices = {}
     for i = 0, numItems - 1 do
-        indices[i + 1] = i
+        indices[i + 1] = i + first
     end
 
     local worker = Util.NewWorker({
@@ -1046,7 +1066,7 @@ function Scanner:ReadReplicateResults(numItems)
             -- ownerFullName, saleStatus, itemID, hasAllInfo.
             local ok, _, _, count, quality, _, _, _, _, _, buyoutPrice,
                   _, _, _, owner, ownerFullName, saleStatus, itemID =
-                      pcall(C_AuctionHouse.GetReplicateItemInfo, index)
+                      pcall(readInfo, index)
 
             if not ok or not itemID then
                 unreadable = unreadable + 1
@@ -1128,7 +1148,7 @@ function Scanner:ReadReplicateResults(numItems)
 
             -- The same listing under its random suffix too, when it has one.
             if not commodities[itemID] and Scanner.MayHaveSuffix(itemID, quality, suffixGear) then
-                local suffix = Scanner.ReplicateSuffix(index)
+                local suffix = readSuffix(index)
                 if suffix then
                     local bySuffix = suffixObservations[itemID]
                     if not bySuffix then
@@ -1196,7 +1216,9 @@ function Scanner:ReadReplicateResults(numItems)
             -- those does not get to decide. (Prices:ClearMissing also refuses
             -- to clear a large share of the book in one go.)
             local soldOut = 0
-            if unreadable <= 5 then
+            if source and source.partial then
+                self:Report("the scan may not have seen every page, so no item is marked sold out this time")
+            elseif unreadable <= 5 then
                 local why
                 soldOut, why = ns.Prices:ClearMissingIfWhole(seen, startedWall, now)
                 if why then self:Report(why .. ", so no item is marked sold out") end
@@ -1206,6 +1228,7 @@ function Scanner:ReadReplicateResults(numItems)
 
             self.isScanning = false
             self.isReading = false
+            if source and source.onFinish then source.onFinish() end
 
             ns.Print(L.Format("scan complete: %s listings across %s items in %.1fs%s",
                 Util.Comma(numItems - skipped), Util.Comma(recorded), elapsed,
@@ -1234,6 +1257,7 @@ function Scanner:ReadReplicateResults(numItems)
         onCancel = function()
             self.isScanning = false
             self.isReading = false
+            if source and source.onFinish then source.onFinish() end
             ns.Print(L["scan cancelled"])
 
             if ns.UI and ns.UI.OnScanComplete then
@@ -1263,6 +1287,7 @@ function Scanner:CancelScan()
     self.scanQueued = false
     self.browseQueued = false
     self.awaitingReplicate = false
+    if ns.LegacyScan then ns.LegacyScan:Stop() end
 
     -- A cancelled sweep's last page must not stand in for the next sweep's
     -- rows, where it would be recorded as prices read just now.
@@ -1302,6 +1327,9 @@ end
 --   text      what to show beside the bar
 --   fraction  0 to 1, or nil while there is nothing to measure yet
 function Scanner:GetScanStatus()
+    local legacy = ns.LegacyScan and ns.LegacyScan:Status()
+    if legacy then return legacy end
+
     if self.isReading then
         local fraction = self:GetProgress() or 0
         return {
