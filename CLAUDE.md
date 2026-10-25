@@ -693,6 +693,32 @@ out again only when the recipe count changes (checked at most every
 (`tradeRequests`, off unless ticked, the owner 2026-10-12; never rename it) and `/bts requests`.
 Tested in `tools/test_craftrequests.lua`. Not yet seen in game.
 
+## Shuffles
+
+A player asked for a shuffle calculator, and the owner said build it
+(2026-10-25, from a mockup whose words he approved). The Profit tab's
+switch reads MY CRAFTS, YOUR TIME, RECIPES TO LEARN, SHUFFLES (an extra
+with `last = true` goes after the learn view in `RecipeBookView.WithSwitch`).
+Pick something in the bags ("Start With:", only items some recipe uses) and
+"How Many:", and every way to turn it into gold is listed, best gain first:
+sell it as it is, or craft it up to `Shuffle.DEPTH` (3) crafts deep and
+sell, vendor or disenchant the result. `Logic/Shuffle.lua` works it out a
+few steps a frame (`BUDGET`), at most `MAX_NODES` looked at and `MAX_WAYS`
+shown, kept `KEEP` seconds, nothing saved. Prices are the usual order:
+`Prices:GetValue` (own scans, guild, realm, TSM, Auctionator), auction net
+of the cut through `Profit:NetFromListing`, a grey vendor only
+(`Util.GetVendorSellPrice`), a disenchant at `Disenchant:GetValue` with the
+odds the player's own breaks gave. Other materials a craft needs are bought
+(`Cost:GetReagentCost`); a craft with a material nobody prices is left out.
+Each step says what stopping there is worth, the best one "Best place to
+stop", one worth less than the step before "This step loses gold. Sell
+before it." "Only My Recipes" (on, session only) leaves out recipes not
+known. Queue It (`Queue:Ensure`, only when every craft is known) and Add to
+List (a shopping list named for the start, never doubling a count).
+`UI/ShuffleView.lua` draws it (columns `shuffles`). Tested in
+`tools/test_shuffle.lua` and `tools/test_shuffleview.lua`. Not yet seen in
+game.
+
 ## Parts an alt makes, in the profit math
 
 A player asked, the owner said yes (2026-10-24): a part only another of

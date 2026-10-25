@@ -691,7 +691,8 @@ local SWITCH_HEIGHT = 22
 --   the Profit tab's when nil
 -- @param spec.learnText  the learn view's name, when not RECIPES TO LEARN
 -- @param spec.extras  optional views shown between the two, each
---   { key, text, tip (optional), build(view), refresh() }
+--   { key, text, tip (optional), last (optional), build(view), refresh() };
+--   one marked last comes after the learn view instead (Shuffles, 2026-10-25)
 -- @return { Build(container), Refresh(), ShowView(key) }
 function RecipeBookView.WithSwitch(spec)
     local learn = spec.learn or main
@@ -741,10 +742,17 @@ function RecipeBookView.WithSwitch(spec)
             { key = spec.mainKey, text = spec.mainText, tip = spec.mainTip },
         }
         for _, extra in ipairs(extras) do
-            definitions[#definitions + 1] = { key = extra.key, text = extra.text, tip = extra.tip }
+            if not extra.last then
+                definitions[#definitions + 1] = { key = extra.key, text = extra.text, tip = extra.tip }
+            end
         end
         definitions[#definitions + 1] = { key = "learn", text = spec.learnText or L["RECIPES TO LEARN"],
             tip = L["Recipes you have not learned, and what each is worth"] }
+        for _, extra in ipairs(extras) do
+            if extra.last then
+                definitions[#definitions + 1] = { key = extra.key, text = extra.text, tip = extra.tip }
+            end
+        end
         local built, previous = {}, nil
 
         for _, definition in ipairs(definitions) do
