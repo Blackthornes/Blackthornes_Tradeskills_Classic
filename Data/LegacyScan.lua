@@ -36,7 +36,13 @@ LegacyScan.PER_PAGE = 50
 -- A sweep that never ends on its own still stops here.
 LegacyScan.MAX_PAGES = 5000
 
+-- A price check before a listing reads at most this many pages of the item.
+LegacyScan.ITEM_PAGES = 3
+-- and stops asking for more after this long, inside the caller's own wait.
+LegacyScan.ITEM_BUDGET = 3.5
+
 LegacyScan.state = nil
+LegacyScan.itemSearch = nil
 LegacyScan.generation = 0
 
 --- True on a client with the older auction house only.
@@ -343,10 +349,172 @@ function LegacyScan:FinishPages(partial)
 end
 
 --------------------------------------------------------------------------------
+-- One item's price, before a listing
+--------------------------------------------------------------------------------
+
+local function ItemName(itemID)
+    local info = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    if type(info) ~= "function" then return nil end
+    local ok, name = pcall(info, itemID)
+    if ok and type(name) == "string" and name ~= "" then return name end
+    return nil
+end
+
+--- Scanner:ScanItem the Era way: search the item by its exact name, read
+--- its listings and settle through Scanner:FinishItemScan, so the price and
+--- the callback are the same as on Forever.
+function LegacyScan:ScanItem(itemID, callback, opts)
+    local scanner = Scanner()
+    opts = opts or {}
+
+    if not scanner.isAuctionHouseOpen then
+        ns.Print(L["the auction house must be open"])
+        return false
+    end
+    -- A scan holds the list; the caller lists at the last known price.
+    if self.state then return false end
+
+    local name = ItemName(itemID)
+    if not name then return false end
+
+    -- Asked about moments ago: that is still a checked price.
+    scanner.recentItemScans = scanner.recentItemScans or {}
+    local last = scanner.recentItemScans[itemID]
+    if last and (GetTime() - last) < 20 then
+        if callback then callback(itemID, nil, nil, nil, nil, nil, "recent") end
+        return true
+    end
+
+    local superseded = scanner.pendingItem
+    scanner:ClearSearchState()
+    self.itemSearch = nil
+    if superseded then
+        scanner.recentItemScans[superseded.recentKey or superseded.itemID] = nil
+        if superseded.callback then
+            superseded.callback(superseded.itemID, nil, nil, nil, nil, nil, "superseded")
+        end
+    end
+
+    local mine = { itemID = itemID, recentKey = itemID, callback = callback, quiet = opts.quiet }
+    scanner.pendingItem = mine
+
+    local search = { mine = mine, name = name, page = 0, listings = {}, startedAt = GetTime() }
+    self.itemSearch = search
+    self:SendItemPage(search)
+    return true
+end
+
+-- Whether this search is still the one wanted.
+function LegacyScan:ItemLive(search)
+    return self.itemSearch == search and Scanner().pendingItem == search.mine
+end
+
+function LegacyScan:SendItemPage(search)
+    self:WhenCanQuery(function()
+        if not LegacyScan:ItemLive(search) then return end
+        search.awaiting = true
+        search.retried = nil
+        LegacyScan.sendingOwn = true
+        local sent = pcall(QueryAuctionItems, search.name, nil, nil, search.page, false, nil, false, true, nil)
+        LegacyScan.sendingOwn = false
+        if not sent then
+            search.awaiting = false
+            LegacyScan:FinishItem(search, true)
+            return
+        end
+        Scanner().recentItemScans[search.mine.itemID] = GetTime()
+    end, function()
+        LegacyScan:FinishItem(search, true)
+    end)
+end
+
+function LegacyScan:ReadItemPage(search)
+    if not search.awaiting then return end
+    if not self:ItemLive(search) then
+        if self.itemSearch == search then self.itemSearch = nil end
+        return
+    end
+
+    local itemID = search.mine.itemID
+    local ok, batch, total = pcall(GetNumAuctionItems, "list")
+    batch = ok and tonumber(batch) or 0
+    total = ok and tonumber(total) or 0
+
+    local rows, missing = {}, false
+    for index = 1, batch do
+        local readOk, row = pcall(PackRow, index)
+        if readOk and row[7] then
+            rows[#rows + 1] = row
+        else
+            missing = true
+        end
+    end
+
+    -- Item details still on their way: look once more.
+    if missing and not search.retried then
+        search.retried = true
+        C_Timer.After(self.PAGE_SETTLE * 2, function() LegacyScan:ReadItemPage(search) end)
+        return
+    end
+    search.awaiting = false
+    search.read = (search.read or 0) + 1
+
+    local scanner = Scanner()
+    for _, row in ipairs(rows) do
+        local count, buyout = tonumber(row[1]) or 1, tonumber(row[3]) or 0
+        if row[7] == itemID and buyout > 0 then
+            local unitPrice = Util.UnitPriceFromStack(itemID, buyout, count)
+            if ns.Prices.IsCredible(unitPrice) then
+                search.listings[#search.listings + 1] = {
+                    unitPrice = unitPrice,
+                    quantity = count,
+                    isOwn = scanner:IsOwnAuction(row[4], row[5]) == true,
+                }
+            end
+        end
+    end
+
+    local pages = math.max(1, math.ceil(total / self.PER_PAGE))
+    if search.page + 1 < pages and search.page + 1 < self.ITEM_PAGES
+            and GetTime() - search.startedAt < self.ITEM_BUDGET then
+        search.page = search.page + 1
+        self:SendItemPage(search)
+    else
+        self:FinishItem(search)
+    end
+end
+
+function LegacyScan:FinishItem(search, failed)
+    if self.itemSearch == search then self.itemSearch = nil end
+    local scanner = Scanner()
+    local mine = search.mine
+    if scanner.pendingItem ~= mine then return end
+
+    -- Nothing read at all: no answer, never an empty house.
+    if failed and not search.read then
+        scanner.pendingItem = nil
+        scanner.recentItemScans[mine.itemID] = nil
+        if mine.callback then mine.callback(mine.itemID, nil, nil, nil, nil, nil, "unavailable") end
+        return
+    end
+
+    scanner:FinishItemScan(mine.itemID, search.listings, false)
+end
+
+--------------------------------------------------------------------------------
 -- Events and status
 --------------------------------------------------------------------------------
 
 function LegacyScan:AUCTION_ITEM_LIST_UPDATE()
+    local search = self.itemSearch
+    if search and search.awaiting and not search.settling then
+        search.settling = true
+        C_Timer.After(self.PAGE_SETTLE, function()
+            search.settling = false
+            LegacyScan:ReadItemPage(search)
+        end)
+    end
+
     local state = self.state
     if not state then return end
 
@@ -376,6 +544,19 @@ function LegacyScan:OnQuery(getAll)
         ns.db.lastReplicateRequest = time()
         ns.db.lastReplicateAnswered = nil
         ns.db.lastReplicateByOther = true
+    end
+
+    -- A price check out: the answer coming is that search's, not ours.
+    local search = self.itemSearch
+    if search and search.awaiting then
+        self.itemSearch = nil
+        local scanner = Scanner()
+        local mine = search.mine
+        if scanner.pendingItem == mine then
+            scanner.pendingItem = nil
+            if scanner.recentItemScans then scanner.recentItemScans[mine.itemID] = nil end
+            if mine.callback then mine.callback(mine.itemID, nil, nil, nil, nil, nil, "superseded") end
+        end
     end
 
     local state = self.state
@@ -418,6 +599,7 @@ end
 
 function LegacyScan:Stop()
     self.generation = self.generation + 1
+    self.itemSearch = nil
     local state = self.state
     if state then
         if state.timeout then state.timeout:Cancel() end

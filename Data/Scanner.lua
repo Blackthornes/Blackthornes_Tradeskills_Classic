@@ -1425,6 +1425,11 @@ end
 function Scanner:ScanItem(itemID, callback, opts)
     opts = opts or {}
 
+    -- Era's older auction house searches by name (Data/LegacyScan.lua).
+    if ns.LegacyScan and ns.LegacyScan:Applies() then
+        return ns.LegacyScan:ScanItem(itemID, callback, opts)
+    end
+
     if not self.isAuctionHouseOpen then
         ns.Print(L["the auction house must be open"])
         return false

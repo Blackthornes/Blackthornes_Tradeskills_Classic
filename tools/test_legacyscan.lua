@@ -57,11 +57,12 @@ end
 
 local LINEN, WOOL, SWORD = 2589, 2592, 9999
 local stackSizes = { [LINEN] = 20, [WOOL] = 20, [SWORD] = 1 }
+local names = { [LINEN] = "Linen Cloth", [WOOL] = "Wool Cloth", [SWORD] = "Sword" }
 C_Item = {
     GetItemInfo = function(itemID)
         local stack = stackSizes[itemID]
         if not stack then return nil end
-        return "item", "link", 1, 1, 1, "Trade Goods", "Cloth", stack
+        return names[itemID], "link", 1, 1, 1, "Trade Goods", "Cloth", stack
     end,
 }
 
@@ -75,17 +76,24 @@ local answer = true    -- whether the server answers a query
 local hooks = {}
 hooksecurefunc = function(name, fn) hooks[name] = fn end
 
-QueryAuctionItems = function(text, minLevel, maxLevel, page, usable, rarity, getAll)
-    queries[#queries + 1] = { page = page, getAll = getAll }
+QueryAuctionItems = function(text, minLevel, maxLevel, page, usable, rarity, getAll, exact)
+    queries[#queries + 1] = { text = text, page = page, getAll = getAll, exact = exact }
     if hooks.QueryAuctionItems then hooks.QueryAuctionItems(text, minLevel, maxLevel, page, usable, rarity, getAll) end
     if not answer then return end
+    local found = house
+    if text and text ~= "" then
+        found = {}
+        for _, row in ipairs(house) do
+            if names[row[3]] == text then found[#found + 1] = row end
+        end
+    end
     list = {}
     if getAll then
-        for i, row in ipairs(house) do list[i] = row end
+        for i, row in ipairs(found) do list[i] = row end
     else
-        for i = page * 50 + 1, math.min(#house, page * 50 + 50) do list[#list + 1] = house[i] end
+        for i = page * 50 + 1, math.min(#found, page * 50 + 50) do list[#list + 1] = found[i] end
     end
-    listTotal = #house
+    listTotal = #found
 end
 GetNumAuctionItems = function() return #list, listTotal end
 GetAuctionItemInfo = function(_, index)
@@ -267,6 +275,80 @@ check("nothing is left running", LegacyScan.state == nil and not Scanner.isScann
 local sent = #queries
 Advance(LegacyScan.PAGE_TIMEOUT + 1)
 check("and no page is asked for after", #queries == sent)
+
+print("")
+print("a price check before a listing searches the item by name")
+
+house = { { 20, 800, LINEN }, { 5, 150, LINEN }, { 10, 1000, WOOL } }
+canQuery, canQueryAll = true, true
+Reset()
+Scanner.recentItemScans = {}
+local got
+local started = Scanner:ScanItem(LINEN, function(_, _, _, _, _, _, status) got = status end)
+check("the check goes out", started == true)
+check("it asks for linen by its exact name", #queries == 1 and queries[1].text == "Linen Cloth"
+    and queries[1].exact == true and not queries[1].getAll)
+Fire()
+Advance(LegacyScan.PAGE_SETTLE + 0.1)
+check("the answer comes back fresh", got == "fresh")
+check("the cheapest linen is 30c each", Prices:Get(LINEN) ~= nil and Prices:Get(LINEN).min == 30)
+check("wool was not asked about", Prices:Get(WOOL) == nil)
+check("nothing is left waiting", Scanner.pendingItem == nil and LegacyScan.itemSearch == nil)
+
+got = nil
+Scanner:ScanItem(LINEN, function(_, _, _, _, _, _, status) got = status end)
+check("asked again at once, it is a recent check", got == "recent" and #queries == 1)
+
+print("")
+print("a price check with no linen listed")
+
+house = { { 10, 1000, WOOL } }
+Reset()
+Scanner.recentItemScans = {}
+got = nil
+Scanner:ScanItem(LINEN, function(_, _, _, _, _, _, status) got = status end)
+Fire()
+Advance(LegacyScan.PAGE_SETTLE + 0.1)
+check("an empty house is an answer", got == "empty")
+
+print("")
+print("a price check the server never answers")
+
+answer = false
+Reset()
+Scanner.recentItemScans = {}
+got = nil
+Scanner:ScanItem(WOOL, function(_, _, _, _, _, _, status) got = status end)
+Advance(1)
+check("it waits for the caller's own fallback", got == nil and Scanner.pendingItem ~= nil)
+answer = true
+
+print("")
+print("the player's own search during a price check")
+
+house = { { 20, 800, LINEN } }
+Reset()
+Scanner.recentItemScans = {}
+got = nil
+Scanner:ScanItem(LINEN, function(_, _, _, _, _, _, status) got = status end)
+hooks.QueryAuctionItems("Copper Ore", nil, nil, 0, false, nil, false)
+check("the check knows it was interrupted", got == "superseded" and LegacyScan.itemSearch == nil)
+
+print("")
+print("a price check waits while a scan holds the list")
+
+canQueryAll = false
+Reset()
+Scanner:StartFullScan()
+check("the check does not go out", Scanner:ScanItem(LINEN, function() end) == false)
+LegacyScan:Stop()
+
+print("")
+print("Era's auction house takes copper")
+
+check("32c stays 32c", ns.Util.RoundToSilver(32) == 32)
+check("a whole copper price is fine", ns.Util.IsWholeSilver(32) == true)
+check("rounding up keeps the copper", ns.Util.CeilToSilver(132.4) == 133)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

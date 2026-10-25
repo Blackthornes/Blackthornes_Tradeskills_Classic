@@ -106,7 +106,7 @@ function PriceEditor.Notes(line, price, quantity)
         end
     end
 
-    if IsCommodity(line) == false then
+    if IsCommodity(line) == false and ns.Util.SilverOnly() then
         notes[#notes + 1] = { L["Gear is listed in whole silver."], "muted" }
     end
 

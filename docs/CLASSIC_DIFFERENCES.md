@@ -111,6 +111,16 @@ loads them, and every reader asks for them first.
   `StartAuction` way to post. Buying, your auctions and the drawer's
   views are still modern only (step 4 of the plan): until a part is done
   its button stays hidden on Era rather than raising.
+- The price check before a listing works on Era (2026-10-25): with
+  `auction.mode` "legacy", `Scanner:ScanItem` hands over to
+  `LegacyScan:ScanItem`, which searches the item by its exact name, reads
+  up to `ITEM_PAGES` pages inside `ITEM_BUDGET` seconds and settles through
+  `Scanner:FinishItemScan`, as Forever's search does. A scan holding the
+  list, or the player's own search, makes it give way. Era's item auctions
+  take copper, so `Util.SilverOnly()` is false there and `RoundToSilver`,
+  `CeilToSilver` and `IsWholeSilver` only make a price whole. A Forever
+  change to either is a clash to blend. Tested in
+  `tools/test_legacyscan.lua`.
 - Scan works on Era (2026-10-25, the owner picked "full scan, page scan
   backup"): `Data/LegacyScan.lua` asks for the quick full scan
   (`QueryAuctionItems` with getAll) when `CanSendAuctionQuery` says it is
