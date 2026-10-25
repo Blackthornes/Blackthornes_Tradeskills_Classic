@@ -217,6 +217,14 @@ end
 -- showing an empty pane. GetAllRecipeIDs only answers while a profession
 -- window is open, which is exactly when this pane exists.
 function CraftPanel:GetOpenRecipeIDs()
+    -- Era: what the open old windows' professions can make, and nothing for
+    -- a window that is no profession (Beast Training).
+    local era = ns.Crafting and ns.Crafting.EraWindows and ns.Crafting.EraWindows()
+    if era then
+        if not ns.Crafting.isTradeSkillOpen then return nil end
+        return era:OpenRecipeIDs() or {}
+    end
+
     local api = _G.C_TradeSkillUI
     if not api or type(api.GetAllRecipeIDs) ~= "function" then return nil end
 

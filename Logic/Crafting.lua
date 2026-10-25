@@ -14,6 +14,18 @@ local L = ns.L or setmetatable({ Format = string.format }, { __index = function(
 
 local Crafting = ns.NewModule("Crafting")
 
+-- On Era, the old profession windows' reader, which also starts crafts;
+-- nil on Forever's client.
+local function EraWindows()
+    if not ns.EraRecipes or not ns.Compat or ns.Compat:TradeskillMode() ~= "legacy" then return nil end
+    return ns.EraRecipes
+end
+Crafting.EraWindows = EraWindows
+
+-- Seconds after a craft finishes that an Era run with crafts left still
+-- counts as going, waiting for the next cast to begin.
+local REPEAT_GAP = 2
+
 Crafting.isTradeSkillOpen = false
 
 --------------------------------------------------------------------------------
@@ -471,6 +483,7 @@ function Crafting:OnCastSucceeded(_, unit, _, spellID)
         cast.at = GetTime()
         self.casts[copied] = cast
     end
+    if self.active then self.active.lastCastAt = GetTime() end
 
     -- What one cost to make, kept for when it is listed later (2026-10-05).
     if okSpell and copied and ns.CraftedCost then
@@ -499,8 +512,32 @@ function Crafting:OnEnable()
     -- Only the player's casts are wanted (ns.RegisterPlayerEvent).
     local RegisterForPlayer = ns.RegisterPlayerEvent or ns.RegisterEvent
     RegisterForPlayer(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnCastSucceeded)
-    ns.RegisterEvent(self, "TRADE_SKILL_SHOW", self.OnTradeSkillShow)
-    ns.RegisterEvent(self, "TRADE_SKILL_CLOSE", self.OnTradeSkillClose)
+
+    -- Era's Enchanting has a window of its own. It counts as a profession
+    -- window open too, so its crafts can start and are followed, and the two
+    -- windows can be open at once.
+    if EraWindows() then
+        local open = { trade = false, craft = false }
+        local function Shown(kind)
+            return function()
+                open[kind] = true
+                Crafting:OnTradeSkillShow()
+            end
+        end
+        local function Closed(kind)
+            return function()
+                open[kind] = false
+                if not open.trade and not open.craft then Crafting:OnTradeSkillClose() end
+            end
+        end
+        ns.RegisterEvent(self, "TRADE_SKILL_SHOW", Shown("trade"))
+        ns.RegisterEvent(self, "TRADE_SKILL_CLOSE", Closed("trade"))
+        ns.RegisterEvent(self, "CRAFT_SHOW", Shown("craft"))
+        ns.RegisterEvent(self, "CRAFT_CLOSE", Closed("craft"))
+    else
+        ns.RegisterEvent(self, "TRADE_SKILL_SHOW", self.OnTradeSkillShow)
+        ns.RegisterEvent(self, "TRADE_SKILL_CLOSE", self.OnTradeSkillClose)
+    end
 
     -- Only while a profession window is open: bags change constantly otherwise,
     -- and a looted item is not a completed craft. Or while a batch the addon
@@ -551,6 +588,10 @@ function Crafting:Start(recipeID, count)
     local craftable = ns.Profit:GetCraftableCount(recipeID)
     count = math.max(1, math.min(count or 1, craftable))
 
+    -- Era's Enchanting window makes one a click.
+    local era = EraWindows()
+    if era and era:MakesOneAtATime(recipeID) then count = 1 end
+
     self.active = {
         recipeID = recipeID,
         requested = count,
@@ -560,7 +601,19 @@ function Crafting:Start(recipeID, count)
         startedAt = GetTime(),
     }
 
-    local ok, err = pcall(C_TradeSkillUI.CraftRecipe, recipeID, count)
+    local ok, err
+    if era then
+        local shown
+        ok, shown = pcall(era.Craft, era, recipeID, count)
+        if ok and not shown then
+            self.active = nil
+            ns.Print(L["cannot craft that"])
+            return false
+        end
+        err = shown
+    else
+        ok, err = pcall(C_TradeSkillUI.CraftRecipe, recipeID, count)
+    end
     if not ok then
         self.active = nil
 
@@ -584,6 +637,8 @@ end
 function Crafting:Stop()
     if ns.Util.HasFunction("C_TradeSkillUI.StopRecipeRepeat") then
         pcall(C_TradeSkillUI.StopRecipeRepeat)
+    elseif type(StopTradeSkillRepeat) == "function" then
+        pcall(StopTradeSkillRepeat)
     end
 
     self.active = nil
@@ -662,6 +717,17 @@ function Crafting:IsStillCrafting()
 
     local castOk, castName = pcall(UnitCastingInfo, "player")
     if castOk and castName then return true end
+
+    -- Era repeats a craft by itself and has no IsRecipeRepeating; between two
+    -- casts nothing is casting, so a run counts as going while crafts are
+    -- left and the last one finished a moment ago.
+    if self.active and type(GetTradeskillRepeatCount) == "function" then
+        local okLeft, left = pcall(GetTradeskillRepeatCount)
+        local last = self.active.lastCastAt
+        if okLeft and type(left) == "number" and left > 1 and last and GetTime() - last < REPEAT_GAP then
+            return true
+        end
+    end
 
     -- A craft takes a moment to begin; do not declare it finished instantly.
     if self.active and (GetTime() - self.active.startedAt) < 1.5 then

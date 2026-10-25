@@ -484,6 +484,100 @@ function EraRecipes:Harvest()
 end
 
 --------------------------------------------------------------------------------
+-- Crafting from the old windows
+--------------------------------------------------------------------------------
+
+-- Era has no CraftRecipe: a craft is made by its place in the open window,
+-- DoTradeSkill(index, count), or for Enchanting DoCraft(index), one at a
+-- time. A place moves when a heading folds or a filter changes, so the
+-- lines are laid out again whenever the window's signature or the
+-- character's recipe count moves, and a line is checked by name again
+-- right before it is used.
+
+local function KnownByName()
+    local byLine = {}
+    local mine = ns.Recipes and ns.Recipes:GetAll() or {}
+    for recipeID, recipe in pairs(mine) do
+        local line, name = recipe.skillLineID, recipe.name
+        if line and name then
+            byLine[line] = byLine[line] or {}
+            byLine[line][name] = recipeID
+        end
+    end
+    return byLine
+end
+
+local function RecipeCount()
+    local n = 0
+    for _ in pairs(ns.Recipes and ns.Recipes:GetAll() or {}) do n = n + 1 end
+    return n
+end
+
+--- Where each recipe the open windows show sits.
+-- @return { [recipeID] = { kind, index, name } }
+function EraRecipes:OpenLines()
+    local key = (self:Signature() or "") .. "#" .. RecipeCount()
+    if self.lines and self.linesKey == key then return self.lines end
+
+    local known = KnownByName()
+    local lines = {}
+    for _, entry in ipairs(self:Entries()) do
+        local recipeID = known[entry.skillLineID] and known[entry.skillLineID][entry.name]
+            or self:RecipeID(entry.skillLineID, entry.name)
+        if recipeID and not lines[recipeID] then
+            lines[recipeID] = { kind = entry.kind, index = entry.index, name = entry.name }
+        end
+    end
+
+    self.lines, self.linesKey = lines, key
+    return lines
+end
+
+--- The recipes the open profession windows can make: every recipe this
+--- character knows in their professions, shown or hidden by a heading or a
+--- filter, so a folded heading never reads as the wrong window.
+-- @return { [recipeID] = true }, or nil when no profession window is open
+function EraRecipes:OpenRecipeIDs()
+    local windows = self:Windows()
+    if #windows == 0 then return nil end
+
+    local open = {}
+    local mine = ns.Recipes and ns.Recipes:GetAll() or {}
+    for _, window in ipairs(windows) do
+        for recipeID, recipe in pairs(mine) do
+            if recipe.skillLineID == window.skillLineID then open[recipeID] = true end
+        end
+    end
+    for recipeID in pairs(self:OpenLines()) do open[recipeID] = true end
+    return open
+end
+
+--- Make a recipe from the open window. Must run from a click.
+-- @return true, or false when the window does not show it now
+function EraRecipes:Craft(recipeID, count)
+    local line = self:OpenLines()[recipeID]
+    if line and LineAt(line.kind, line.index) ~= line.name then
+        self.lines = nil
+        line = self:OpenLines()[recipeID]
+    end
+    if not line or LineAt(line.kind, line.index) ~= line.name then return false end
+
+    if line.kind == "trade" then
+        DoTradeSkill(line.index, math.max(1, count or 1))
+    else
+        -- Enchanting makes one a click, and an enchant waits for its target.
+        DoCraft(line.index)
+    end
+    return true
+end
+
+--- How many crafts a craft started from the Craft window makes: always one.
+function EraRecipes:MakesOneAtATime(recipeID)
+    local line = self:OpenLines()[recipeID]
+    return line ~= nil and line.kind == "craft"
+end
+
+--------------------------------------------------------------------------------
 -- Events
 --------------------------------------------------------------------------------
 
