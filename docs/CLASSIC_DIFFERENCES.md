@@ -133,7 +133,13 @@ loads them, and every reader asks for them first.
   wheel turns after it list with no box; while it runs a click waits
   (`Posting:CheckingAll`). Your auctions are read from Era's own list
   (`Auctions.LegacyOwnedInfo`, `GetNumAuctionItems("owner")`,
-  `AUCTION_OWNED_LIST_UPDATE`), so a listing is confirmed. Tested in
+  `AUCTION_OWNED_LIST_UPDATE`), so a listing is confirmed. A stack is
+  never put in the auction slot and listed in the same click: Era answers
+  "Internal auction error" (seen the same day). `Posting:PrepareNext` puts
+  the next stack in ahead (after the price check and a second after each
+  listing), and a click lists only once the slot has taken it
+  (`NEW_AUCTION_UPDATE`, else `HELD_SETTLE` seconds); a stack not yet in
+  goes in and the click says "ready to list". Tested in
   `tools/test_legacypost.lua`.
 - Scan works on Era (2026-10-25, the owner picked "full scan, page scan
   backup"): `Data/LegacyScan.lua` asks for the quick full scan
