@@ -322,6 +322,21 @@ check("no map: the arrow can't take it", ns.WayArrow:AimAt({ zone = "Nowhere", x
 ns.Waypoints.MapFor = findMap
 ns.WayArrow, ns.charDb = nil, nil
 
+-- UI/WayArrow.lua draws the arrow smaller, and a spot saved before keeps
+-- its place: it is kept in UIParent's units and turned back on placing.
+do
+    local f = io.open(lfs_cwd .. "/UI/WayArrow.lua", "r")
+    local text = f and f:read("*a") or ""
+    if f then f:close() end
+    local scale = tonumber(text:match("ArrowUI%.SCALE = ([%d%.]+)"))
+    check("the arrow is drawn smaller", scale ~= nil and scale < 1, true)
+    check("its size is set on the frame", text:find("pcall(frame.SetScale, frame, ArrowUI.SCALE)", 1, true) ~= nil, true)
+    check("a saved spot is turned back into the arrow's units",
+        text:find("ns.db.wayArrowX / scale, ns.db.wayArrowY / scale", 1, true) ~= nil, true)
+    check("and saved in UIParent's units",
+        text:find("ns.db.wayArrowX, ns.db.wayArrowY = x * scale, y * scale", 1, true) ~= nil, true)
+end
+
 print("\nwhere the game saw the vendor")
 -- Logic/VendorPins.lua knows where a vendor stood when its window was
 -- opened; that wins over Classic's spot (the owner, 2026-10-22).
