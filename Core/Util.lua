@@ -830,8 +830,19 @@ end
 -- Below a silver there is nothing to round down to, so the floor is one
 -- silver. That can land above market value on a near-worthless item, but it
 -- is the only price the server will take.
+--- Whether item auctions take only whole silver. Era's older auction house
+--- takes any copper, so there a price is only made whole.
+function Util.SilverOnly()
+    local compat = ns.Compat
+    if not (compat and compat.Get) then return true end
+    local ok, caps = pcall(compat.Get, compat)
+    return not (ok and type(caps) == "table" and type(caps.auction) == "table"
+        and caps.auction.mode == "legacy")
+end
+
 function Util.RoundToSilver(price)
     if type(price) ~= "number" then return nil end
+    if not Util.SilverOnly() then return math.max(1, math.floor(price)) end
     if price < COPPER_PER_SILVER then return COPPER_PER_SILVER end
     return math.floor(price / COPPER_PER_SILVER) * COPPER_PER_SILVER
 end
@@ -845,12 +856,14 @@ end
 -- what the materials cost and have the listing refused.
 function Util.CeilToSilver(price)
     if type(price) ~= "number" then return nil end
+    if not Util.SilverOnly() then return math.max(1, math.ceil(price)) end
     if price <= COPPER_PER_SILVER then return COPPER_PER_SILVER end
     return math.ceil(price / COPPER_PER_SILVER) * COPPER_PER_SILVER
 end
 
 --- Is this price one an item auction will accept?
 function Util.IsWholeSilver(price)
+    if not Util.SilverOnly() then return type(price) == "number" and price >= 1 and price % 1 == 0 end
     return type(price) == "number" and price >= COPPER_PER_SILVER
         and price % COPPER_PER_SILVER == 0
 end
