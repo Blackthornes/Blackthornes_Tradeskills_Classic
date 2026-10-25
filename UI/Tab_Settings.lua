@@ -1777,6 +1777,33 @@ local function Build(outer)
     widgets.linkStatus:SetWidth(COLUMN_WIDTH)
     widgets.linkStatus:SetWordWrap(true)
 
+    -- Friends (the owner, 2026-10-25): a friend's recipes show on the
+    -- Profit tab, and their characters never join yours.
+    -- Logic/GuildCrafters.lua.
+    CreateSection(pages.sharing, 1, L["FRIENDS"])
+    local friendRow = CreateRow(pages.sharing, 1, L["Friends:"],
+        L["Type your friend's character names, with commas. Their data stays apart from yours."])
+    widgets.friendNames = Widgets.CreateSearchBox(friendRow, L["Character names"], function(text)
+        if ns.GuildCrafters then ns.GuildCrafters:SetFriends(text) else Config:Set("friendNames", text) end
+    end)
+    widgets.friendNames:SetWidth(150)
+    widgets.friendNames:SetPoint("TOPLEFT", CONTROL_X, 0)
+    if widgets.friendNames.icon then
+        widgets.friendNames.icon:SetTexture([[Interface\FriendsFrame\UI-Toast-FriendOnlineIcon]])
+        widgets.friendNames.icon:SetSize(14, 14)
+    end
+    widgets.friendNames.editBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(Config:Get("friendNames") or "")
+        self:ClearFocus()
+    end)
+    -- The hello waits for Enter, so half a name is never whispered.
+    widgets.friendNames.editBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        if ns.AccountLink and ns.AccountLink.SetAsideFriends then ns.AccountLink:SetAsideFriends() end
+        if ns.GuildCrafters then ns.GuildCrafters:HelloFriends() end
+        UI:RefreshActiveTab()
+    end)
+
     CreateSection(pages.sharing, 2, L["GUILD"])
     local guildRow = CreateRow(pages.sharing, 2, L["Guild Prices:"],
         L["Swaps scans with guildmates who use Tradeskills. Your own scans always win."])
@@ -2348,6 +2375,11 @@ local function Refresh()
     end
     for key, box in pairs(widgets.linkShares) do
         box:SetChecked(Config:Get(key) ~= false)
+    end
+    local friendBox = widgets.friendNames.editBox
+    if not (friendBox.HasFocus and friendBox:HasFocus()) then
+        local saved = Config:Get("friendNames") or ""
+        if widgets.friendNames:GetText() ~= saved then widgets.friendNames:SetText(saved) end
     end
     widgets.linkStatus:SetText(ns.AccountLink and ns.AccountLink:Describe() or "")
     widgets.guildPrices:SetChecked(Config:Get("guildPrices") == true)

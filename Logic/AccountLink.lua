@@ -21,6 +21,11 @@
 -- Saved as ordinary character records in `characters[guid]`, with
 -- `linkedFrom`, `linkedAt` and `linkHash`. Never rename those: a record
 -- without `linkedFrom` would read as one of this account's own.
+--
+-- A name also typed under Friends (`friendNames`, the owner 2026-10-25) is
+-- a friend, not your account: it is never a partner here, and copies it
+-- sent before are set aside in `friendCopies[guid]` (never rename it), out
+-- of the Characters list and every count, but not deleted.
 
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
@@ -65,7 +70,9 @@ function AccountLink:GetPartners()
     for part in text:gmatch("[^,;]+") do
         local name = part:gsub("^%s+", ""):gsub("%s+$", "")
         local key = Comm.NameKey(name)
-        if key and not seen[key] and #name <= 48 then
+        local friend = ns.GuildCrafters and ns.GuildCrafters.IsFriend
+            and ns.GuildCrafters:IsFriend(name)
+        if key and not seen[key] and #name <= 48 and not friend then
             seen[key] = true
             list[#list + 1] = { key = key, name = name }
         end
@@ -368,6 +375,30 @@ function AccountLink:Forget(name)
     return #gone
 end
 
+--- Move every copy a friend sent out of the character list, into
+--- `friendCopies`. Nothing is deleted; it is only no longer read.
+-- @return how many were set aside
+function AccountLink:SetAsideFriends()
+    local crafters = ns.GuildCrafters
+    local characters = ns.db and ns.db.characters
+    if not (crafters and crafters.IsFriend and type(characters) == "table") then return 0 end
+    local moved = {}
+    for guid, record in pairs(characters) do
+        if type(record) == "table" and type(record.linkedFrom) == "string"
+            and crafters:IsFriend(record.linkedFrom) then
+            moved[#moved + 1] = guid
+        end
+    end
+    if #moved == 0 then return 0 end
+    ns.db.friendCopies = type(ns.db.friendCopies) == "table" and ns.db.friendCopies or {}
+    for _, guid in ipairs(moved) do
+        ns.db.friendCopies[guid] = characters[guid]
+        ns.Recipes:ForgetCharacter(guid)
+    end
+    self:Changed()
+    return #moved
+end
+
 --- How many characters each partner has sent: { [name] = count }.
 function AccountLink:CountLinked()
     local counts, total = {}, 0
@@ -538,7 +569,11 @@ function AccountLink:OnEnable()
     Comm:OnTable("M", function(...) AccountLink:OnManifest(...) end)
     Comm:OnTable("W", function(...) AccountLink:OnWant(...) end)
     Comm:OnTable("C", function(...) AccountLink:OnCharacter(...) end)
-    Comm.onOffline = function(key) AccountLink:OnOffline(key) end
+    Comm.onOffline = function(key)
+        AccountLink:OnOffline(key)
+        if ns.GuildCrafters and ns.GuildCrafters.OnOffline then ns.GuildCrafters:OnOffline(key) end
+    end
+    self:SetAsideFriends()
 
     -- After the login rush, then now and then.
     C_Timer.After(20, function() AccountLink:Check() end)

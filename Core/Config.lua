@@ -526,6 +526,11 @@ local DEFAULTS = {
         -- only, 2026-10-24). Off unless ticked; never rename it. See
         -- Logic/GuildCrafters.lua.
         guildCrafters = false,
+        -- Friends' character names, with commas (the owner, 2026-10-25).
+        -- Their data stays apart: never in your Characters list, only
+        -- "Friends who can make it" on the Profit tab. Never rename it.
+        -- See Logic/GuildCrafters.lua.
+        friendNames = "",
         -- Share scans with players on your realm over a hidden channel, and
         -- fill what is still missing with theirs (2026-10-20). Off unless
         -- ticked; never rename it. See Logic/RealmPrices.lua.
