@@ -49,6 +49,9 @@ local roster = {}
 C_ChatInfo = {
     RegisterAddonMessagePrefix = function() return true end,
     SendAddonMessage = function(prefix, text, channel, target)
+        -- The server takes "Name-Realm" for a whisper; the realm is not part of
+        -- the name these pretend clients go by.
+        if type(target) == "string" then target = (target:gsub("%-[^%-]+$", "")) end
         assert(#text <= 255, "a message over 255 bytes went out")
         network[#network + 1] = { from = current.full, text = text, channel = channel, target = target }
         return 0

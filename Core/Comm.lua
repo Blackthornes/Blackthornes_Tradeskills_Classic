@@ -177,8 +177,27 @@ local function Now()
     return ok and now or 0
 end
 
+--- "Ana" -> "Ana-Realm", this character's realm, for a whisper. On Classic
+--- Era (2026-10-25) a whisper by the bare name never arrived for one player,
+--- even to themselves, and arrived with the realm on; a name that already
+--- carries a realm is left as it is.
+local function WithRealm(target)
+    if type(target) ~= "string" or target == "" or target:find("-", 1, true) then return target end
+    local ok, realm = pcall(function()
+        local name = type(GetNormalizedRealmName) == "function" and GetNormalizedRealmName() or nil
+        if (not name or name == "") and type(GetRealmName) == "function" then
+            name = (GetRealmName() or ""):gsub("[%s%-]", "")
+        end
+        return name .. ""
+    end)
+    if not ok or not realm or realm == "" then return target end
+    return target .. "-" .. realm
+end
+Comm.WithRealm = WithRealm
+
 --- Hand one message to the client. "sent", "throttled", or "failed" and why.
 function Comm.RawSend(text, channel, target)
+    if channel == "WHISPER" then target = WithRealm(target) end
     local ok, result
     if type(C_ChatInfo) == "table" and type(C_ChatInfo.SendAddonMessage) == "function" then
         ok, result = pcall(C_ChatInfo.SendAddonMessage, Comm.PREFIX, text, channel, target)

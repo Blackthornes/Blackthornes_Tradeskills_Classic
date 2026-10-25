@@ -58,6 +58,9 @@ local throttleNext = 0   -- how many sends to refuse as throttled
 C_ChatInfo = {
     RegisterAddonMessagePrefix = function() return true end,
     SendAddonMessage = function(prefix, text, channel, target)
+        -- The server takes "Name-Realm" for a whisper; the realm is not part of
+        -- the name these pretend clients go by.
+        if type(target) == "string" then target = (target:gsub("%-[^%-]+$", "")) end
         assert(#text <= 255, "a message over 255 bytes went out")
         if throttleNext > 0 then
             throttleNext = throttleNext - 1
@@ -534,6 +537,28 @@ check("junk, month-old and whispered prices are not kept", GuildPrices:Count(), 
 clock = clock + 8 * 86400
 check("a week later they are pruned", GuildPrices:Prune() > 0, true)
 check("and nothing is left", GuildPrices:Count(), 0)
+
+-- A whisper goes to "Name-Realm" (Classic Era, 2026-10-25: a bare name
+-- never arrived for one player).
+local oldNormal, oldRealm = GetNormalizedRealmName, GetRealmName
+GetNormalizedRealmName, GetRealmName = function() return "Ashkandi" end, nil
+check("a bare name gets this realm", Comm.WithRealm("Ana"), "Ana-Ashkandi")
+check("a name with a realm is left alone", Comm.WithRealm("Ana-Other"), "Ana-Other")
+GetNormalizedRealmName, GetRealmName = nil, function() return "Old Blanchy" end
+check("else the realm's name without spaces", Comm.WithRealm("Ana"), "Ana-OldBlanchy")
+GetNormalizedRealmName = nil
+GetRealmName = nil
+check("no realm known: the name as it was", Comm.WithRealm("Ana"), "Ana")
+local sentTo
+local oldSend = C_ChatInfo.SendAddonMessage
+GetNormalizedRealmName = function() return "Ashkandi" end
+C_ChatInfo.SendAddonMessage = function(_, _, _, target) sentTo = target return 0 end
+Comm.RawSend("x", "WHISPER", "Bob")
+check("a whisper is sent with the realm", sentTo, "Bob-Ashkandi")
+Comm.RawSend("x", "GUILD")
+check("a guild message has no target", sentTo, nil)
+C_ChatInfo.SendAddonMessage = oldSend
+GetNormalizedRealmName, GetRealmName = oldNormal, oldRealm
 
 --------------------------------------------------------------------------------
 
