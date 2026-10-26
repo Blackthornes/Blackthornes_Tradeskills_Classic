@@ -929,7 +929,8 @@ out the whole way to 300 for one profession: from the skill now, each
 stretch takes the recipe cheapest a point, known or taught by a trainer
 or vendor of the player's side (`RoadPlan:Candidates`, `LearnNext:Place`);
 a step is one recipe in one colour, "every craft" while orange, "most
-crafts" while yellow, its crafts 1 over the chance (`RoadPlan.Chance`: 1
+crafts" while yellow, "some crafts" once green (halfway from yellow to
+grey, `RoadPlan.Tier`), its crafts 1 over the chance (`RoadPlan.Chance`: 1
 below yellow, (grey - skill) / (grey - yellow) up to grey). Trainer steps
 sit at Classic's ranks (`RoadPlan.RANKS`: Journeyman at 50 to 150 and
 level 10, Expert at 125 to 225 and level 20, Artisan at 200 to 300 and
