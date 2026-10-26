@@ -53,11 +53,11 @@ check("the files stay in the repo", io.open(lfs_cwd .. "/Data/ForeverRecipes.lua
     and io.open(lfs_cwd .. "/Data/ForeverVendorSpots.lua") ~= nil)
 
 -- Forever's own features (step 2): Legacy perks, Merchant's Favor and its
--- Waylaid Crates, the Craftsman's Writs, and sending data to Forever
--- characters. Out of the TOC, kept in the repo.
+-- Waylaid Crates and the Craftsman's Writs. Out of the TOC, kept in the
+-- repo. Sending data to Blackthornes is back, to the owner's Era characters.
 local FOREVER_FEATURES = {
     "Data\\WaylaidCrates.lua", "Data\\CraftsmansWrits.lua", "Logic\\Legacy.lua",
-    "Logic\\MerchantsFavor.lua", "Logic\\Writs.lua", "Logic\\Contribute.lua",
+    "Logic\\MerchantsFavor.lua", "Logic\\Writs.lua",
     "UI\\FavorsView.lua", "UI\\DealsFavor.lua", "UI\\DealsWrits.lua",
 }
 for _, path in ipairs(FOREVER_FEATURES) do
@@ -231,7 +231,14 @@ check("no Forever recipes in the book", (function()
 end)())
 check("no Forever vendor spots", ns.FOREVER_VENDOR_SPOTS == nil)
 check("no Forever trainer spots", ns.FOREVER_TRAINER_SPOTS == nil)
-for _, name in ipairs({ "Legacy", "MerchantsFavor", "Writs", "Contribute", "FavorsView",
+check("the TOC sends data to Blackthornes", toc:find("\nLogic\\Contribute.lua", 1, true) ~= nil)
+check("only to the owner's Era characters", ns.Contribute ~= nil and (function()
+    for _, name in ipairs(ns.Contribute.RECIPIENTS) do
+        if name:find(" ", 1, true) or not name:find("-Ashkandi$") then return false end
+    end
+    return #ns.Contribute.RECIPIENTS > 0
+end)())
+for _, name in ipairs({ "Legacy", "MerchantsFavor", "Writs", "FavorsView",
     "DealsFavor", "DealsWrits", "WAYLAID_CRATES", "CRAFTSMANS_WRITS" }) do
     check("no " .. name, ns[name] == nil)
 end

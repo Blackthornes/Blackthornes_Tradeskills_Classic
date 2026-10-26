@@ -1901,9 +1901,10 @@ local function Build(outer)
 
     -- Sending your own disenchants and recipe skills to the addon's maker
     -- (Logic/Contribute.lua, the owner 2026-10-18). Off unless ticked, and
-    -- offered only where it can send (North America). Its words wrap under
-    -- the box, since they run long.
-    if ns.Contribute and ns.Contribute:InRegion() then
+    -- offered only where it can send (North America, and on Classic Era
+    -- the realm the owner's characters are on). Its words wrap under the
+    -- box, since they run long.
+    if ns.Contribute and ns.Contribute:InRegion() and #ns.Contribute:Recipients() > 0 then
         local text = L["Share your data with Blackthornes to improve the Tradeskills AddOn."]
         local holder = CreateFrame("Frame", nil, pages.about.content)
         holder:SetSize(COLUMN_WIDTH, 36)
