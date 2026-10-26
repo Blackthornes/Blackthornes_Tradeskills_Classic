@@ -191,6 +191,15 @@ loads them, and every reader asks for them first.
   The mail panel no longer asks for a last name, the account link hint
   asks for names only, and a record without a GUID reads "older record".
 
+- Friends (the owner, 2026-10-25; Classic only): "Friends:" on the Sharing
+  page (`friendNames`, never rename it). A friend's recipes come by whisper
+  (`GuildCrafters:HelloFriends`, `WhoCanMakeFriends`) and show as "Friends
+  who can make it:" on the Profit tab; nothing of theirs is saved. A name
+  there is never an account link partner, and copies it sent before are
+  moved to `friendCopies[guid]` (`AccountLink:SetAsideFriends`, never
+  rename it), out of the Characters list but not deleted. Tested in
+  `tools/test_friends.lua`.
+
 ## Not yet done
 - Steps 4 (the auction house), 5 (the probe in Era) and
   6 (data from Era's tables, such as recipe skills in `Data/LearnSpots.lua`)

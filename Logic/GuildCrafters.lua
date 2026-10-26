@@ -21,6 +21,14 @@
 --   * A whisper is heard only from a guildmate whose hello came first, or
 --     in the minute after our own first hello (the answers to it). Once the
 --     guild roster has been read, only names on it are ever shown.
+--
+-- Friends (the owner, 2026-10-25): a player shared with a friend through
+-- "Your Other Account" and got the friend's characters in their own list.
+-- Names typed under "Friends:" (`friendNames`, never rename it) swap the
+-- same hello and list by whisper, whether or not Guild Crafters is ticked,
+-- and show on their own line on the Profit tab. Only names typed there are
+-- whispered or heard, so both sides have to name each other. Nothing is
+-- saved, so a friend's characters never join this account's own.
 
 local _, ns = ...
 
@@ -42,6 +50,8 @@ GuildCrafters.OPEN_FOR = 60           -- after our first hello, answers are take
 GuildCrafters.held = {}               -- [name key] = { name, hash, set, at }
 GuildCrafters.asked = {}              -- [name key] = when we last asked
 GuildCrafters.answered = {}           -- [name key] = when we last sent our list
+GuildCrafters.friendHello = {}        -- [name key] = when we last whispered a friend hello
+GuildCrafters.MAX_FRIENDS = 20
 
 local function Now()
     local ok, now = pcall(time)
@@ -55,6 +65,42 @@ end
 
 function GuildCrafters:IsOn()
     return ns.Config and ns.Config:Get("guildCrafters") == true
+end
+
+--- The names typed under Friends, as { key = "ana", name = "Ana" }.
+function GuildCrafters:Friends()
+    local list, seen = {}, {}
+    local text = ns.Config and ns.Config:Get("friendNames")
+    if type(text) ~= "string" then return list end
+    for part in text:gmatch("[^,;]+") do
+        local name = part:gsub("^%s+", ""):gsub("%s+$", "")
+        local key = Comm.NameKey(name)
+        if key and not seen[key] and #name <= 48 and not Comm.IsMe(name) then
+            seen[key] = true
+            list[#list + 1] = { key = key, name = name }
+            if #list >= self.MAX_FRIENDS then break end
+        end
+    end
+    return list
+end
+
+--- The friend a name is, or nil. Matched by the whole name, or by the
+--- first word when only that was typed or only that came.
+function GuildCrafters:IsFriend(name)
+    local key = Comm.NameKey(name)
+    if not key then return nil end
+    local first = key:match("^(%S+)")
+    for _, friend in ipairs(self:Friends()) do
+        if friend.key == key or friend.key == first or friend.key:match("^(%S+)") == key then
+            return friend
+        end
+    end
+    return nil
+end
+
+--- Anything to do at all: Guild Crafters ticked, or a friend named.
+function GuildCrafters:Busy()
+    return self:IsOn() or #self:Friends() > 0
 end
 
 --------------------------------------------------------------------------------
@@ -96,6 +142,28 @@ function GuildCrafters:Hello(first)
     return true
 end
 
+--- Whisper a hello to each friend, at most every HELLO_EVERY, sooner when
+--- the recipes changed. The first of a session asks for their list too.
+function GuildCrafters:HelloFriends(now)
+    now = now or Now()
+    local _, hash, count = self:Mine()
+    local sent = 0
+    for _, friend in ipairs(self:Friends()) do
+        local last = self.friendHello[friend.key]
+        if not last or now - last >= self.HELLO_EVERY or hash ~= self.friendHash then
+            local first = last == nil
+            if count > 0 or first then
+                self.friendHello[friend.key] = now
+                if Comm.NoteWhisper then Comm:NoteWhisper(friend.name) end
+                Comm:Send("B", hash .. (first and ":1" or ""), "WHISPER", friend.name)
+                sent = sent + 1
+            end
+        end
+    end
+    self.friendHash = hash
+    return sent
+end
+
 function GuildCrafters:SendList(target, now)
     now = now or Now()
     local key = Comm.NameKey(target)
@@ -123,7 +191,13 @@ local function Keep(self, key)
 end
 
 function GuildCrafters:OnHello(sender, body, channel, now)
-    if channel ~= "GUILD" or Comm.IsMe(sender) or not self:IsOn() then return end
+    if Comm.IsMe(sender) then return end
+    local friend = self:IsFriend(sender)
+    if channel == "GUILD" then
+        if not self:IsOn() and not friend then return end
+    elseif channel ~= "WHISPER" or not friend then
+        return
+    end
     now = now or Now()
     local key = Comm.NameKey(sender)
     if not key then return end
@@ -135,13 +209,17 @@ function GuildCrafters:OnHello(sender, body, channel, now)
     entry.name = sender:match("^[^%-]+") or sender
     entry.at = now
     entry.gone = nil
+    entry.friend = friend and true or nil
 
     if entry.hash ~= hash and (not self.asked[key] or now - self.asked[key] >= self.ASK_EVERY) then
         self.asked[key] = now
         Comm:Send("N", "", "WHISPER", sender)
     end
 
-    if flag == ":1" then
+    if flag == ":1" and channel == "WHISPER" then
+        -- Only this friend heard it: no need to wait.
+        self:SendList(sender, now)
+    elseif flag == ":1" then
         -- Everyone in the guild hears it; the answers are spread out a little.
         local wait = 2 + math.random() * (self.ANSWER_WAIT - 2)
         if C_Timer and C_Timer.After then
@@ -157,12 +235,22 @@ end
 function GuildCrafters:Known(sender, now)
     local key = Comm.NameKey(sender)
     if not key or Comm.IsMe(sender) then return nil end
-    if self.held[key] then return self.held[key] end
-    if self.openUntil and (now or Now()) <= self.openUntil then
+    local friend = self:IsFriend(sender)
+    local held = self.held[key]
+    if held then
+        -- A guildmate heard while Guild Crafters was on counts only while it is.
+        if friend or self:IsOn() then
+            held.friend = friend and true or nil
+            return held
+        end
+        return nil
+    end
+    if friend or (self:IsOn() and self.openUntil and (now or Now()) <= self.openUntil) then
         local entry = Keep(self, key)
         if entry then
             entry.name = sender:match("^[^%-]+") or sender
             entry.at = now or Now()
+            entry.friend = friend and true or nil
         end
         return entry
     end
@@ -170,14 +258,14 @@ function GuildCrafters:Known(sender, now)
 end
 
 function GuildCrafters:OnAsk(sender, _, channel, now)
-    if channel ~= "WHISPER" or not self:IsOn() then return end
+    if channel ~= "WHISPER" then return end
     if not self:Known(sender, now) then return end
     self:SendList(sender, now)
 end
 
 --- A guildmate's list, read as plain data and checked.
 function GuildCrafters:OnList(sender, value, channel, now)
-    if channel ~= "WHISPER" or not self:IsOn() or type(value) ~= "table" then return end
+    if channel ~= "WHISPER" or type(value) ~= "table" then return end
     local entry = self:Known(sender, now)
     if not entry then return end
     local hash, text = value.h, value.r
@@ -239,25 +327,58 @@ local function IsOnline(entry, now)
         return false
     end
     local members = GuildCrafters.members
-    if members and entry.name then
+    -- A friend need not be in the guild.
+    if members and entry.name and not entry.friend then
         local key = Comm.NameKey(entry.name)
         if not (members[key] or members[key:match("^(%S+)")]) then return false end
     end
     return true
 end
 
---- The guildmates online who know a recipe, by name, sorted.
-function GuildCrafters:WhoCanMake(recipeID, now)
-    if not self:IsOn() or type(recipeID) ~= "number" then return {} end
+--- The guildmates online who know a recipe, by name, sorted. Friends are
+--- left out here and listed by WhoCanMakeFriends.
+function GuildCrafters:WhoCanMake(recipeID, now, friends)
+    if type(recipeID) ~= "number" then return {} end
+    if not friends and not self:IsOn() then return {} end
     now = now or Now()
     local names = {}
     for _, entry in pairs(self.held) do
-        if entry.set and entry.set[recipeID] and entry.name and IsOnline(entry, now) then
+        if (entry.friend == true) == (friends == true)
+            and entry.set and entry.set[recipeID] and entry.name and IsOnline(entry, now) then
             names[#names + 1] = entry.name
         end
     end
     table.sort(names, function(a, b) return a:lower() < b:lower() end)
     return names
+end
+
+--- The friends online who know a recipe, by name, sorted.
+function GuildCrafters:WhoCanMakeFriends(recipeID, now)
+    return self:WhoCanMake(recipeID, now, true)
+end
+
+--- "No player named" came back for a name just whispered: that friend is
+--- away for now.
+function GuildCrafters:OnOffline(key)
+    if not key then return end
+    for heldKey, entry in pairs(self.held) do
+        if entry.friend and (heldKey == key or heldKey:match("^(%S+)") == key) then entry.gone = true end
+    end
+end
+
+--- The Friends box changed: let go of anyone no longer named. The hello
+--- and setting copies aside wait for Enter (Settings), so half a name
+--- does nothing.
+function GuildCrafters:SetFriends(text)
+    text = (text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    ns.Config:Set("friendNames", text)
+    for key, entry in pairs(self.held) do
+        if entry.friend and not self:IsFriend(entry.name or key) then self.held[key] = nil end
+    end
+    for key in pairs(self.friendHello) do
+        if not self:IsFriend(key) then self.friendHello[key] = nil end
+    end
+    self.version = (self.version or 0) + 1
 end
 
 --- Open the chat box with a whisper to this guildmate, by full name.
@@ -278,15 +399,19 @@ function GuildCrafters:SetOn(on)
     if on then
         if self:Hello(true) then self.helloAt, self.saidHello = Now(), true end
     else
-        self.held, self.asked, self.answered = {}, {}, {}
+        -- Friends stay: they are not part of the guild switch.
+        for key, entry in pairs(self.held) do
+            if not entry.friend then self.held[key] = nil end
+        end
         self.openUntil, self.members = nil, nil
         self.version = (self.version or 0) + 1
     end
 end
 
 function GuildCrafters:Tick(now)
-    if not self:IsOn() then return end
     now = now or Now()
+    if #self:Friends() > 0 then self:HelloFriends(now) end
+    if not self:IsOn() then return end
     local _, hash = self:Mine()
     if not self.helloAt or now - self.helloAt >= self.HELLO_EVERY or hash ~= self.lastHash then
         if self:Hello(not self.saidHello) then

@@ -642,27 +642,28 @@ local function CrafterButton(crafters, index)
     return button
 end
 
---- Fill the guildmates line for a craft, or hide it. The names go on one
---- row, as many as fit, then "+N more".
-local function UpdateCrafters(detail, analysis)
-    local crafters = rawget(detail, "crafters")
-    if type(crafters) ~= "table" then return end
+--- Who can make it, for one line: the guildmates' or the friends'.
+local function CraftersFor(analysis, friends)
+    local crafters = ns.GuildCrafters
+    if not (analysis and crafters) then return {} end
+    local fn = friends and crafters.WhoCanMakeFriends or crafters.WhoCanMake
+    if not fn then return {} end
+    local ok, found = pcall(fn, crafters, analysis.recipeID)
+    return (ok and type(found) == "table") and found or {}
+end
+
+--- Fill one line of names, or hide it. The names go on one row, as many as
+--- fit, then "+N more". True when it shows.
+local function FillCrafters(crafters, names, anchor)
     for _, button in ipairs(crafters.names) do button:Hide() end
-
-    local names = {}
-    if analysis and ns.GuildCrafters and ns.GuildCrafters.WhoCanMake then
-        local ok, found = pcall(ns.GuildCrafters.WhoCanMake, ns.GuildCrafters, analysis.recipeID)
-        if ok and type(found) == "table" then names = found end
-    end
-
-    detail.reagentHeading:ClearAllPoints()
     if #names == 0 then
         crafters:Hide()
-        detail.reagentHeading:SetPoint("TOPLEFT", detail.subtitle, "BOTTOMLEFT", -38, -12)
-        return
+        return false
     end
+    crafters:ClearAllPoints()
+    crafters:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -6)
+    crafters:SetPoint("RIGHT", crafters:GetParent(), "RIGHT", -12, 0)
     crafters:Show()
-    detail.reagentHeading:SetPoint("TOPLEFT", crafters, "BOTTOMLEFT", -38, -8)
 
     local okWidth, room = pcall(crafters.GetWidth, crafters)
     if not okWidth or type(room) ~= "number" or room <= 0 then room = DETAIL_WIDTH - 62 end
@@ -696,6 +697,27 @@ local function UpdateCrafters(detail, analysis)
         more:ClearAllPoints()
         more:SetPoint("TOPLEFT", crafters, "TOPLEFT", x, -16)
         more:Show()
+    end
+    return true
+end
+
+--- Fill the guildmates line and the friends line for a craft, or hide
+--- them. The materials move down under whichever shows last.
+local function UpdateCrafters(detail, analysis)
+    local crafters = rawget(detail, "crafters")
+    if type(crafters) ~= "table" then return end
+    local below = detail.subtitle
+    if FillCrafters(crafters, CraftersFor(analysis, false), below) then below = crafters end
+    local friends = rawget(detail, "friendCrafters")
+    if type(friends) == "table" and FillCrafters(friends, CraftersFor(analysis, true), below) then
+        below = friends
+    end
+
+    detail.reagentHeading:ClearAllPoints()
+    if below == detail.subtitle then
+        detail.reagentHeading:SetPoint("TOPLEFT", detail.subtitle, "BOTTOMLEFT", -38, -12)
+    else
+        detail.reagentHeading:SetPoint("TOPLEFT", below, "BOTTOMLEFT", -38, -8)
     end
 end
 
@@ -736,18 +758,24 @@ local function BuildDetail(parent)
     -- Guildmates online who can make it (Logic/GuildCrafters.lua): a line
     -- under the subtitle, shown only when someone is, each name a click
     -- that opens a whisper. The materials move down under it.
-    local crafters = CreateFrame("Frame", nil, detail)
-    crafters:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -6)
-    crafters:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
-    crafters:SetHeight(CRAFTERS_HEIGHT)
-    crafters.label = Theme.CreateLabel(crafters, "small", "muted")
-    crafters.label:SetPoint("TOPLEFT", 0, 0)
-    crafters.label:SetPoint("RIGHT", crafters, "RIGHT", 0, 0)
-    crafters.label:SetWordWrap(true)
-    crafters.label:SetText(L["Guildmates who can make it:"])
-    crafters.names = {}
-    crafters:Hide()
-    detail.crafters = crafters
+    -- Friends online who can make it (the owner, 2026-10-25) get a line of
+    -- their own under it, the same way.
+    local function CrafterLine(label)
+        local line = CreateFrame("Frame", nil, detail)
+        line:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -6)
+        line:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+        line:SetHeight(CRAFTERS_HEIGHT)
+        line.label = Theme.CreateLabel(line, "small", "muted")
+        line.label:SetPoint("TOPLEFT", 0, 0)
+        line.label:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+        line.label:SetWordWrap(true)
+        line.label:SetText(label)
+        line.names = {}
+        line:Hide()
+        return line
+    end
+    detail.crafters = CrafterLine(L["Guildmates who can make it:"])
+    detail.friendCrafters = CrafterLine(L["Friends who can make it:"])
 
     local reagentHeading = Theme.CreateHeading(detail, L["MATERIALS"])
     -- Back out under the icon, so the list of materials starts at the edge.
