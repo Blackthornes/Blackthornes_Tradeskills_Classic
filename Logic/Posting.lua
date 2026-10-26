@@ -350,6 +350,18 @@ end
 --- Bag slot holding an item, skipping locked slots.
 -- @return bag, slot, stackCount
 local function FindInBags(itemID)
+    -- Era: the stack already waiting in the auction slot comes first. Its
+    -- bag slot is locked, so walking the bags would find another copy
+    -- (two pairs of boots), put that one in, send this one back, and the
+    -- next click would swap them again, never listing either.
+    local heldBag, heldSlot = HeldSlot(itemID)
+    if heldBag then
+        local infoOk, info = pcall(C_Container.GetContainerItemInfo, heldBag, heldSlot)
+        if infoOk and info and info.itemID == itemID then
+            return heldBag, heldSlot, info.stackCount or 1
+        end
+    end
+
     -- Inventory owns the list of containers the character is carrying, reagent
     -- bag included. Keeping a second list here is how the sell list came to
     -- offer a different set of items than the counts said you had.
@@ -364,15 +376,6 @@ local function FindInBags(itemID)
                     return bag, slot, info.stackCount or 1
                 end
             end
-        end
-    end
-
-    -- Era: the stack waiting in the auction slot, its bag slot locked.
-    local heldBag, heldSlot = HeldSlot(itemID)
-    if heldBag then
-        local infoOk, info = pcall(C_Container.GetContainerItemInfo, heldBag, heldSlot)
-        if infoOk and info and info.itemID == itemID then
-            return heldBag, heldSlot, info.stackCount or 1
         end
     end
 end
@@ -412,9 +415,12 @@ local function IndexBags()
                         order[#order + 1] = itemID
                     end
 
-                    local usable = not info.isLocked
-                        or (bag == heldBag and slot == heldSlot)
-                    if not entry.bag and usable then
+                    -- The stack in the auction slot is the one listed, so
+                    -- it wins over a copy found earlier in the bags.
+                    local isHeld = bag == heldBag and slot == heldSlot
+                    local usable = not info.isLocked or isHeld
+                    if usable and (not entry.bag or (isHeld and not entry.inSellSlot)) then
+                        entry.inSellSlot = isHeld or nil
                         entry.bag, entry.slot = bag, slot
                         entry.stackCount = info.stackCount or 1
                         -- The copy that will be listed, so a random suffix
@@ -1592,7 +1598,7 @@ end
 -- name, but calling it is refused and the game's "This addon has been
 -- disabled" box comes up (seen 2026-10-25). StartAuction is only for a
 -- client with no PostAuction.
--- @return true; or false and "placed"; or false and the game's reason (may be nil)
+-- @return true; or false and "placed" or "waiting"; or false and the game's reason (may be nil)
 local function LegacyStart(itemID, bag, slot, quantity, unitPrice, duration)
     local postAuction = type(_G.PostAuction) == "function" and _G.PostAuction or nil
     local start = not postAuction and type(_G.StartAuction) == "function" and _G.StartAuction or nil
@@ -1603,7 +1609,8 @@ local function LegacyStart(itemID, bag, slot, quantity, unitPrice, duration)
         if not PlaceInSellSlot(itemID, bag, slot) then return false, nil end
         return false, "placed"
     end
-    if not HeldReady(itemID) then return false, "placed" end
+    -- Already in and said so: a quick click again just waits.
+    if not HeldReady(itemID) then return false, "waiting" end
 
     local stackPrice = math.max(1, math.floor(unitPrice * quantity))
     local ok, err
@@ -1824,6 +1831,9 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
             -- click lists it.
             ns.Print(L.Format("%s is ready to list. Click again to list it.",
                 Util.GetItemLabel(itemID)))
+        elseif err == "waiting" then
+            -- Era: the stack is still settling in the auction slot from a
+            -- click moments ago, which already said so.
         elseif err == nil then
             -- Era: the stack never reached the auction slot.
             ns.Warn(L["could not find that item in your bags"])
@@ -2633,12 +2643,18 @@ function Posting:Request(itemID, quantity, unitPrice)
         return true
     end
 
+    -- An earlier click on this item is still waiting for its check, which
+    -- brings up the box when it answers. Quick clicks while it is out add
+    -- nothing: on Era each one was another search of the auction house,
+    -- and a run of them kept it busy and listed nothing.
+    self.requesting = self.requesting or {}
+    if Posting.IsLegacy() and (self.requesting[itemID] or 0) > 0 then return true end
+
     ns.Print(L.Format("checking the current price of %s...", Util.GetItemLabel(itemID)))
 
     -- Whether an earlier click on this item is still waiting for its check.
     -- Only then is a "recent" answer already on its way to a dialog; the
     -- search still out may be anybody's (a scan's follow-up, a deep scan).
-    self.requesting = self.requesting or {}
     local alreadyAsking = (self.requesting[itemID] or 0) > 0
     self.requesting[itemID] = (self.requesting[itemID] or 0) + 1
 
@@ -2902,6 +2918,10 @@ function Posting:ResolvePending(posted, appeared, target)
     else
         ns.Warn(L["could not tell whether that listing went up. Check your Auctions tab"])
     end
+
+    -- Era: another copy of this item waited while this one was confirmed
+    -- (a second pair of boots); it goes in now, so the next click lists it.
+    if Posting.IsLegacy() then self:PrepareNext() end
 
     if ns.UI then
         ns.UI:RefreshActiveTab()

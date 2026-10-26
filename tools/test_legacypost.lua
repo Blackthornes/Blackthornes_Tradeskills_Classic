@@ -15,6 +15,10 @@
 --   6. A stack put in the auction slot is never listed in the same click
 --      (Era answers "Internal auction error"): the first click puts it in,
 --      the next lists it, and the next stack goes in ahead of its click.
+--   7. Two copies of one item (two pairs of boots): the copy in the
+--      auction slot is the one listed. Quick clicks never swap the copies
+--      round, never repeat "ready to list", and never send a new price
+--      check while one is out.
 
 local GLOBALS = { "CreateFrame", "C_Container", "ItemLocation", "GetTime", "time", "C_Timer",
     "StaticPopupDialogs", "StaticPopup_Show", "StaticPopup_Hide", "StaticPopup_Visible",
@@ -57,7 +61,7 @@ local function Advance(seconds)
     clock = target
 end
 
-local LINEN, SCORPID = 2589, 5464
+local LINEN, SCORPID, BOOTS = 2589, 5464, 2309
 
 local bags
 local function FillBags()
@@ -181,7 +185,7 @@ local function Answer(index)
     search.cb(search.itemID, 11, 11, 10, false, {}, "fresh")
 end
 
-local MARKET = { [LINEN] = 29, [SCORPID] = 11 }
+local MARKET = { [LINEN] = 29, [SCORPID] = 11, [BOOTS] = 2020 }
 ns.Prices = {
     GetValue = function(_, itemID, key) if key == "market" then return MARKET[itemID] end end,
     GetScanValue = function(_, itemID, key) if key == "market" then return MARKET[itemID] end end,
@@ -191,8 +195,11 @@ ns.Prices = {
 ns.Inventory = {
     GetCarriedBags = function() return { 0 } end,
     GetBagCount = function(_, itemID)
-        for _, e in ipairs(bags[0]) do if e.itemID == itemID then return e.stackCount end end
-        return 0
+        local n = 0
+        for _, e in ipairs(bags[0]) do
+            if e.itemID == itemID and not e.gone then n = n + e.stackCount end
+        end
+        return n
     end,
 }
 ns.Recipes = { GetAccountWide = function() return {} end }
@@ -391,6 +398,42 @@ StartAuction = Listed
 PostTwice(SCORPID, 10, 11)
 check("lists with StartAuction", #started, 1)
 check("at the stack's price", started[1] and started[1].buyout, 110)
+
+print("")
+print("two pairs of boots, clicked fast")
+
+Reset()
+bags[0][#bags[0] + 1] = { itemID = BOOTS, stackCount = 1 }
+bags[0][#bags[0] + 1] = { itemID = BOOTS, stackCount = 1 }
+local firstBoots = bags[0][#bags[0] - 1]
+shown = { { itemID = BOOTS, unitPrice = 2020 } }
+ns.Auctions:ReadOwned()
+for _ = 1, 6 do Posting:Post(BOOTS, 2, 2020) end
+check("the first pair goes in", sellSlot, firstBoots)
+check("and stays there through the clicks", #calls, 2)
+check("said once", Said("is ready to list"), 1)
+check("nothing listed too soon", #started, 0)
+Advance(1)
+Posting:Post(BOOTS, 2, 2020)
+check("the next click lists it", #started, 1)
+check("one pair", started[1] and started[1].stackSize, 1)
+Advance(20)
+check("the other pair goes in", sellSlot and sellSlot.itemID, BOOTS)
+Posting:Post(BOOTS, 1, 2020)
+check("and the click after lists it", #started, 2)
+check("both pairs listed", firstBoots.gone, true)
+
+print("")
+print("quick clicks while the price is checked")
+
+Reset()
+for _ = 1, 5 do Posting:Request(BOOTS, 1, 2020) end
+check("one search", #searches, 1)
+check("said once", Said("checking the current price"), 1)
+Answer(1)
+check("one box", popup ~= nil, true)
+Advance(6)
+check("still one search", #searches, 1)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
