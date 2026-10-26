@@ -4,6 +4,11 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.2.0
+
+- The Road to 300 now tells you when you need to buy a recipe.
+- Various bug fixes.
+
 ## 0.1.2
 
 - **Fixes:** Listing on Era's auction house no longer stops with an internal auction error. The next stack waits in the auction slot, so each click lists one.
