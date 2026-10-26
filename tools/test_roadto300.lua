@@ -6,7 +6,8 @@
 --   2. Each stretch takes the recipe cheapest a point, known or taught by a
 --      trainer or vendor of the player's side; its price counted once.
 --   3. A step is one recipe in one colour: orange is "every craft",
---      yellow "most crafts", and its crafts are 1 / chance a point.
+--      yellow "most crafts", green (from halfway to grey) "some crafts",
+--      and its crafts are 1 / chance a point.
 --   4. Trainer steps at Classic's ranks, Journeyman at 50 to 150 and so on,
 --      a level chip and "You're level N." when the level is short.
 --   5. Steps below the skill now are done; what the bags and bank hold
@@ -150,6 +151,33 @@ local belt = ns.RecipeBook:Get(3)
 check("below yellow, every craft", Road.Chance(belt, 60), 1)
 check("halfway from yellow to grey", Road.Chance(belt, 135), 0.5)
 check("grey gives nothing", Road.Chance(belt, 150), 0)
+
+print("\nthe colours, as the game paints them")
+-- Light Armor Kit: yellow at 30, green at 45, grey at 60.
+local kit = { yellow = 30, grey = 60, skill = 1 }
+check("orange below yellow", Road.Tier(kit, 29), "optimal")
+check("yellow from 30", Road.Tier(kit, 30), "medium")
+check("still yellow at 44", Road.Tier(kit, 44), "medium")
+check("green from 45", Road.GreenFrom(kit), 45)
+check("green at 51", Road.Tier(kit, 51), "easy")
+check("grey at 60", Road.Tier(kit, 60), "trivial")
+local kitPlan = Road:Plan({
+  line = 164, skill = 25, max = 150, level = 15,
+  candidates = { { record = { recipeID = 88, name = "Light Armor Kit", skill = 1, yellow = 30, grey = 60,
+    reagents = { { itemID = BAR, quantity = 1 } } }, known = true,
+    price = { cost = 10, reagents = { { itemID = BAR, quantity = 1, unit = 10 } } } } },
+  owned = {},
+})
+local bands = {}
+for _, step in ipairs(kitPlan.steps) do
+  if not step.done and step.kind == "craft" then bands[#bands + 1] = step end
+end
+check("three steps: orange, yellow, green", #bands, 3)
+check("orange to 30", bands[1] and bands[1].to, 30)
+check("yellow from 30 to 45", bands[2] and (bands[2].from .. "-" .. bands[2].to), "30-45")
+check("yellow: most crafts", bands[2] and Road.Texts(bands[2], "Blacksmithing", 15, 164).chip, "most crafts")
+check("green from 45 to 60", bands[3] and (bands[3].from .. "-" .. bands[3].to), "45-60")
+check("green: some crafts", bands[3] and Road.Texts(bands[3], "Blacksmithing", 15, 164).chip, "some crafts")
 check("below what it needs, nothing", Road.Chance(belt, 20), 0)
 
 print("\nthe professions")
@@ -188,7 +216,8 @@ check("who teaches that far", Road:PlaceFor(journeyman, 164).name, "Journey Jo")
 local grinding = steps[plan.current + 1]
 check("a known recipe first, while it is cheapest", grinding.recipeID, 2)
 check("from the skill now", grinding.from, 62)
-check("yellow: most crafts", Road.Texts(grinding, "Blacksmithing", 15, 164).chip, "most crafts")
+check("green past halfway to grey (55): some crafts", Road.Texts(grinding, "Blacksmithing", 15, 164).chip, "some crafts")
+check("green: the game's colour", grinding.tier, "easy")
 check("1 / chance a point: 2 points take 17 crafts", grinding.crafts, 17)
 check("known: nothing to learn", grinding.learn, nil)
 
