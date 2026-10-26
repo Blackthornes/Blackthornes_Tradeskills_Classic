@@ -4,6 +4,14 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.2.0
+
+- **Price Order:** pick whether TSM or Auctionator prices come first. Your own scans always come first.
+- **Friends:** type a friend's character names on the Sharing page to see which of them can make a craft. Their characters never mix with yours.
+- **Road to 300:** a step whose recipe you still need says to buy it, and its craft goes in your queue once you learn it.
+- **Fixes:** sharing between your accounts works on Era.
+- **Fixes:** character names no longer ask for a last name.
+
 ## 0.1.2
 
 - **Fixes:** Listing on Era's auction house no longer stops with an internal auction error. The next stack waits in the auction slot, so each click lists one.

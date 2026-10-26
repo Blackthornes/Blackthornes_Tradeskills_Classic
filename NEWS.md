@@ -23,6 +23,16 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.2.0
+
+- Price Order picks whether TSM or Auctionator prices come first.
+- Friends shows which of your friends can make a craft.
+- Road to 300 says when you still need to buy a recipe, and queues its craft once you learn it.
+
+Fixes and changes:
+- Sharing between your accounts works on Era.
+- Character names no longer ask for a last name.
+
 ## 0.1.2
 
 Fixes and changes:
