@@ -6,7 +6,7 @@ local _, ns = ...
 
 ns.WHATS_NEW = {
     { version = "0.2.0", lines = {
-        "Road to 300 says when you still need to buy a recipe, and queues its craft once you learn it.",
+        "Road to 300 tells you when you still need to buy a recipe. Once you learn it, the craft goes right into your queue.",
     } },
     { version = "0.1.0", lines = {
         "Tradeskills is here for Classic Era. Level Up shows the cheapest craft for your next skill point.",
