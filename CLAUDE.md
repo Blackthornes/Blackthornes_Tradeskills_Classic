@@ -1454,9 +1454,15 @@ hover, only on North American clients (`Contribute:InRegion`,
 `Logic/Contribute.lua` whispers a hello (`Q<id>:<hash>`) over Comm to each
 name in `Contribute.RECIPIENTS` (full names, only in code, never shown; the
 same two as Farmer's list, change both together) 30 s after login and
-every half hour. Only those characters ask (`R<id>`), one sender at a time,
-each at most every half hour, and the sender answers only a recipient
-asking for its own id. The table (`K`) is checked by `Contribute:Clean` and
+every five minutes (the owner, 2026-10-26). Only those characters ask
+(`R<id>`), one sender at a time, the next as soon as one is done (or given
+up after `SYNC_TIMEOUT`), each at most every five minutes, and the sender
+answers only a recipient asking for its own id, at most every `SEND_GAP`.
+The sender builds and hashes its table at most every `PAYLOAD_KEEP`
+(`Contribute:Built`, kept per id; the hello and the answer send the same
+build, so a hash a recipient heard always matches what it then keeps), and
+the receiver waits `SYNC_TIMEOUT` (30 minutes, a big table takes a while
+at Comm's pace) before giving one up. The table (`K`) is checked by `Contribute:Clean` and
 kept apart on the receiver in `sharedData[id] = { at, hash, disenchants,
 skills }`, each sender's newest replacing the last (at most `MAX_SENDERS`);
 it never joins the receiver's own logs. A chat line, a sound and a screen
