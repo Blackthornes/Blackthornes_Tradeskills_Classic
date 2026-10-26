@@ -25,7 +25,7 @@ tool prints a note for a shipped line that reads like an advert.
 
 ## 0.2.0
 
-- Road to 300 tells you when you still need to buy a recipe. Once you learn it, the craft goes right into your queue.
+- The Road to 300 now tells you when you need to buy a recipe.
 
 Fixes and changes:
 - Various bug fixes.

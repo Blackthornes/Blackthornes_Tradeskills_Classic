@@ -6,7 +6,7 @@ the top; a release is refused if its version has no section here.
 
 ## 0.2.0
 
-- **Road to 300:** Road to 300 tells you when you still need to buy a recipe. Once you learn it, the craft goes right into your queue.
+- The Road to 300 now tells you when you need to buy a recipe.
 - Various bug fixes.
 
 ## 0.1.2
