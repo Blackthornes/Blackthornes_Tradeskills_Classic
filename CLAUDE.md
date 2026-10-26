@@ -607,7 +607,7 @@ it, 2026-10-19; off unless ticked in Butler) asks, only while it is on,
 inside a pcall:
 
 ```lua
-_G.BlackthornesTS.Butler:CraftFor(item, carried)
+_G.BlackthornesTS.Butler:CraftFor(item, carried, skip)
   -- { recipeID, name, itemID (what it makes), per, crafts, perItem, needs = { { itemID, count } } }, or nil
 _G.BlackthornesTS.Butler:QueueCraft(recipeID, crafts)   -- Queue:Ensure; true, or false and why
 ```
@@ -617,7 +617,9 @@ use the item. Each is valued by `Profit:Analyse` "best" after the cut and
 deposit (a slow auction at `Butler.SLOW`, a derived or uncontested price
 never), less the other materials (`Cost:GetCraftCost`, owned at their
 worth); `perItem` is that over how many one craft uses. Kept in the
-lookup. Tested in `tools/test_butlercraft.lua`. Keep both stable; Butler's
+lookup. `skip` (2026-10-26, optional) is `{ [recipeID] = name }`, the
+crafts the player told Butler to stop suggesting; they are passed over, so
+the next best answers. Tested in `tools/test_butlercraft.lua`. Keep both stable; Butler's
 `Logic/Sisters.lua` reads them.
 
 ## Random suffix prices
