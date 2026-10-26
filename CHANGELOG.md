@@ -6,11 +6,8 @@ the top; a release is refused if its version has no section here.
 
 ## 0.2.0
 
-- **Price Order:** pick whether TSM or Auctionator prices come first. Your own scans always come first.
-- **Friends:** type a friend's character names on the Sharing page to see which of them can make a craft. Their characters never mix with yours.
 - **Road to 300:** a step whose recipe you still need says to buy it, and its craft goes in your queue once you learn it.
-- **Fixes:** sharing between your accounts works on Era.
-- **Fixes:** character names no longer ask for a last name.
+- **Fixes:** various bug fixes.
 
 ## 0.1.2
 
