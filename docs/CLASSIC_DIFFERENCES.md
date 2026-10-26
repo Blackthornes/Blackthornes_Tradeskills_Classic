@@ -150,7 +150,12 @@ loads them, and every reader asks for them first.
   the next stack in ahead (after the price check and a second after each
   listing), and a click lists only once the slot has taken it
   (`NEW_AUCTION_UPDATE`, else `HELD_SETTLE` seconds); a stack not yet in
-  goes in and the click says "ready to list". Tested in
+  goes in and the click says "ready to list". Since 2026-10-26 (the
+  owner: every listing took two presses) `Posting:PrepareFor` also puts
+  it in when the Sell list draws (`PostPanel:UpdateListAll`, next frame)
+  and as the mouse goes over List Next or a row's List, so a press lists
+  at once; it leaves a fight, the cursor, an item put in by hand and a
+  Yes/No box for another item alone. Tested in
   `tools/test_legacypost.lua`.
 - Scan works on Era (2026-10-25, the owner picked "full scan, page scan
   backup"): `Data/LegacyScan.lua` asks for the quick full scan
