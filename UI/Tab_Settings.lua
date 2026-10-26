@@ -1645,6 +1645,18 @@ local function Build(outer)
     end, true)
     widgets.arrowRoute:SetPoint("TOPLEFT", CONTROL_X, -2)
 
+    -- How big the whole arrow is drawn, 65% unless picked (the owner,
+    -- 2026-10-26; Classic's arrow already stood at 65%). It keeps its spot.
+    local arrowSizeRow = CreateRow(pages.look, 2, L["Arrow Size:"])
+    widgets.arrowSize = Widgets.CreateDropdown(arrowSizeRow, {
+        { text = "50%", value = 50 },
+        { text = "65%", value = 65 },
+        { text = "100%", value = 100 },
+    }, function(value)
+        if ns.WayArrowUI then ns.WayArrowUI:SetSize(value) end
+    end, { width = 80 })
+    widgets.arrowSize:SetPoint("TOPLEFT", CONTROL_X, 0)
+
     -- Goblin Gold (asked 2026-10-17): the gold on every character of this
     -- realm and side, on a small bar, with a goal. Off unless ticked; its
     -- sound is under SOUNDS. Logic/GoldGoal.lua, UI/GoldGoal.lua. The
@@ -2360,6 +2372,7 @@ local function Refresh()
     widgets.vendorMapPins:SetChecked(Config:Get("vendorMapPins") == true)
     widgets.arrowRoute:SetChecked(type(ns.db) == "table" and ns.db.arrowRoute ~= false)
     widgets.useTomTom:SetChecked(type(ns.db) ~= "table" or ns.db.useTomTom ~= false)
+    widgets.arrowSize:SetValue(ns.WayArrowUI and ns.WayArrowUI.Size() or 65, true)
     widgets.goldTracker:SetChecked(Config:Get("goldTracker") == true)
     widgets.priceOrder:SetValue(Config:Get("priceOrder") == "auctionator" and "auctionator" or "tsm", true)
     widgets.goldCount:SetValue(Config:Get("goldTrackerCount") == "character" and "character" or "all", true)

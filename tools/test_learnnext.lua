@@ -329,9 +329,9 @@ do
     local f = io.open(lfs_cwd .. "/UI/WayArrow.lua", "r")
     local text = f and f:read("*a") or ""
     if f then f:close() end
-    local scale = tonumber(text:match("ArrowUI%.SCALE = ([%d%.]+)"))
-    check("the arrow is drawn smaller", scale ~= nil and scale < 1, true)
-    check("its size is set on the frame", text:find("pcall(frame.SetScale, frame, ArrowUI.SCALE)", 1, true) ~= nil, true)
+    local usual = tonumber(text:match("ArrowUI%.USUAL = (%d+)"))
+    check("the arrow is drawn smaller", usual ~= nil and usual < 100, true)
+    check("its size is set on the frame", text:find("pcall(frame.SetScale, frame, ArrowUI.Scale())", 1, true) ~= nil, true)
     check("a saved spot is turned back into the arrow's units",
         text:find("ns.db.wayArrowX / scale, ns.db.wayArrowY / scale", 1, true) ~= nil, true)
     check("and saved in UIParent's units",
