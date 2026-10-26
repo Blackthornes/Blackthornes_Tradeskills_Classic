@@ -229,7 +229,7 @@
 -- owner said build it, off unless ticked in Butler) asks, only while that
 -- is on, whether a bag item is worth more made into something:
 --
---   _G.BlackthornesTS.Butler:CraftFor(item, carried)   -- a table, or nil; reads only
+--   _G.BlackthornesTS.Butler:CraftFor(item, carried, skip)   -- a table, or nil; reads only
 --   _G.BlackthornesTS.Butler:QueueCraft(recipeID, crafts)  -- true, or false and why
 --
 -- CraftFor looks only at recipes the character playing knows (not a
@@ -244,7 +244,9 @@
 -- else the bags'), perItem (copper one of the item is worth made into it),
 -- needs = { { itemID, count } } (other materials the bags lack for those
 -- crafts) }. nil when nothing it knows uses the item, or for no craft.
--- Butler weighs perItem against its own best price. QueueCraft is
+-- `skip`, optional, is { [recipeID] = anything } for crafts the player
+-- told Butler to stop suggesting (2026-10-26); those are passed over, so
+-- the next best answers. Butler weighs perItem against its own best price. QueueCraft is
 -- Queue:Ensure: at least that many crafts queued.
 --
 -- Butler's CLAUDE.md and its Logic/Sisters.lua lean on these calls and these
@@ -837,7 +839,7 @@ end
 
 --- The craft that makes one of this item worth the most, or nil.
 -- Only while Butler's setting is on: Butler asks nothing otherwise.
-function Butler:CraftFor(item, carried)
+function Butler:CraftFor(item, carried, skip)
     local itemID = tonumber(item)
     if not itemID and type(item) == "string" then itemID = tonumber(item:match("item:(%d+)")) end
     if not itemID then return nil end
@@ -854,7 +856,9 @@ function Butler:CraftFor(item, carried)
 
         kept.crafts = kept.crafts or {}
         local best
+        if type(skip) ~= "table" then skip = nil end
         for _, recipeID in ipairs(list) do
+          if not (skip and skip[recipeID] ~= nil) then
             local key = recipeID .. ":" .. itemID .. ":" .. have
             local weighed = kept.crafts[key]
             if weighed == nil then
@@ -862,6 +866,7 @@ function Butler:CraftFor(item, carried)
                 kept.crafts[key] = weighed
             end
             if weighed and (not best or weighed.perItem > best.perItem) then best = weighed end
+          end
         end
         if not best then return nil end
         local needs = {}
