@@ -56,15 +56,26 @@ loads them, and every reader asks for them first.
   `Data/WaylaidCrates.lua`, `UI/DealsFavor.lua`, `UI/FavorsView.lua`.
 - The Craftsman's Writs: `Logic/Writs.lua`, `Data/CraftsmansWrits.lua`,
   `UI/DealsWrits.lua`.
-- `Logic/Contribute.lua`: its recipients play on Forever, so the share-data
-  tick box and `/bts share data` go with it.
 - With those gone, `UI/Tab_Deals.lua` registers the Favors and Writs tab
   only with the flips or one of its views, and `UI/Tab_Settings.lua` shows
   the "Crate Costs:" row only with `ns.MerchantsFavor`. The drawer's Favors
   switch never shows. Saved settings for them (`favorGoal`, `writGoal`,
-  `merchantsFavor`, `shareData`) stay in the save, unread.
+  `merchantsFavor`) stay in the save, unread.
 - A Forever change to any of these features is "Forever only, skip"; one to
   the tab or Settings row around them is a clash to blend, keeping the guard.
+
+### Sending data to Blackthornes goes to Era characters
+- `Logic/Contribute.lua` is in the TOC again (2026-10-26). Its
+  `RECIPIENTS` names the owner's own Era characters as Name-Realm, never
+  Forever's. Keep this list on a catch-up.
+- Era characters have no last name and a whisper only reaches its own
+  realm, so `Contribute:Recipients()` keeps only names on the realm of the
+  character playing (`RealmKey`, `MyRealm`; none when the realm can't be
+  read), and `Receiving()` needs no space in the name. The About page's
+  tick box shows only while someone is named (`UI/Tab_Settings.lua`), so
+  players on other realms don't see it.
+- `Contribute.REGIONS` is only `[1]`; Forever's test client region 110 is gone.
+- Tested in `tools/test_contribute.lua` and `tools/test_era.lua`.
 
 ### Profession windows, the Era way (step 3a)
 - `Data/EraRecipes.lua` (new here) reads the old profession window

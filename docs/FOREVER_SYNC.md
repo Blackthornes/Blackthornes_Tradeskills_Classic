@@ -11,6 +11,10 @@ Copied over since, one at a time:
 - `42521d9` Start release posts with the game name (2026-10-24, copied
   by hand with "Classic Era" in place of "Forever"; see
   `docs/CLASSIC_DIFFERENCES.md`).
+- `6ee89ef`, `91ce852` Sending disenchants and recipe levels to
+  Blackthornes, and faster (2026-10-26, `Logic/Contribute.lua` taken whole
+  with Classic's own recipients, realm check and region; see "Sending data
+  to Blackthornes goes to Era characters").
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.

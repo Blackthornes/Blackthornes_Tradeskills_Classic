@@ -97,6 +97,7 @@ Logic\AccountLink.lua
 Logic\GuildPrices.lua
 Logic\GuildCrafters.lua
 Logic\RealmPrices.lua
+Logic\Contribute.lua
 Logic\TSMPrices.lua
 Logic\AuctionatorPrices.lua
 Logic\Cooldowns.lua

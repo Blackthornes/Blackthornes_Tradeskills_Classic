@@ -9,7 +9,8 @@
 
 local saved, stubbed = {}, { "time", "GetTime", "UnitName", "C_ChatInfo", "C_Timer", "InCombatLockdown",
                         "SendAddonMessage", "ERR_CHAT_PLAYER_NOT_FOUND_S", "GetCurrentRegion",
-                        "GetCurrentRegionName", "PlaySound", "UIErrorsFrame", "date" }
+                        "GetCurrentRegionName", "PlaySound", "UIErrorsFrame", "date",
+                        "GetNormalizedRealmName", "GetRealmName" }
 for _, name in ipairs(stubbed) do saved[name] = _G[name] end
 
 local passed, failed = 0, 0
@@ -35,6 +36,10 @@ SendAddonMessage = nil
 GetCurrentRegionName = nil
 local region = 1
 GetCurrentRegion = function() return region end
+-- The owner's Era characters are on Ashkandi; a whisper reaches only there.
+local realm = "Ashkandi"
+GetNormalizedRealmName = function() return realm end
+GetRealmName = nil
 local sounds, flashes = 0, {}
 PlaySound = function() sounds = sounds + 1 end
 UIErrorsFrame = { AddMessage = function(_, text) flashes[#flashes + 1] = text end }
@@ -54,7 +59,9 @@ C_ChatInfo = {
 UnitName = function() return current.first end
 
 local function NewClient(full)
+    -- Era characters have no last name.
     local first, last = full:match("^(%S+) (%S+)$")
+    if not first then first = full end
     local ns = {}
     ns.NewModule = function(module) local m = {}; ns[module] = m; return m end
     ns.RegisterCommand, ns.RegisterEvent = function() end, function() end
@@ -108,8 +115,8 @@ local function Run()
 end
 
 local ana = NewClient("Ana Smith")
-local farmer = NewClient("Blackthornes Farmer")
-local wither = NewClient("Blackthorne Wither")
+local farmer = NewClient("Blackthornes")
+local wither = NewClient("Blacklock")
 local carl = NewClient("Carl Jones")
 clients = { ana, farmer, wither, carl }
 -- Both of the owner's characters are on one account: one save between them.
@@ -127,11 +134,27 @@ ana.ns.db.recipeSkills = { [2406] = { skill = 110, profession = "Leatherworking"
 print("\nchoosing")
 local C = ana.ns.Contribute
 check("off by default", C:On(), false)
-check("the shipped list names two whole names", #C:Recipients(), 2)
+check("the shipped list names two characters", #C:Recipients(), 2)
+realm = "Mankrik"
+check("on another realm nobody is named", #C:Recipients(), 0)
+realm = nil
+check("with the realm not read, nobody is named", #C:Recipients(), 0)
+realm = "Ashkandi"
+check("realms compare without spaces or case",
+    C.RealmKey("Ana-Some Realm") == C.RealmKey("Bob-somerealm") and C.RealmKey("Ana") == nil)
+check("no Forever character is named", (function()
+    for _, name in ipairs(C.RECIPIENTS) do
+        if name:find(" ", 1, true) or not name:find("-Ashkandi$") then return false end
+    end
+    return true
+end)())
 current = farmer
-check("Blackthornes Farmer receives", farmer.ns.Contribute:Receiving())
+check("Blackthornes receives", farmer.ns.Contribute:Receiving())
+realm = "Mankrik"
+check("the same name on another realm does not", farmer.ns.Contribute:Receiving(), false)
+realm = "Ashkandi"
 current = wither
-check("Blackthorne Wither receives", wither.ns.Contribute:Receiving())
+check("Blacklock receives", wither.ns.Contribute:Receiving())
 current = carl
 check("anyone else does not", carl.ns.Contribute:Receiving(), false)
 current = ana
@@ -141,7 +164,7 @@ check("sending once ticked", C:Sending())
 region = 3
 check("Europe sends nothing", C:Sending(), false)
 region = 110
-check("the Forever test client's 110 counts", C:Sending())
+check("the Forever test client's 110 is not this copy's", C:Sending(), false)
 region = 1
 current = farmer
 farmer.settings.shareData = true

@@ -47,10 +47,13 @@ Forever addon. So:
   sister addon and no `C_AuctionHouse` (a loose client of its own, since
   this repo has no shared one).
 - Step 2 is done (2026-10-24): Legacy, Merchant's Favor and its Waylaid
-  Crates, the Craftsman's Writs and Contribute are out of the TOC (their
-  files stay). The Favors and Writs tab is not registered without them
+  Crates and the Craftsman's Writs are out of the TOC (their files stay).
+  The Favors and Writs tab is not registered without them
   (`UI/Tab_Deals.lua`), and the "Crate Costs:" Settings row shows only
   with `ns.MerchantsFavor`. Saved settings for them stay, unread.
+- Sending data to Blackthornes is back (2026-10-26): `Logic/Contribute.lua`
+  is in the TOC again, sending to the owner's own Era characters, never
+  Forever's. See `docs/CLASSIC_DIFFERENCES.md`.
 - Scan works on Era's older auction house (2026-10-25): `Data/LegacyScan.lua`,
   the quick full scan when the game allows it, else page by page (see
   `docs/CLASSIC_DIFFERENCES.md`). Buying, your auctions and the drawer's

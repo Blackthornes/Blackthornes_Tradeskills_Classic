@@ -9,7 +9,7 @@
 --
 -- The conversation, one way:
 --   * A player with it ticked whispers a short hello ("Q<id>:<hash>") to
---     each name in RECIPIENTS, soon after login and every half hour. The
+--     each name in RECIPIENTS, soon after login and every five minutes. The
 --     hash says what they have; nothing in chat or Settings says whether
 --     anyone was there (Comm hides the game's "No player named ..." line).
 --   * Only the characters named in RECIPIENTS answer, and only for a hash
@@ -24,7 +24,8 @@
 --   * On the receiving side each sender's latest table replaces the one
 --     before (`sharedData[id]`), so nothing is ever counted twice. It never
 --     joins the receiver's own disenchants or recipe skills, and nothing in
---     the windows reads it. One sender is taken at a time, each at most
+--     the windows reads it. One sender is taken at a time, the next as
+--     soon as one is done (or given up after SYNC_TIMEOUT), each at most
 --     every SYNC_GAP, and at most MAX_SENDERS are kept.
 --   * When a table comes in, one chat line says so, with a sound and a
 --     line on screen. `/bts share data log` (typed only) lists them.
@@ -42,24 +43,26 @@ local Contribute = ns.NewModule("Contribute")
 
 local Comm = ns.Comm
 
--- The characters data is sent to: full names, first and last. Kept only
--- here, never shown to players. Empty sends nothing.
+-- The characters data is sent to, as Name-Realm. Kept only here, never
+-- shown to players. This is the Classic Era copy: the owner's Era
+-- characters (2026-10-26), never Forever's. A whisper on Era only reaches
+-- the same realm, so a name is used only by players on its realm
+-- (Recipients); anyone else has nobody to send to and sees no tick box.
 Contribute.RECIPIENTS = {
-    "Blackthornes Farmer",
-    "Blackthorne Wither",
+    "Blackthornes-Ashkandi",
+    "Blacklock-Ashkandi",
 }
 
--- North America only, as in Farmer: GetCurrentRegion's 1 is the Americas,
--- and the Forever test client says 110 there; a client that will not say
--- sends nothing.
-Contribute.REGIONS = { [1] = true, [110] = true }
+-- North America only, as in Farmer: GetCurrentRegion's 1 is the Americas;
+-- a client that will not say sends nothing.
+Contribute.REGIONS = { [1] = true }
 Contribute.REGION_NAME = "US"
 
-Contribute.HELLO_SECONDS = 1800   -- a hello every half hour
+Contribute.HELLO_SECONDS = 300    -- a hello every five minutes (the owner, 2026-10-26)
 Contribute.FIRST_HELLO = 30       -- and this long after login
-Contribute.SYNC_GAP = 1800        -- one sender taken at most this often
+Contribute.SYNC_GAP = 300         -- one sender taken at most this often
 Contribute.SYNC_TIMEOUT = 180     -- an ask left unanswered this long is given up
-Contribute.SEND_GAP = 600         -- a sender answers a recipient at most this often
+Contribute.SEND_GAP = 300         -- a sender answers a recipient at most this often
 Contribute.MAX_SENDERS = 500
 Contribute.MAX_ITEMS = 3000       -- disenchanted items in one table
 Contribute.MAX_SKILLS = 5000      -- recipe skills in one table
@@ -88,11 +91,41 @@ end
 -- Who and where
 --------------------------------------------------------------------------------
 
---- The recipients as { key, name }; a first name alone is never one.
+--- "Ana-Some Realm" -> "somerealm": a name's realm as two realms are
+--- compared, or nil when it names none.
+local function RealmKey(name)
+    local realm = type(name) == "string" and name:match("%-(.+)$") or nil
+    if not realm then return nil end
+    realm = realm:gsub("[%s%-']", ""):lower()
+    return realm ~= "" and realm or nil
+end
+Contribute.RealmKey = RealmKey
+
+--- The realm of the character playing, as RealmKey gives it, or nil.
+local function MyRealm()
+    local ok, realm = pcall(function()
+        local name = type(GetNormalizedRealmName) == "function" and GetNormalizedRealmName() or nil
+        if (not name or name == "") and type(GetRealmName) == "function" then name = GetRealmName() end
+        return name .. ""
+    end)
+    if not ok then return nil end
+    return RealmKey("x-" .. realm)
+end
+Contribute.MyRealm = MyRealm
+
+--- The recipients as { key, name }: only those on the realm of the character
+--- playing (a name with no realm counts on any), since a whisper reaches no
+--- other; with the realm not read, none that name one.
 function Contribute:Recipients()
     local list, seen = {}, {}
+    local here
     for _, name in ipairs(self.RECIPIENTS) do
-        local key = type(name) == "string" and name:find(" ", 1, true) and Comm.NameKey(name)
+        local key = type(name) == "string" and Comm.NameKey(name)
+        local realm = key and RealmKey(name)
+        if realm then
+            here = here or MyRealm() or false
+            if realm ~= here then key = nil end
+        end
         if key and not seen[key] then
             seen[key] = true
             list[#list + 1] = { key = key, name = name }
@@ -110,11 +143,11 @@ function Contribute:IsRecipient(name)
     return false
 end
 
---- True when the character playing is one of the recipients, by its whole
---- name.
+--- True when the character playing is one of the recipients, by its name
+--- on its own realm.
 function Contribute:Receiving()
     local mine = Comm.PlayerName and Comm.PlayerName()
-    if type(mine) ~= "string" or not mine:find(" ", 1, true) then return false end
+    if type(mine) ~= "string" or mine == "" then return false end
     return self:IsRecipient(mine)
 end
 
@@ -265,6 +298,11 @@ function Contribute:Next()
     if not waiting then return end
     self.current = { id = waiting.id, key = Comm.NameKey(waiting.name), at = Now() }
     Comm:Send("R", waiting.id, "WHISPER", waiting.name)
+    -- One that never answers is given up, and the next asked, without
+    -- waiting for another hello.
+    if type(C_Timer) == "table" and C_Timer.After then
+        C_Timer.After(self.SYNC_TIMEOUT + 1, function() Contribute:Next() end)
+    end
 end
 
 --- Only numbers in the shapes Payload makes; anything else is left out.
