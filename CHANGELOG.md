@@ -4,6 +4,13 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.3.0
+
+- The auction house List button now lists in one press.
+- The auction house Buy button buys your queue's materials stack by stack.
+- Item tooltips show what a vendor sells the item for.
+- Various bug fixes.
+
 ## 0.2.1
 
 - Various bug fixes.
