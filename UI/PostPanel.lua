@@ -446,7 +446,8 @@ local function AddCraftedLines(line)
 end
 
 local function ShowRowTooltip(row, line)
-    ns.Widgets.ShowItemTooltip(row, "ANCHOR_LEFT", line.itemID, line.label)
+    -- The copy that would be listed, so its suffix and stats show.
+    ns.Widgets.ShowItemTooltip(row, "ANCHOR_LEFT", line.itemID, line.label, line.link)
     GameTooltip:AddLine(" ")
 
     -- Another Blackthornes addon wants it kept (Logic/SisterKeeps.lua).

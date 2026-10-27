@@ -377,6 +377,18 @@ function LegacyScan:ScanItem(itemID, callback, opts)
     local name = ItemName(itemID)
     if not name then return false end
 
+    -- A random suffix ("of the Owl") is searched by the copy's own name and
+    -- priced as that suffix: the plain name finds none of its listings.
+    local suffix = opts.link and Util.LinkSuffix(opts.link) or nil
+    if suffix then
+        local named = ns.Prices.SuffixName and ns.Prices.SuffixName(itemID, suffix)
+        if not named then
+            local ok, text = pcall(string.match, opts.link, "%[(.-)%]")
+            named = ok and type(text) == "string" and text ~= "" and text or nil
+        end
+        if named then name = named else suffix = nil end
+    end
+
     -- Asked about moments ago: that is still a checked price.
     scanner.recentItemScans = scanner.recentItemScans or {}
     local last = scanner.recentItemScans[itemID]
@@ -395,7 +407,8 @@ function LegacyScan:ScanItem(itemID, callback, opts)
         end
     end
 
-    local mine = { itemID = itemID, recentKey = itemID, callback = callback, quiet = opts.quiet }
+    local mine = { itemID = itemID, recentKey = itemID, callback = callback, quiet = opts.quiet,
+        suffix = suffix }
     scanner.pendingItem = mine
 
     local search = { mine = mine, name = name, page = 0, listings = {}, startedAt = GetTime() }
@@ -487,7 +500,9 @@ function LegacyScan:ReadItemPage(search)
     local scanner = Scanner()
     for _, row in ipairs(rows) do
         local count, buyout = tonumber(row[1]) or 1, tonumber(row[3]) or 0
-        if row[7] == itemID and buyout > 0 then
+        local suffix = search.mine.suffix
+        if row[7] == itemID and buyout > 0
+                and (not suffix or (row[8] and Util.LinkSuffix(row[8]) == suffix)) then
             local unitPrice = Util.UnitPriceFromStack(itemID, buyout, count)
             if ns.Prices.IsCredible(unitPrice) then
                 search.listings[#search.listings + 1] = {
@@ -523,7 +538,7 @@ function LegacyScan:FinishItem(search, failed)
         return
     end
 
-    scanner:FinishItemScan(mine.itemID, search.listings, false)
+    scanner:FinishItemScan(mine.itemID, search.listings, false, mine.suffix)
 end
 
 --------------------------------------------------------------------------------

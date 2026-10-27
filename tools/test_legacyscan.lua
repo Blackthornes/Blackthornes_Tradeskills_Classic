@@ -58,11 +58,21 @@ end
 local LINEN, WOOL, SWORD = 2589, 2592, 9999
 local stackSizes = { [LINEN] = 20, [WOOL] = 20, [SWORD] = 1 }
 local names = { [LINEN] = "Linen Cloth", [WOOL] = "Wool Cloth", [SWORD] = "Sword" }
+-- Random suffixes by their number, for gear "of the Owl".
+local suffixNames = { [5] = " of the Owl", [7] = " of the Bear" }
+local function FullName(itemID, suffix)
+    return names[itemID] and (names[itemID] .. (suffix and suffixNames[suffix] or "")) or nil
+end
 C_Item = {
-    GetItemInfo = function(itemID)
+    GetItemInfo = function(item)
+        local itemID, suffix = tonumber(item), nil
+        if type(item) == "string" then
+            itemID = tonumber(item:match("item:(%d+)"))
+            suffix = tonumber(item:match("item:%d+:[%-%d]*:[%-%d]*:[%-%d]*:[%-%d]*:[%-%d]*:(%-?%d+)"))
+        end
         local stack = stackSizes[itemID]
         if not stack then return nil end
-        return names[itemID], "link", 1, 1, 1, "Trade Goods", "Cloth", stack
+        return FullName(itemID, suffix), "link", 1, 1, 1, "Trade Goods", "Cloth", stack
     end,
 }
 
@@ -84,7 +94,7 @@ QueryAuctionItems = function(text, minLevel, maxLevel, page, usable, rarity, get
     if text and text ~= "" then
         found = {}
         for _, row in ipairs(house) do
-            if names[row[3]] == text then found[#found + 1] = row end
+            if FullName(row[3], row.suffix) == text then found[#found + 1] = row end
         end
     end
     list = {}
@@ -106,7 +116,11 @@ GetAuctionItemInfo = function(_, index)
 end
 GetAuctionItemLink = function(_, index)
     local row = list[index]
-    return row and ("|Hitem:" .. row[3] .. "::::::::|h[x]|h") or nil
+    if not row then return nil end
+    if row.suffix then
+        return ("|Hitem:%d:0:0:0:0:0:%d|h[%s]|h"):format(row[3], row.suffix, FullName(row[3], row.suffix))
+    end
+    return "|Hitem:" .. row[3] .. "::::::::|h[x]|h"
 end
 CanSendAuctionQuery = function() return canQuery, canQueryAll end
 
@@ -406,6 +420,39 @@ local checked
 Scanner:ScanItem(SWORD, function(_, _, _, _, _, _, status) checked = status end)
 LegacyScan:Browse("Linen Cloth")
 check("a price check out steps aside", checked == "superseded")
+
+print("")
+print("gear with a random suffix is checked by its own name")
+
+house = { { 1, 5000, SWORD, suffix = 5 }, { 1, 3000, SWORD, suffix = 7 }, { 1, 9000, SWORD, suffix = 5 } }
+canQuery, canQueryAll = true, true
+Reset()
+Scanner.recentItemScans = {}
+priceTables[realm] = {}
+local owl = "|cff1eff00|Hitem:9999:0:0:0:0:0:5|h[Sword of the Owl]|h|r"
+local suffixStatus
+Scanner:ScanItem(SWORD, function(_, _, _, _, _, _, status) suffixStatus = status end, { link = owl })
+check("it asks for the Owl's own name", #queries == 1 and queries[1].text == "Sword of the Owl"
+    and queries[1].exact == true)
+Fire()
+Advance(LegacyScan.PAGE_SETTLE + 0.1)
+check("the answer comes back fresh", suffixStatus == "fresh")
+check("the Owl keeps its own cheapest, 50s", Prices:GetSuffixEntry(SWORD, 5) ~= nil
+    and Prices:GetSuffixEntry(SWORD, 5).rival == 5000)
+check("the Bear is not read as the Owl", Prices:GetSuffixEntry(SWORD, 7) == nil)
+check("the item has a price beside it", Prices:Get(SWORD) ~= nil)
+
+-- Sold out: the Owl's rival goes, the item's own price stays.
+house = { { 1, 3000, SWORD, suffix = 7 } }
+local before = Prices:Get(SWORD).min
+queries, timers = {}, {}
+Scanner.recentItemScans = {}
+Scanner:ScanItem(SWORD, function(_, _, _, _, _, _, status) suffixStatus = status end, { link = owl })
+Fire()
+Advance(LegacyScan.PAGE_SETTLE + 0.1)
+check("none of the Owl left reads empty", suffixStatus == "empty")
+check("so there is no Owl to undercut", Prices:GetSuffixEntry(SWORD, 5).rival == nil)
+check("and the item's own price is kept", Prices:Get(SWORD).min == before)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

@@ -347,7 +347,41 @@ local function HeldSlot(itemID)
     return held.bag, held.slot
 end
 
---- Bag slot holding an item, skipping locked slots.
+--- Is the copy in this bag slot soulbound? A bound copy can never be
+--- auctioned, whatever the item's bind type says: a green that binds when
+--- equipped is bound once worn, and Era has no IsSellItemValid to say so.
+--- The slot's own info first, else C_Item.IsBound; unknown reads as free.
+local function SlotBound(info, bag, slot)
+    if type(info) == "table" and info.isBound ~= nil then return info.isBound == true end
+    if type(_G.ItemLocation) ~= "table" or type(C_Item) ~= "table"
+            or type(C_Item.IsBound) ~= "function" then
+        return false
+    end
+    local ok, bound = pcall(function()
+        return C_Item.IsBound(ItemLocation:CreateFromBagAndSlot(bag, slot))
+    end)
+    return ok and bound == true
+end
+Posting.SlotBound = SlotBound
+
+--- How many of an item the bags hold that are not soulbound.
+local function FreeCount(itemID)
+    local total = 0
+    for _, bag in ipairs(ns.Inventory:GetCarriedBags()) do
+        local slotsOk, slots = pcall(C_Container.GetContainerNumSlots, bag)
+        if slotsOk and slots then
+            for slot = 1, slots do
+                local infoOk, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
+                if infoOk and info and info.itemID == itemID and not SlotBound(info, bag, slot) then
+                    total = total + (info.stackCount or 1)
+                end
+            end
+        end
+    end
+    return total
+end
+
+--- Bag slot holding an item, skipping locked and soulbound slots.
 -- @return bag, slot, stackCount
 local function FindInBags(itemID)
     -- Era: the stack already waiting in the auction slot comes first. Its
@@ -357,7 +391,7 @@ local function FindInBags(itemID)
     local heldBag, heldSlot = HeldSlot(itemID)
     if heldBag then
         local infoOk, info = pcall(C_Container.GetContainerItemInfo, heldBag, heldSlot)
-        if infoOk and info and info.itemID == itemID then
+        if infoOk and info and info.itemID == itemID and not SlotBound(info, heldBag, heldSlot) then
             return heldBag, heldSlot, info.stackCount or 1
         end
     end
@@ -372,7 +406,8 @@ local function FindInBags(itemID)
             for slot = 1, slots do
                 local infoOk, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
 
-                if infoOk and info and info.itemID == itemID and not info.isLocked then
+                if infoOk and info and info.itemID == itemID and not info.isLocked
+                        and not SlotBound(info, bag, slot) then
                     return bag, slot, info.stackCount or 1
                 end
             end
@@ -418,7 +453,13 @@ local function IndexBags()
                     -- The stack in the auction slot is the one listed, so
                     -- it wins over a copy found earlier in the bags.
                     local isHeld = bag == heldBag and slot == heldSlot
-                    local usable = not info.isLocked or isHeld
+                    -- A soulbound copy is never listed, so it never names
+                    -- the slot or counts toward what can be posted.
+                    local bound = SlotBound(info, bag, slot)
+                    if not bound then
+                        entry.free = (entry.free or 0) + (info.stackCount or 1)
+                    end
+                    local usable = (not info.isLocked or isHeld) and not bound
                     if usable and (not entry.bag or (isHeld and not entry.inSellSlot)) then
                         entry.inSellSlot = isHeld or nil
                         entry.bag, entry.slot = bag, slot
@@ -611,7 +652,11 @@ function Posting:GetSellInfo(itemID, held)
         sellable = not LooksBound(itemID)
     end
 
+    -- Soulbound copies are left out of the count.
     local count = ns.Inventory:GetBagCount(itemID)
+    local free = held and held.free
+    if free == nil then free = FreeCount(itemID) end
+    if count and free < count then count = free end
     if Util.HasFunction("C_AuctionHouse.GetAvailablePostCount") then
         local ok, available = pcall(C_AuctionHouse.GetAvailablePostCount, location)
         if ok and available then count = available end
@@ -1853,7 +1898,7 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
             -- Era: the stack is going into the auction slot; the next
             -- click lists it.
             ns.Print(L.Format("%s is ready to list. Click again to list it.",
-                Util.GetItemLabel(itemID)))
+                self:ListedCopy(itemID) or Util.GetItemLabel(itemID)))
         elseif err == "waiting" then
             -- Era: the stack is still settling in the auction slot from a
             -- click moments ago, which already said so.
@@ -2189,7 +2234,7 @@ function Posting:CheckPrice(itemID, onDone)
         return false
     end
 
-    ns.Print(L.Format("checking the current price of %s...", Util.GetItemLabel(itemID)))
+    ns.Print(L.Format("checking the current price of %s...", self:ListedCopy(itemID) or Util.GetItemLabel(itemID)))
 
     -- One answer only. A search can settle through the callback, through the
     -- fallback timer, or through both, and reporting twice would redraw the
@@ -2226,7 +2271,7 @@ function Posting:CheckPrice(itemID, onDone)
     -- quiet: this check says for itself when nothing came back, and the
     -- search's own "using the last known price" is wrong here, with no price.
     local started = ns.Scanner:ScanItem(itemID, OnAnswer,
-        { quiet = true, itemKey = self:GetSearchKey(itemID) })
+        { quiet = true, itemKey = self:GetSearchKey(itemID), link = self:ListedCopy(itemID) })
 
     if not started then Settle("unavailable") end
 
@@ -2521,7 +2566,7 @@ function Posting:CheckAllLegacy(lines)
             Next()
         end)
 
-        if not ns.Scanner:ScanItem(itemID, OnAnswer, { quiet = true }) then
+        if not ns.Scanner:ScanItem(itemID, OnAnswer, { quiet = true, link = Posting:ListedCopy(itemID) }) then
             done = true
             C_Timer.After(0.2, Next)
         end
@@ -2673,7 +2718,7 @@ function Posting:Request(itemID, quantity, unitPrice)
     self.requesting = self.requesting or {}
     if Posting.IsLegacy() and (self.requesting[itemID] or 0) > 0 then return true end
 
-    ns.Print(L.Format("checking the current price of %s...", Util.GetItemLabel(itemID)))
+    ns.Print(L.Format("checking the current price of %s...", self:ListedCopy(itemID) or Util.GetItemLabel(itemID)))
 
     -- Whether an earlier click on this item is still waiting for its check.
     -- Only then is a "recent" answer already on its way to a dialog; the
@@ -2759,7 +2804,8 @@ function Posting:Request(itemID, quantity, unitPrice)
         Proceed("unavailable")
     end)
 
-    local started = ns.Scanner:ScanItem(itemID, OnAnswer, { itemKey = self:GetSearchKey(itemID) })
+    local started = ns.Scanner:ScanItem(itemID, OnAnswer,
+        { itemKey = self:GetSearchKey(itemID), link = self:ListedCopy(itemID) })
 
     if not started then
         Proceed("unavailable")
