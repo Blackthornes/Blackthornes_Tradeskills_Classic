@@ -1296,8 +1296,11 @@ end
 --------------------------------------------------------------------------------
 
 local function BuildGoalWindow()
-    local window = Theme.CreatePanel(UIParent, "window", "accent")
-    window:SetSize(300, 210)
+    -- The house frame: gold rim, the Tradeskills plate and the red close
+    -- gem. Without it, the old accent border and sheen.
+    local titan = ns.Titanforged
+    local window = Theme.CreatePanel(UIParent, "window", not titan and "accent" or false)
+    window:SetSize(300, titan and 224 or 210)
     window:SetFrameStrata("DIALOG")
     window:SetPoint("TOP", UIParent, "TOP", 0, -150)
     window:EnableMouse(true)
@@ -1305,7 +1308,11 @@ local function BuildGoalWindow()
     window:RegisterForDrag("LeftButton")
     window:SetScript("OnDragStart", window.StartMoving)
     window:SetScript("OnDragStop", window.StopMovingOrSizing)
-    Theme.TopSheen(window, 0.08)
+    if titan then
+        titan:Dress(window, { title = L["Tradeskills"], close = function() window:Hide() end })
+    else
+        Theme.TopSheen(window, 0.08)
+    end
     Theme.Halo(window, 10, 0.30)
 
     _G.BlackthornesTSGoldGoalReached = window
@@ -1315,7 +1322,7 @@ local function BuildGoalWindow()
 
     window.title = Theme.CreateLabel(window, 20, "gilt", "CENTER")
     pcall(window.title.SetFont, window.title, Theme.FONT, 20, "OUTLINE")
-    window.title:SetPoint("TOP", 0, -16)
+    window.title:SetPoint("TOP", 0, titan and -28 or -16)
     window.title:SetText(L["Goal reached!"])
 
     window.amount = Theme.CreateLabel(window, "large", "text", "CENTER")
