@@ -854,7 +854,7 @@ local function Tick(text)
     end
 end
 
-local describe = Tick("Show descriptions")
+local describe = Tick("Show Descriptions")
 local undercutRow = undercut:GetParent()
 local disenchanterBox
 for _, box in ipairs(made.CreateSearchBox) do

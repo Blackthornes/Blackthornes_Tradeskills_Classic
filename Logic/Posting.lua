@@ -1994,8 +1994,8 @@ if type(StaticPopupDialogs) == "table" then
 
 StaticPopupDialogs["BLACKTHORNES_TS_CONFIRM_POST"] = {
     text = "%s",
-    button1 = YES or L["List it"],
-    button2 = NO or L["Skip"],
+    button1 = L["List It"],
+    button2 = L["Skip"],
     timeout = 0,
     whileDead = true,
     hideOnEscape = true,
@@ -2130,7 +2130,7 @@ function Posting:BuildConfirmText(itemID, quantity, unitPrice, check)
         end
     end
 
-    return text .. "\n\n" .. L["Do you wish to continue?"]
+    return text .. "\n\n" .. L["List it at this price, or skip it."]
 end
 
 -- The item's icon in the confirmation, one texture per popup frame it has

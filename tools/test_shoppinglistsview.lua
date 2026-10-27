@@ -151,7 +151,7 @@ row.data = { kind = "tools", key = 2 }
 row.delete.click()
 check("one click arms Delete", Lists:Get(2) ~= nil)
 View.list.opts.updateRow(row, row.data)
-check("it asks if you are sure", row.delete.text == "Sure?")
+check("it asks if you are sure", row.delete.text == "Click Again")
 clock = clock + 10
 row.delete.click()
 check("a click after the wait only arms it again", Lists:Get(2) ~= nil)

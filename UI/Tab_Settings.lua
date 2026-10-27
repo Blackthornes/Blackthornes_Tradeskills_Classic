@@ -436,7 +436,7 @@ local function BuildBar(outer)
     LayoutSwitch()
 
     -- The house order for an option bar: search, then tick boxes.
-    widgets.describe = Widgets.CreateCheckbox(bar, L["Show descriptions"], function(checked)
+    widgets.describe = Widgets.CreateCheckbox(bar, L["Show Descriptions"], function(checked)
         ns.Config:Set("settingsDescriptions", checked)
         ShowDescriptions(checked)
     end, false)
@@ -1444,7 +1444,7 @@ local function Build(outer)
     widgets.textSize:SetPoint("TOPLEFT", CONTROL_X, 0)
 
     -- ReloadUI is allowed from a click, and saves everything first.
-    widgets.textReload = Widgets.CreateButton(textRow, L["Reload now"], function()
+    widgets.textReload = Widgets.CreateButton(textRow, L["Reload"], function()
         if ReloadUI then ReloadUI() end
     end, { width = 90, height = 20 })
     FitButton(widgets.textReload)
@@ -1466,7 +1466,7 @@ local function Build(outer)
     end, { width = 110 })
     widgets.windowStyle:SetPoint("TOPLEFT", CONTROL_X, 0)
 
-    widgets.styleReload = Widgets.CreateButton(styleRow, L["Reload now"], function()
+    widgets.styleReload = Widgets.CreateButton(styleRow, L["Reload"], function()
         if ReloadUI then ReloadUI() end
     end, { width = 90, height = 20 })
     FitButton(widgets.styleReload)

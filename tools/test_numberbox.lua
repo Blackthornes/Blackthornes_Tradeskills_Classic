@@ -66,7 +66,7 @@ check("setting the same value again reports nothing", #reported, before)
 box:SetValue(7)
 check("a real change is reported",          reported[#reported], 7)
 
--- A button waiting for its second click ("Really clear?") wears a red edge,
+-- A button waiting for its second click ("Click Again") wears a red edge,
 -- and a mouse passing over it does not take the red away.
 local edge = {}
 ns.Theme.SetBorderColor = function(frame, key) edge[frame] = key end

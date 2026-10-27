@@ -364,7 +364,7 @@ local function UpdateRow(row, entry)
             row.rename:Show()
             row.copy:Show()
             row.rules:Show()
-            row.delete:SetText(Armed(entry.key) and L["Sure?"] or L["Delete"])
+            row.delete:SetText(Armed(entry.key) and L["Click Again"] or L["Delete"])
             row.delete:SetConfirming(Armed(entry.key))
             row.delete:Show()
         end

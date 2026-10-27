@@ -934,7 +934,7 @@ local function Build(container)
         if ns.Queue:Count() == 0 and not ns.Queue:HasBuys() then return end
 
         armedUntil = GetTime() + 4
-        clear:SetText(L["Really clear?"])
+        clear:SetText(L["Click Again"])
         clear:SetConfirming(true)
         clear.tooltipText = L["Click again to empty the whole craft queue"]
 
