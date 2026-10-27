@@ -177,6 +177,7 @@ L["ITEM"] = "OBJETO"
 
 -- UI/ItemTooltip.lua
 L["Auction value"] = "Valor en subasta"
+L["Vendor price"] = "Precio de venta"
 L["This one"] = "Este"
 L["Random suffixes"] = "Sufijos aleatorios"
 L["Price for each suffix"] = "Precio de cada sufijo"
