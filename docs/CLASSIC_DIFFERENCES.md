@@ -174,6 +174,20 @@ loads them, and every reader asks for them first.
   the same prices. The player's own search mid-scan is caught by a
   post-hook on `QueryAuctionItems`: a page is asked again, and nothing is
   marked sold out. No new words. Tested in `tools/test_legacyscan.lua`.
+- Buying the queue's materials works on Era (the owner said build it,
+  2026-10-27). Era sells whole stacks, each at its own price, so a click
+  on a row of the drawer's Buy view (or its Search) opens a plan at the
+  foot of the list (`UI/LegacyBuyView.lua`): `Logic/LegacyBuy.lua` reads
+  every page of the item by its exact name and `LegacyBuy.Plan` picks the
+  cheapest stacks that cover the need, at most a quarter over it
+  (`EXTRA`; with nothing inside that, the least extra there is), leaving
+  out the player's own and any over half again the usual price
+  (`TOO_DEAR`). The gold button buys one stack a click
+  (`PlaceAuctionBid` at its buyout, the row read again first); a stack
+  gone or moved is looked for again and the plan redone. `AHBuys` counts
+  Era buys from a post-hook on `PlaceAuctionBid`, so they are looked for
+  in the mailbox. Forever's Buy view is untouched. Tested in
+  `tools/test_legacybuy.lua`.
 
 ### Tests
 - `tools/test_era.lua` checks the TOC and loads every file it lists, then
