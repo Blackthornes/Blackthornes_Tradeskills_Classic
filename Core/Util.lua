@@ -19,11 +19,18 @@ local GOLD_SUFFIX   = "|cffffd700g|r"
 local SILVER_SUFFIX = "|cffc7c7cfs|r"
 local COPPER_SUFFIX = "|cffeda55fc|r"
 
+-- The game's own coin icons, for text drawn on a gold button, where the
+-- coloured letters wash out.
+local GOLD_ICON   = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
+local SILVER_ICON = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t"
+local COPPER_ICON = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t"
+
 --- Format a copper amount as gold/silver/copper.
 -- @param copper  amount in copper; nil renders as a muted dash
 -- Every coin below the largest shows, zero-padded: "1g 05s 00c", "8s 00c".
 -- @param opts    { short = true } drops trailing silver/copper once gold is large,
 --                { noColor = true } strips the colour escapes,
+--                { icons = true } shows the game's coin icons for g, s and c,
 --                { parts = 1 or 2 } at most that many coins, counted from the
 --                largest, rounded to the last one shown ("12g 35s" for
 --                12g 34s 56c): for a narrow cell, see Theme.SetMoneyText
@@ -53,7 +60,9 @@ function Util.FormatMoney(copper, opts)
     local copperPart = amount % COPPER_PER_SILVER
 
     local g, s, c = GOLD_SUFFIX, SILVER_SUFFIX, COPPER_SUFFIX
-    if opts.noColor then
+    if opts.icons then
+        g, s, c = GOLD_ICON, SILVER_ICON, COPPER_ICON
+    elseif opts.noColor then
         g, s, c = "g", "s", "c"
     end
 

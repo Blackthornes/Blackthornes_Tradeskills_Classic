@@ -204,7 +204,7 @@ function LegacyBuyView:Refresh()
 
     local stack, ready = buy:Next()
     if stack and state.status ~= "done" then
-        local label = L.Format("Buy %d for %s", stack.count, Util.FormatMoney(stack.buyout))
+        local label = L.Format("Buy %d for %s", stack.count, Util.FormatMoney(stack.buyout, { icons = true }))
         self.button:SetText(label)
         local width = Theme.MeasureText and Theme.MeasureText("small", label)
         self.button:SetWidth(math.max(150, (width or 0) + 24))
