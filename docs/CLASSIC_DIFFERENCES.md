@@ -188,6 +188,15 @@ loads them, and every reader asks for them first.
   Era buys from a post-hook on `PlaceAuctionBid`, so they are looked for
   in the mailbox. Forever's Buy view is untouched. Tested in
   `tools/test_legacybuy.lua`.
+- Era fills in a seller's name a moment after the row (bug pass,
+  2026-10-27). The buy plan and the price check read a page once more when
+  a row of the item has no seller yet, so your own stacks are known as
+  yours, and the plan's `Same` counts a name missing on either side as no
+  mismatch. Short of gold, Buy bids nothing and says "not enough gold on
+  you". After three looks that can't find the next stack, the button stays
+  pressable and a press looks again from the start (`state.stuck`). A long
+  name on a stack row drops a size and wraps (`Theme.SetRowName`). Tested
+  in `tools/test_legacybuy.lua` and `tools/test_legacyscan.lua`.
 
 ### Tests
 - `tools/test_era.lua` checks the TOC and loads every file it lists, then
