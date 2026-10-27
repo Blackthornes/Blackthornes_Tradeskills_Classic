@@ -10,8 +10,9 @@
 --      trainer or vendor teaches and that raise the skill now, orange first;
 --      a few points out of reach come last, locked; grey, starter, known,
 --      drop-only and far-off recipes are left out.
---   4. The trainer is on the player's side and teaches that far; the zone
---      the character is in wins, then a city of theirs. A vendor carries its
+--   4. The trainer is on the player's side and teaches that far; the
+--      nearest on the continent the character is on wins, else the zone
+--      they are in, then a city of theirs. A vendor carries its
 --      spot.
 --   5. Show the way pins the game's map, or hands TomTom the place when it
 --      is installed, and says where in chat; with neither it says why not.
@@ -410,6 +411,70 @@ local unread = ns.Butler:LearnCost()
 check("a profession never read is left out", unread and unread[165], nil)
 ns.SkillUp = nil
 check("never raises", ns.Butler:LearnCost() ~= false, true)
+
+print("\nthe nearest trainer on your continent")
+-- A pretend world: each zone's map sits on a continent at an offset, a
+-- point 0 to 1 on it is that offset plus 1000 yards a whole map.
+local CONTINENT = { [1429] = 0, [1453] = 0, [1426] = 0, [1455] = 0, [1413] = 1 }
+local OFFSET = {
+  [1429] = { 0, 0 },        -- Elwynn Forest
+  [1453] = { 0, 300 },      -- Stormwind City
+  [1426] = { 3000, 0 },     -- Dun Morogh
+  [1455] = { 3200, 0 },     -- Ironforge
+  [1413] = { 0, 0 },        -- The Barrens
+}
+local standing
+local savedArrow, savedPins = ns.WayArrow, ns.VendorPins
+ns.WayArrow = {
+  Here = function() return standing end,
+  WorldPos = function(mapID, x, y)
+    local at = OFFSET[mapID]
+    if not at then return nil end
+    return CONTINENT[mapID], at[1] + x * 1000, at[2] + y * 1000
+  end,
+}
+local function StandIn(mapID, x, y)
+  now = now + 10
+  if not mapID then standing = nil return end
+  local continent, north, west = ns.WayArrow.WorldPos(mapID, x, y)
+  standing = { map = mapID, x = x, y = y, continent = continent, north = north, west = west }
+end
+
+zoneHere = "Dun Morogh"
+StandIn(1426, 0.3, 0.3)
+local near = LN:TrainerFor(165, 150)
+check("next to Ironforge: its trainer", near and near.zone, "Ironforge")
+check("the closer of the two there", near and near.name, "Gnome Gus")
+
+zoneHere = "Elwynn Forest"
+StandIn(1429, 0.4, 0.4)
+near = LN:TrainerFor(165, 150)
+check("in Elwynn: the one there", near and near.name, "Journey Jen")
+near = LN:TrainerFor(165, 225)
+check("only one teaches that far: it, however far", near and near.name, "Expert Ed")
+
+StandIn(1413, 0.5, 0.5)
+zoneHere = "The Barrens"
+near = LN:TrainerFor(165, 150)
+check("none on this continent: a city of your side", near and near.zone, "Stormwind City")
+
+StandIn(nil)
+zoneHere = "Elwynn Forest"
+near = LN:TrainerFor(165, 150)
+check("where you stand unknown: the zone you're in", near and near.name, "Journey Jen")
+
+-- Where the game saw the trainer stand counts, not Classic's spot.
+ns.VendorPins = {
+  SeenAt = function(_, name)
+    if name == "Gnome Gus" then return { mapID = 1429, x = 50, y = 50 } end
+  end,
+}
+StandIn(1429, 0.5, 0.5)
+near = LN:TrainerFor(165, 150)
+check("a spot the game saw wins", near and near.name, "Gnome Gus")
+check("and carries its map", near and near.mapID, 1429)
+check("and its spot", near and near.x, 50)
+ns.WayArrow, ns.VendorPins = savedArrow, savedPins
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

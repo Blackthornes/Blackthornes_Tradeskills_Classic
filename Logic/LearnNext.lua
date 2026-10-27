@@ -8,7 +8,8 @@
 -- are Forever's (Data/LearnSpots.lua, laid over the book in
 -- Logic/RecipeBook.lua); a recipe still a few points out of reach is listed
 -- after the rest, "At 120". The trainer or vendor picked is on the player's
--- side, in the zone they are in when one is, else in a city of theirs.
+-- side, the nearest on the continent they are on, else in the zone they
+-- are in when one is, else in a city of theirs.
 -- A trainer or vendor stands where the game saw it, when its window has
 -- been opened or the shipped Forever spots have it (VendorPins:SeenAt),
 -- else at Classic's spot.
@@ -82,9 +83,78 @@ local function HereZone()
     return name
 end
 
---- The best of a list of places { zone, ... }: the zone the character is in,
---- then one of their side's cities, then the first.
+-- How long where the character stands is kept, so a list of many rows reads
+-- it once.
+LearnNext.HERE_KEEP = 2
+
+local hereAt, hereKept
+
+--- Where the character stands in the world: { continent, north, west }, or
+--- nil when the client won't say (inside a dungeon, or no map).
+local function HereInWorld()
+    local now = type(_G.GetTime) == "function" and tonumber(_G.GetTime()) or 0
+    if hereAt and now - hereAt < LearnNext.HERE_KEEP then return hereKept or nil end
+    hereAt, hereKept = now, false
+    local arrow = ns.WayArrow
+    if arrow and arrow.Here then
+        local ok, here = pcall(arrow.Here, arrow)
+        if ok and type(here) == "table" and here.continent and here.north and here.west then
+            hereKept = here
+        end
+    end
+    return hereKept or nil
+end
+
+local worldOf = {}
+
+--- Where a place stands in the world: continent, north, west, or nil. Its
+--- own map where the game saw it, else its zone's map. Kept once read, since
+--- a place never moves.
+local function PlaceInWorld(place)
+    if not (place and place.x and place.y) then return nil end
+    local mapID = place.mapID
+    if not mapID then
+        local maps = ns.Waypoints and ns.Waypoints.ZONE_MAPS
+        mapID = maps and place.zone and maps[place.zone]
+    end
+    local arrow = ns.WayArrow
+    if not (mapID and arrow and arrow.WorldPos) then return nil end
+    local key = mapID .. "|" .. place.x .. "|" .. place.y
+    local kept = worldOf[key]
+    if kept == nil then
+        local ok, continent, north, west = pcall(arrow.WorldPos, mapID, place.x / 100, place.y / 100)
+        kept = ok and continent and north and west and { continent, north, west } or false
+        worldOf[key] = kept
+    end
+    if not kept then return nil end
+    return kept[1], kept[2], kept[3]
+end
+
+--- The place nearest the character on the continent they are on, or nil
+--- when none can be measured there.
+local function Closest(places)
+    local here = HereInWorld()
+    if not here then return nil end
+    local best, bestDistance
+    for _, place in ipairs(places) do
+        local continent, north, west = PlaceInWorld(place)
+        if continent == here.continent then
+            local dn, dw = north - here.north, west - here.west
+            local distance = dn * dn + dw * dw
+            if not bestDistance or distance < bestDistance then
+                best, bestDistance = place, distance
+            end
+        end
+    end
+    return best
+end
+
+--- The best of a list of places { zone, ... }: the nearest on the continent
+--- the character is on, else the one in the zone they are in, then one of
+--- their side's cities, then the first.
 local function Nearest(places, side)
+    local closest = Closest(places)
+    if closest then return closest end
     local here = HereZone()
     local cities = side and CITIES[side] or {}
     local city
@@ -174,7 +244,13 @@ function LearnNext:TrainerFor(line, needs)
     local trainers = {}
     for _, row in ipairs((Spots().TRAINERS or {})[line] or {}) do
         if OnSide(row[5], side) and (row[6] or 0) >= (needs or 0) then
-            trainers[#trainers + 1] = { kind = "trainer", name = row[1], zone = row[2], x = row[3], y = row[4] }
+            -- Where the game saw the trainer stand wins over Classic's spot.
+            local seen = SeenAt(row[1], row[2], "trainer")
+            trainers[#trainers + 1] = {
+                kind = "trainer", name = row[1], zone = row[2],
+                x = seen and seen.x or row[3], y = seen and seen.y or row[4],
+                mapID = seen and seen.mapID,
+            }
         end
     end
     return Nearest(trainers, side)
