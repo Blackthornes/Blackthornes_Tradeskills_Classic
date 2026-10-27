@@ -350,6 +350,41 @@ check("32c stays 32c", ns.Util.RoundToSilver(32) == 32)
 check("a whole copper price is fine", ns.Util.IsWholeSilver(32) == true)
 check("rounding up keeps the copper", ns.Util.CeilToSilver(132.4) == 133)
 
+print("")
+print("the AH buttons search the game's Browse list")
+
+house = { { 20, 800, LINEN }, { 1, 5000, SWORD } }
+canQuery, canQueryAll = true, false
+Reset()
+local gaveUp
+check("the search goes out", LegacyScan:Browse("Linen Cloth", function(r) gaveUp = r end) == true)
+check("by name, first page, not the whole house", #queries == 1 and queries[1].text == "Linen Cloth"
+    and queries[1].page == 0 and not queries[1].getAll)
+check("the game's list now holds it", #list == 1 and list[1][3] == LINEN and gaveUp == nil)
+
+Reset()
+canQuery = false
+gaveUp = nil
+LegacyScan:Browse("Linen Cloth", function(r) gaveUp = r end)
+check("it waits while the game is busy", #queries == 0)
+canQuery = true
+Advance(LegacyScan.POLL + 0.01)
+check("and goes once the game is free", #queries == 1 and gaveUp == nil)
+
+Reset()
+canQuery = false
+gaveUp = nil
+LegacyScan:Browse("Linen Cloth", function(r) gaveUp = r end)
+Advance(LegacyScan.PAGE_TIMEOUT + 1)
+check("a house that stays busy says so", #queries == 0 and gaveUp == false)
+canQuery = true
+
+Reset()
+local checked
+Scanner:ScanItem(SWORD, function(_, _, _, _, _, _, status) checked = status end)
+LegacyScan:Browse("Linen Cloth")
+check("a price check out steps aside", checked == "superseded")
+
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
 print("")

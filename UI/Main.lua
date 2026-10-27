@@ -1917,6 +1917,18 @@ function UI:SearchAuctionHouse(itemID, quantity)
         return false
     end
 
+    -- Era's older auction house has no C_AuctionHouse: search by name the
+    -- way its own Search button does, and the Browse list shows the results.
+    if ns.LegacyScan and ns.LegacyScan:Applies() then
+        return ns.LegacyScan:Browse(name, function(refused)
+            if refused then
+                ns.Warn(L["the game refused that search"])
+            elseif ns.Scanner.isAuctionHouseOpen then
+                ns.Warn(L["the auction house stayed busy; that search was not sent."])
+            end
+        end)
+    end
+
     if ns.BuyQuantity then ns.BuyQuantity:Want(itemID, quantity) end
 
     -- Queued rather than sent directly. This shares one throttled channel with
