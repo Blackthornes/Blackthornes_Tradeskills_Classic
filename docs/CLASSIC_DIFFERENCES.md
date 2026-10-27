@@ -157,6 +157,13 @@ loads them, and every reader asks for them first.
   at once; it leaves a fight, the cursor, an item put in by hand and a
   Yes/No box for another item alone. Tested in
   `tools/test_legacypost.lua`.
+- The AH buttons search on Era (2026-10-27, the owner: the AH search
+  button did nothing, "the auction house stayed busy" in chat):
+  `UI:SearchAuctionHouse` hands a "legacy" client to `LegacyScan:Browse`,
+  which sends `QueryAuctionItems` by the item's name, page one, once the
+  game takes a query, so the results land in the game's own Browse list.
+  It never touches the game's frames. Forever's `SendBrowseQuery` path is
+  left as it was. Tested in `tools/test_legacyscan.lua`.
 - Scan works on Era (2026-10-25, the owner picked "full scan, page scan
   backup"): `Data/LegacyScan.lua` asks for the quick full scan
   (`QueryAuctionItems` with getAll) when `CanSendAuctionQuery` says it is

@@ -404,6 +404,25 @@ function LegacyScan:ScanItem(itemID, callback, opts)
     return true
 end
 
+--- A search the player asked for (the AH buttons on the Gather, Sell and
+--- other tabs), shown in the game's own Browse list. Sent once the game takes
+--- a query, as the game's own Search button would be, and never mid-scan
+--- (UI:SearchAuctionHouse checks). Not marked as ours, so a price check out
+--- steps aside for it, as it does for the player's own Search.
+-- @return true when it was sent
+function LegacyScan:Browse(name, onGiveUp)
+    if type(name) ~= "string" or name == "" or type(QueryAuctionItems) ~= "function" then
+        return false
+    end
+    self:WhenCanQuery(function()
+        local sent = pcall(QueryAuctionItems, name, nil, nil, 0, false, nil, false, false, nil)
+        if not sent and onGiveUp then onGiveUp(true) end
+    end, function()
+        if onGiveUp then onGiveUp(false) end
+    end)
+    return true
+end
+
 -- Whether this search is still the one wanted.
 function LegacyScan:ItemLive(search)
     return self.itemSearch == search and Scanner().pendingItem == search.mine
