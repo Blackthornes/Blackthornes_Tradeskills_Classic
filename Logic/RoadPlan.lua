@@ -20,6 +20,11 @@
 -- shown done. Nothing is saved: the plan is kept by a key (skill, cap,
 -- level, recipes, bags, scans) and worked out again only when it moves,
 -- the recipes priced a few a frame.
+--
+-- Pick By (the owner said build it, 2026-10-27, from a mockup): "lowest"
+-- ranks recipes by what their materials cost, as before; "real" takes off
+-- what one craft sells back for (LevelUp:GetReturns), so a craft that pays
+-- some back can win. Kept account wide in `roadPickBy` (never rename it).
 
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
@@ -85,7 +90,8 @@ end
 
 --- What one craft of a recipe takes and what it makes back: { cost (one
 --- craft, copper), reagents = { { itemID, quantity, unit } }, sells (one
---- item made, copper, or nil) }, or nil when a material has no price.
+--- item made, copper, or nil), back (one craft, copper, or nil) }, or nil
+--- when a material has no price.
 function RoadPlan.Price(record)
     if not (ns.Cost and record and record.reagents and #record.reagents > 0) then return nil end
     local ok, detail = pcall(ns.Cost.GetCraftCost, ns.Cost, record.recipeID, nil, nil,
@@ -99,15 +105,16 @@ function RoadPlan.Price(record)
         cost = cost + unit * (line.quantity or 1)
     end
 
-    local sells
+    local sells, back
     if ns.LevelUp and ns.LevelUp.GetReturns then
         local got, returns = pcall(ns.LevelUp.GetReturns, ns.LevelUp, record, detail)
         local yield = ((record.quantityMin or 1) + (record.quantityMax or record.quantityMin or 1)) / 2
         if got and type(returns) == "table" and (returns.best or 0) > 0 then
             sells = math.floor(returns.best / math.max(1, yield) + 0.5)
+            back = returns.best
         end
     end
-    return { cost = cost, reagents = reagents, sells = sells }
+    return { cost = cost, reagents = reagents, sells = sells, back = back }
 end
 
 --- The recipes that could level a profession: known, or taught by a trainer
@@ -134,12 +141,21 @@ function RoadPlan:Candidates(line)
     return list
 end
 
+--- How the road picks its recipes: "lowest" (what the materials cost) or
+--- "real" (less what one craft sells back for).
+function RoadPlan.PickBy()
+    local ok, value = pcall(function() return ns.Config and ns.Config:Get("roadPickBy") end)
+    return (ok and value == "real") and "real" or "lowest"
+end
+
 -- What a point costs with a recipe at a skill, with its learning price
 -- spread over the points it can still give.
-local function PointCost(candidate, skill, learned)
+local function PointCost(candidate, skill, learned, real)
     local chance = RoadPlan.Chance(candidate.record, skill)
     if chance <= 0 or not candidate.price then return nil end
-    local cost = candidate.price.cost / chance
+    local craft = candidate.price.cost
+    if real then craft = craft - (candidate.price.back or 0) end
+    local cost = craft / chance
     if not candidate.known and not learned[candidate.record.recipeID] then
         local left = math.max(1, candidate.record.grey - skill)
         cost = cost + ((candidate.place and candidate.place.price) or 0) / left
@@ -147,10 +163,10 @@ local function PointCost(candidate, skill, learned)
     return cost
 end
 
-local function Best(candidates, skill, learned)
+local function Best(candidates, skill, learned, real)
     local best, bestCost
     for _, candidate in ipairs(candidates) do
-        local cost = PointCost(candidate, skill, learned)
+        local cost = PointCost(candidate, skill, learned, real)
         if cost and (not bestCost or cost < bestCost) then best, bestCost = candidate, cost end
     end
     return best, bestCost
@@ -164,11 +180,13 @@ end
 -- @param opts.level       the character's level
 -- @param opts.candidates  Candidates' list, each with `price` (Price's)
 -- @param opts.owned       { [itemID] = { bags, bank } }, or nil to read them
--- @return { steps, current, total, saved, stuck, skill, max }
+-- @param opts.pickBy      "lowest" (the default) or "real"
+-- @return { steps, current, total, saved, back, stuck, skill, max, pickBy }
 function RoadPlan:Plan(opts)
     local line, now = opts.line, opts.skill or 0
     local ranks = RoadPlan.RANKS[line] or {}
     local candidates = opts.candidates or {}
+    local real = opts.pickBy == "real"
     local learned = {}
     local steps = {}
     local stuck
@@ -201,7 +219,7 @@ function RoadPlan:Plan(opts)
                     break
                 end
 
-                local candidate = Best(candidates, p, learned)
+                local candidate = Best(candidates, p, learned, real)
                 if not candidate then
                     if not done then stuck = p end
                     break
@@ -220,10 +238,12 @@ function RoadPlan:Plan(opts)
                 repeat
                     crafts = crafts + 1 / RoadPlan.Chance(record, q)
                     q = q + 1
-                    local other, otherCost = Best(candidates, q, learned)
-                    local mine = PointCost(candidate, q, learned)
+                    local other, otherCost = Best(candidates, q, learned, real)
+                    local mine = PointCost(candidate, q, learned, real)
+                    -- A real cost can be below 0 (the craft pays): switch
+                    -- only when the other is clearly cheaper either way.
                     local switch = other and other ~= candidate and otherCost and mine
-                        and otherCost < mine * RoadPlan.SWITCH
+                        and otherCost < mine - math.abs(mine) * (1 - RoadPlan.SWITCH)
                 until q >= limit or switch
 
                 local step = {
@@ -271,7 +291,7 @@ function RoadPlan:Plan(opts)
         return have
     end
 
-    local total, saved, current = 0, 0, nil
+    local total, saved, back, current = 0, 0, 0, nil
     for index, step in ipairs(steps) do
         if not step.done then
             current = current or index
@@ -293,14 +313,15 @@ function RoadPlan:Plan(opts)
                     saved = saved + (fromBags + fromBank) * reagent.unit
                 end
                 step.cost = cost
+                back = back + ((step.price and step.price.back) or 0) * step.crafts
             end
             total = total + (step.cost or 0)
         end
     end
 
     return {
-        steps = steps, current = current, total = total, saved = saved, stuck = stuck,
-        skill = now, max = opts.max, line = line,
+        steps = steps, current = current, total = total, saved = saved, back = back, stuck = stuck,
+        skill = now, max = opts.max, line = line, pickBy = real and "real" or "lowest",
     }
 end
 
@@ -367,6 +388,7 @@ local function Key(profession, level)
         tostring(ns.Inventory and ns.Inventory.changes or 0),
         tostring(ns.Prices and ns.Prices.scanCount or 0),
         tostring(ns.Queue and ns.Queue.version or 0),
+        RoadPlan.PickBy(),
     }, "|")
 end
 
@@ -392,7 +414,7 @@ function RoadPlan:Get(profession, onReady)
     local function Finish()
         local plan = self:Plan({
             line = profession.line, skill = profession.skill, max = profession.max,
-            level = level, candidates = candidates,
+            level = level, candidates = candidates, pickBy = RoadPlan.PickBy(),
         })
         kept[profession.line] = { key = key, plan = plan }
         return plan

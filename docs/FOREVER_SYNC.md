@@ -15,6 +15,9 @@ Copied over since, one at a time:
   Blackthornes, and faster (2026-10-26, `Logic/Contribute.lua` taken whole
   with Classic's own recipients, realm check and region; see "Sending data
   to Blackthornes goes to Era characters").
+- `aba4139` Road to 300's "Pick By:" drop-down, Lowest Cost or Real Cost
+  (2026-10-27, from Forever's testing branch, taken whole; it sits beside
+  Classic's nearest-trainer pick from PR #43).
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.

@@ -61,6 +61,18 @@ function RoadView.Fit(button)
 end
 local Fit = RoadView.Fit
 
+--- Wide enough for the longest choice, so German never ends in "...".
+function RoadView.PickByWidth()
+    local width = 120
+    if Theme.MeasureText then
+        for _, text in ipairs({ L["Lowest Cost"], L["Real Cost"] }) do
+            local ok, measured = pcall(Theme.MeasureText, "small", text)
+            if ok and type(measured) == "number" then width = math.max(width, math.ceil(measured + 30)) end
+        end
+    end
+    return width
+end
+
 --------------------------------------------------------------------------------
 -- Rows
 --------------------------------------------------------------------------------
@@ -190,6 +202,18 @@ function RoadView:Build(view)
     widgets.stepOf = Theme.CreateLabel(toolbar, "small", "muted", "RIGHT")
     widgets.stepOf:SetPoint("RIGHT", 0, 0)
 
+    -- Pick By (the owner, 2026-10-27): lowest cost or real cost.
+    widgets.pickBy = Widgets.CreateDropdown(toolbar, {
+        { text = L["Lowest Cost"], value = "lowest" },
+        { text = L["Real Cost"], value = "real" },
+    }, function(value)
+        RoadView:SetPickBy(value)
+    end, { width = RoadView.PickByWidth() })
+    widgets.pickBy:SetPoint("RIGHT", widgets.stepOf, "LEFT", -14, 0)
+    widgets.pickByLabel = Theme.CreateLabel(toolbar, "small", "text", "RIGHT")
+    widgets.pickByLabel:SetPoint("RIGHT", widgets.pickBy, "LEFT", -6, 0)
+    widgets.pickByLabel:SetText(L["Pick By:"])
+
     -- The meter: one piece a step, gold up to the step to do now.
     local meter = CreateFrame("Frame", nil, view)
     meter:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -6)
@@ -298,6 +322,7 @@ function RoadView:Refresh()
     end
 
     widgets.heading:SetText(("%s  %d / %d"):format(profession.name:upper(), profession.skill, profession.max))
+    widgets.pickBy:SetValue(ns.RoadPlan.PickBy())
 
     local plan = ns.RoadPlan:Get(profession, function()
         if widgets.list and widgets.list:IsVisible() then RoadView:Refresh() end
@@ -325,14 +350,31 @@ function RoadView:Refresh()
     end
 
     Theme.SetMoneyText(widgets.total, plan.total or 0, { short = true })
+    widgets.saved:SetText(RoadView.FootText(plan))
+end
+
+--- The footer's second line: what you own takes off, or where it stops,
+--- and with Real Cost what selling the crafts brings back.
+function RoadView.FootText(plan)
+    local lines = {}
     if (plan.saved or 0) > 0 then
-        widgets.saved:SetText(L.Format("What you own already takes off %s.",
-            Util.FormatMoney(plan.saved, { short = true })))
+        lines[#lines + 1] = L.Format("What you own already takes off %s.",
+            Util.FormatMoney(plan.saved, { short = true }))
     elseif plan.stuck then
-        widgets.saved:SetText(L.Format("Nothing found to level past %d yet.", plan.stuck))
-    else
-        widgets.saved:SetText("")
+        lines[#lines + 1] = L.Format("Nothing found to level past %d yet.", plan.stuck)
     end
+    if plan.pickBy == "real" and (plan.back or 0) > 0 then
+        lines[#lines + 1] = L.Format("Selling what you make brings back about %s.",
+            Util.FormatMoney(plan.back, { short = true }))
+    end
+    return table.concat(lines, "\n")
+end
+
+--- Pick By: save the choice and work the road out again.
+function RoadView:SetPickBy(value)
+    value = value == "real" and "real" or "lowest"
+    if ns.Config then ns.Config:Set("roadPickBy", value) end
+    if self.built then self:Refresh() end
 end
 
 --- Queue Step, with a line in chat.
