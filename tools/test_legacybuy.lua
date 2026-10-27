@@ -198,6 +198,21 @@ for _ = 1, 3 do Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1) end
 stack = LegacyBuy:Next()
 check("it looks again and plans what is left", stack ~= nil and stack.count == 20 and state.plan.short == 0)
 
+-- The next stack keeps going missing.
+local stuckState = LegacyBuy.state
+stuckState.reread = 3
+LegacyBuy:Reread(stuckState)
+stack, ready = LegacyBuy:Next()
+check("after three looks the button can still be pressed", stack ~= nil and ready)
+local asked = #queries
+check("and a press doesn't bid", LegacyBuy:Buy() == false and #bids == 1)
+Advance(0.2)
+check("it looks again from the start", #queries == asked + 1 and queries[#queries].page == 0
+    and stuckState.status == "reading" and not stuckState.stuck)
+for _ = 1, 3 do Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1) end
+stack, ready = LegacyBuy:Next()
+check("and finds it", stack ~= nil and ready and stuckState.target ~= nil)
+
 QueryAuctionItems("Something else", nil, nil, 0)
 check("a search of your own lets go of the loaded page", not select(2, LegacyBuy:Next()))
 

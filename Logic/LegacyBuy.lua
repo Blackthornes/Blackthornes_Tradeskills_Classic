@@ -377,10 +377,13 @@ end
 
 function LegacyBuy:Reread(state)
     if state.reread and state.reread >= 3 then
+        -- Still not found: wait for a press, which looks again from the start.
         state.status = "ready"
+        state.stuck = true
         Changed()
         return
     end
+    state.stuck = nil
     state.reread = (state.reread or 0) + 1
     state.status = "reading"
     state.listings = {}
@@ -398,7 +401,8 @@ end
 function LegacyBuy:Next()
     local state = self.state
     local stack = state and state.plan and state.plan.stacks[1]
-    return stack, state ~= nil and state.status == "ready" and state.target ~= nil
+    return stack, state ~= nil and state.status == "ready"
+        and (state.target ~= nil or state.stuck == true)
 end
 
 --- The button's click: one stack. A real click, as the game asks.
@@ -407,6 +411,11 @@ function LegacyBuy:Buy()
     if not state then return false end
     local stack, ready = self:Next()
     if not stack then return false end
+    if state.stuck and not state.target then
+        state.reread = nil
+        self:Reread(state)
+        return false
+    end
     if not ready then
         if state.status == "ready" then self:FindNext(state) end
         return false
