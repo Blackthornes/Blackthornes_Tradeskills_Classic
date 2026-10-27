@@ -396,6 +396,25 @@ function AHBuys:OnPlaceBid(auctionID, bidAmount)
     end
 end
 
+--- An item auction on Era's older auction house: PlaceAuctionBid names the
+--- row of the list it was placed on, which still holds it right after the
+--- call. Only a buyout is counted, as above. Era's buy plan
+--- (Logic/LegacyBuy.lua) and a buy in the game's own list both come here.
+function AHBuys:OnLegacyBid(listType, index, bidAmount)
+    if type(GetAuctionItemInfo) ~= "function" then return end
+    local ok, _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, _, itemID =
+        pcall(GetAuctionItemInfo, listType, index)
+    if not ok then return end
+    if not itemID and type(GetAuctionItemLink) == "function" then
+        local linkOk, link = pcall(GetAuctionItemLink, listType, index)
+        itemID = linkOk and type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+    end
+    buyout = tonumber(buyout)
+    if itemID and buyout and buyout > 0 and (tonumber(bidAmount) or 0) >= buyout then
+        self:Await(itemID, tonumber(count) or 1, nil, buyout)
+    end
+end
+
 --------------------------------------------------------------------------------
 -- The mailbox
 --------------------------------------------------------------------------------
@@ -553,6 +572,12 @@ function AHBuys:OnEnable()
         AHBuys:Confirm(auctionID)
     end)
     ns.RegisterEvent(self, "PLAYER_MONEY", function() AHBuys:OnMoney() end)
+
+    if type(auctions) ~= "table" then
+        Watch(nil, "PlaceAuctionBid", function(listType, index, bidAmount)
+            AHBuys:OnLegacyBid(listType, index, bidAmount)
+        end)
+    end
 
     Watch(nil, "TakeInboxItem", function(index, slot) AHBuys:OnTake(index, slot) end)
     Watch(nil, "AutoLootMailItem", function(index) AHBuys:OnTake(index) end)

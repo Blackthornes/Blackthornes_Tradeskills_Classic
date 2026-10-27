@@ -700,8 +700,11 @@ function PostPanel:Build()
         updateRow = PostPanel.UpdateShoppingRow,
         onEnter = PostPanel.ShowShoppingTooltip,
         onLeave = function() GameTooltip:Hide() end,
-        onClick = function(line)
-            if PostPanel:CanSearch(line) then ns.UI:SearchAuctionHouse(line.itemID, line.shortfall) end
+        onClick = function(line) PostPanel:OpenShoppingLine(line) end,
+        -- On Era, the line whose buy plan is open.
+        isSelected = function(line)
+            local buy = ns.LegacyBuy
+            return buy ~= nil and buy.state ~= nil and type(line) == "table" and buy:IsOpenFor(line.itemID)
         end,
     })
     shopping:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -4)
@@ -787,7 +790,55 @@ function PostPanel:Build()
     footNote:SetWordWrap(true)
     self.footNote = footNote
 
+    -- Era's buy plan, at the foot of the Buy list (UI/LegacyBuyView.lua).
+    if ns.LegacyBuyView then
+        ns.LegacyBuyView:Build(body, frame, { edge = EDGE_PAD, bottom = LIST_BOTTOM })
+    end
+
     return frame
+end
+
+--- A click on a Buy row or its Search: on Era, its buy plan opens (or
+--- closes); elsewhere the auction house searches for it.
+function PostPanel:OpenShoppingLine(line)
+    if not self:CanSearch(line) then return end
+    local View = ns.LegacyBuyView
+    if View and View:Toggle(line) then
+        self:Refresh()
+        return
+    end
+    ns.UI:SearchAuctionHouse(line.itemID, line.shortfall)
+end
+
+--- Era's buy plan moved on (Logic/LegacyBuy.lua).
+function PostPanel:OnLegacyBuy()
+    if self.frame and self.frame:IsShown() then self:Refresh() end
+end
+
+--- Make room at the foot of the Buy list for Era's buy plan, or give the
+--- room back once it closes.
+function PostPanel:PlaceBuyPlan()
+    local View = ns.LegacyBuyView
+    if not View or not View.panel then return end
+    View:Refresh()
+    local open = self.view == "buy" and View:IsOpen()
+    local room = open and (View:Height() + 4) or 0
+    if self.shoppingRoom ~= room then
+        self.shoppingList:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -14, LIST_BOTTOM + room)
+        self.shoppingRoom = room
+    end
+    if self.view ~= "buy" then return end
+    if open then
+        if self.searchAll then self.searchAll:Hide() end
+        if self.footNote then
+            self.footNote:SetText(L["One stack each click. They go to your mailbox."])
+            if View.button and View.button:IsShown() then
+                self.footNote:SetPoint("RIGHT", View.button, "LEFT", -8, 0)
+            end
+        end
+    elseif self.footNote and self.searchAll then
+        self.footNote:SetPoint("RIGHT", self.searchAll, "LEFT", -8, 0)
+    end
 end
 
 --- Put the Scan strip in the header. The strip is UI/Main.lua's (it carries
@@ -1568,9 +1619,7 @@ function PostPanel.CreateShoppingRow(row)
     ns.CraftPanel.CreateShoppingRow(row)
 
     row.search = Widgets.CreateButton(row, L["Search"], function()
-        if PostPanel:CanSearch(row.data) then
-            ns.UI:SearchAuctionHouse(row.data.itemID, row.data.shortfall)
-        end
+        PostPanel:OpenShoppingLine(row.data)
     end, { width = SEARCH_WIDTH, height = 18, primary = true, tooltip = L["Searches the auction house. Pick it and how many you need fills in."] })
     row.search:SetPoint("RIGHT", row, "RIGHT", -8, 0)
 
@@ -1747,6 +1796,9 @@ function PostPanel:Refresh()
         self.footNote:SetShown(self.view ~= "lists" and self.view ~= "auctions" and self.view ~= "favors")
     end
 
+    -- Era's buy plan shows on Buy only.
+    if self.view ~= "buy" then self:PlaceBuyPlan() end
+
     if self.view == "favors" then
         if self.listAll then self.listAll:Hide() end
         self.list:Hide()
@@ -1791,6 +1843,7 @@ function PostPanel:Refresh()
         if self.footNote then self.footNote:SetText(L["Click a row to search the auction house for it."]) end
         self:RefreshShopping()
         self:UpdateSearchAll()
+        self:PlaceBuyPlan()
         return
     end
 

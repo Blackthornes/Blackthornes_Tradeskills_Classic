@@ -72,6 +72,7 @@ Logic\QueueMail.lua
 Logic\ShoppingLists.lua
 Logic\ListRules.lua
 Logic\AHBuys.lua
+Logic\LegacyBuy.lua
 Logic\DisenchantBuys.lua
 Logic\MaterialFinder.lua
 Logic\MyAuctions.lua
@@ -121,6 +122,7 @@ UI\PriceGraph.lua
 UI\Main.lua
 UI\ShoppingListsView.lua
 UI\AuctionWheel.lua
+UI\LegacyBuyView.lua
 UI\PostPanel.lua
 UI\PriceEditor.lua
 UI\ListRulesWindow.lua
