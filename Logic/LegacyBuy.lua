@@ -170,9 +170,12 @@ local function ReadRow(index)
         owner = owner, ownerFull = ownerFull, itemID = itemID, index = index }
 end
 
+-- Era fills in a seller's name a moment after the row, so a name missing on
+-- either side is no mismatch.
 local function Same(a, b)
     return a and b and a.itemID == b.itemID and a.count == b.count
-        and a.buyout == b.buyout and a.owner == b.owner
+        and a.buyout == b.buyout
+        and (a.owner == nil or b.owner == nil or a.owner == b.owner)
 end
 
 --- What the item's usual price for one is, from the scans.
@@ -285,6 +288,9 @@ function LegacyBuy:ReadPage(state)
         if readOk and row.itemID then
             row.page = page
             rows[#rows + 1] = row
+            -- Its seller's name is still on its way: look once more, so your
+            -- own stacks are known as yours.
+            if row.owner == nil and row.itemID == state.itemID then missing = true end
         else
             missing = true
         end

@@ -68,7 +68,7 @@ GetAuctionItemInfo = function(_, index)
     local row = list[index]
     if not row then return nil end
     return "Linen Cloth", 0, row[1], 1, true, 1, "", 0, 0, row[2], 0, false, nil,
-        row[3], row[3] .. "-Realm", 0, LINEN, true
+        row[3], row[3] and (row[3] .. "-Realm") or nil, 0, LINEN, true
 end
 GetAuctionItemLink = function() return nil end
 CanSendAuctionQuery = function() return true, false end
@@ -193,6 +193,35 @@ check("a search of your own lets go of the loaded page", not select(2, LegacyBuy
 
 Fire("AUCTION_HOUSE_CLOSED")
 check("closing the auction house closes the plan", LegacyBuy.state == nil)
+
+print("")
+print("seller names that come in late")
+
+-- Era fills in a seller's name a moment after the row.
+house = { { 20, 400, nil }, { 20, 900, "Rival" } }
+local lateNames = { [1] = "Me" }
+check("it opens", LegacyBuy:Open(LINEN, 20) == true)
+Advance(0.2)
+local lateQuery = #queries
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(0.3)
+for i, name in pairs(lateNames) do house[i][3] = name; if list[i] then list[i][3] = name end end
+Advance(1)
+state = LegacyBuy.state
+check("a page with a name missing is read once more", #queries == lateQuery)
+check("and your own stack, named late, is left out", state.plan and Counts(state.plan) == "20"
+    and state.plan.total == 900)
+
+house = { { 20, 500, nil } }
+check("it opens again", LegacyBuy:Open(LINEN, 20) == true)
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+stack, ready = LegacyBuy:Next()
+check("a name still missing after the second look plans it anyway", stack and stack.buyout == 500 and ready)
+house[1][3] = "Rival"
+local before = #bids
+LegacyBuy:Buy()
+check("and the name arriving later doesn't stop the buy", #bids == before + 1)
+Fire("AUCTION_HOUSE_CLOSED")
 
 -- The Buy button's price uses the game's coin icons, which read on gold.
 local priced = ns.Util.FormatMoney(230, { icons = true })
