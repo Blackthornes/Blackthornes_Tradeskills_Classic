@@ -39,13 +39,15 @@ function LegacyBuyView:Toggle(line)
     return true
 end
 
+-- The name is the row's `name`, set through Theme.SetRowName, so a long one
+-- drops a size and wraps and the scroll list grows that row to fit.
 local function StackRow(row)
-    row.left = Theme.CreateLabel(row, "small", "text", "LEFT")
-    row.left:SetPoint("LEFT", row, "LEFT", 8, 0)
+    row.name = Theme.CreateLabel(row, "small", "text", "LEFT")
+    row.name:SetPoint("LEFT", row, "LEFT", 8, 0)
     row.right = Theme.CreateLabel(row, "small", "text", "RIGHT")
     row.right:SetPoint("RIGHT", row, "RIGHT", -8, 0)
-    row.left:SetPoint("RIGHT", row.right, "LEFT", -6, 0)
-    row.left:SetWordWrap(false)
+    row.name:SetPoint("RIGHT", row.right, "LEFT", -6, 0)
+    row.left = row.name
 end
 
 local CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t "
@@ -55,9 +57,9 @@ local function UpdateStackRow(row, entry)
     local name = state and state.name or ""
     local text = ("%d %s"):format(entry.count, name)
     if entry.bought then
-        row.left:SetText(CHECK .. "|c" .. ns.COLORS.profit .. text .. "|r")
+        Theme.SetRowName(row.name, CHECK .. "|c" .. ns.COLORS.profit .. text .. "|r")
     else
-        row.left:SetText(text)
+        Theme.SetRowName(row.name, text)
     end
     local each = Util.FormatMoney(Util.UnitPriceFromStack(state and state.itemID, entry.buyout, entry.count)
         or math.floor(entry.buyout / entry.count))

@@ -99,8 +99,10 @@ GetNumAuctionItems = function() return #list, listTotal end
 GetAuctionItemInfo = function(_, index)
     local row = list[index]
     if not row then return nil end
+    local owner, ownerFull = "Rival", "Rival-TestRealm"
+    if row.late then owner, ownerFull = nil, nil end
     return "x", 0, row[1], 1, true, 1, "", 0, 0, row[2], 0, false, nil,
-        "Rival", "Rival-TestRealm", 0, row[3], true
+        owner, ownerFull, 0, row[3], true
 end
 GetAuctionItemLink = function(_, index)
     local row = list[index]
@@ -298,6 +300,21 @@ check("nothing is left waiting", Scanner.pendingItem == nil and LegacyScan.itemS
 got = nil
 Scanner:ScanItem(LINEN, function(_, _, _, _, _, _, status) got = status end)
 check("asked again at once, it is a recent check", got == "recent" and #queries == 1)
+
+print("")
+print("a price check waits for a seller's name that comes in late")
+
+house = { { 20, 800, LINEN, late = true } }
+Reset()
+Scanner.recentItemScans = {}
+got = nil
+Scanner:ScanItem(LINEN, function(_, _, _, _, _, _, status) got = status end)
+Fire()
+Advance(LegacyScan.PAGE_SETTLE + 0.1)
+check("with the name missing it looks once more", got == nil)
+house[1].late = nil
+Advance(LegacyScan.PAGE_SETTLE * 2 + 0.1)
+check("then answers with the name in", got == "fresh")
 
 print("")
 print("a price check with no linen listed")

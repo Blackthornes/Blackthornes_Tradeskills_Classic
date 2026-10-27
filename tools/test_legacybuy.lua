@@ -68,7 +68,7 @@ GetAuctionItemInfo = function(_, index)
     local row = list[index]
     if not row then return nil end
     return "Linen Cloth", 0, row[1], 1, true, 1, "", 0, 0, row[2], 0, false, nil,
-        row[3], row[3] .. "-Realm", 0, LINEN, true
+        row[3], row[3] and (row[3] .. "-Realm") or nil, 0, LINEN, true
 end
 GetAuctionItemLink = function() return nil end
 CanSendAuctionQuery = function() return true, false end
@@ -166,6 +166,16 @@ local stack, ready = LegacyBuy:Next()
 check("the cheapest stack is next, and its page is loaded", stack.buyout == 500 and ready)
 check("the plan was redrawn", changes > 0)
 
+local warned
+ns.Warn = function(text) warned = text end
+local purse = money
+money = 499
+LegacyBuy:Buy()
+check("short of gold, nothing is bid", #bids == 0 and warned == "not enough gold on you")
+check("and the stack stays ready", select(2, LegacyBuy:Next()))
+money = purse
+ns.Warn = noop
+
 LegacyBuy:Buy()
 check("a click buys it at its buyout", #bids == 1 and bids[1].row[3] == "Cheap" and bids[1].amount == 500)
 check("only once until it goes through", not select(2, LegacyBuy:Next()))
@@ -188,11 +198,55 @@ for _ = 1, 3 do Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1) end
 stack = LegacyBuy:Next()
 check("it looks again and plans what is left", stack ~= nil and stack.count == 20 and state.plan.short == 0)
 
+-- The next stack keeps going missing.
+local stuckState = LegacyBuy.state
+stuckState.reread = 3
+LegacyBuy:Reread(stuckState)
+stack, ready = LegacyBuy:Next()
+check("after three looks the button can still be pressed", stack ~= nil and ready)
+local asked = #queries
+check("and a press doesn't bid", LegacyBuy:Buy() == false and #bids == 1)
+Advance(0.2)
+check("it looks again from the start", #queries == asked + 1 and queries[#queries].page == 0
+    and stuckState.status == "reading" and not stuckState.stuck)
+for _ = 1, 3 do Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1) end
+stack, ready = LegacyBuy:Next()
+check("and finds it", stack ~= nil and ready and stuckState.target ~= nil)
+
 QueryAuctionItems("Something else", nil, nil, 0)
 check("a search of your own lets go of the loaded page", not select(2, LegacyBuy:Next()))
 
 Fire("AUCTION_HOUSE_CLOSED")
 check("closing the auction house closes the plan", LegacyBuy.state == nil)
+
+print("")
+print("seller names that come in late")
+
+-- Era fills in a seller's name a moment after the row.
+house = { { 20, 400, nil }, { 20, 900, "Rival" } }
+local lateNames = { [1] = "Me" }
+check("it opens", LegacyBuy:Open(LINEN, 20) == true)
+Advance(0.2)
+local lateQuery = #queries
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(0.3)
+for i, name in pairs(lateNames) do house[i][3] = name; if list[i] then list[i][3] = name end end
+Advance(1)
+state = LegacyBuy.state
+check("a page with a name missing is read once more", #queries == lateQuery)
+check("and your own stack, named late, is left out", state.plan and Counts(state.plan) == "20"
+    and state.plan.total == 900)
+
+house = { { 20, 500, nil } }
+check("it opens again", LegacyBuy:Open(LINEN, 20) == true)
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+stack, ready = LegacyBuy:Next()
+check("a name still missing after the second look plans it anyway", stack and stack.buyout == 500 and ready)
+house[1][3] = "Rival"
+local before = #bids
+LegacyBuy:Buy()
+check("and the name arriving later doesn't stop the buy", #bids == before + 1)
+Fire("AUCTION_HOUSE_CLOSED")
 
 -- The Buy button's price uses the game's coin icons, which read on gold.
 local priced = ns.Util.FormatMoney(230, { icons = true })

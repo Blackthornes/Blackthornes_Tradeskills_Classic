@@ -15,6 +15,8 @@
 
 local _, ns = ...
 
+local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
+
 local LegacyBuy = ns.NewModule("LegacyBuy")
 
 local Util = ns.Util
@@ -170,9 +172,12 @@ local function ReadRow(index)
         owner = owner, ownerFull = ownerFull, itemID = itemID, index = index }
 end
 
+-- Era fills in a seller's name a moment after the row, so a name missing on
+-- either side is no mismatch.
 local function Same(a, b)
     return a and b and a.itemID == b.itemID and a.count == b.count
-        and a.buyout == b.buyout and a.owner == b.owner
+        and a.buyout == b.buyout
+        and (a.owner == nil or b.owner == nil or a.owner == b.owner)
 end
 
 --- What the item's usual price for one is, from the scans.
@@ -285,6 +290,9 @@ function LegacyBuy:ReadPage(state)
         if readOk and row.itemID then
             row.page = page
             rows[#rows + 1] = row
+            -- Its seller's name is still on its way: look once more, so your
+            -- own stacks are known as yours.
+            if row.owner == nil and row.itemID == state.itemID then missing = true end
         else
             missing = true
         end
@@ -369,10 +377,13 @@ end
 
 function LegacyBuy:Reread(state)
     if state.reread and state.reread >= 3 then
+        -- Still not found: wait for a press, which looks again from the start.
         state.status = "ready"
+        state.stuck = true
         Changed()
         return
     end
+    state.stuck = nil
     state.reread = (state.reread or 0) + 1
     state.status = "reading"
     state.listings = {}
@@ -390,7 +401,8 @@ end
 function LegacyBuy:Next()
     local state = self.state
     local stack = state and state.plan and state.plan.stacks[1]
-    return stack, state ~= nil and state.status == "ready" and state.target ~= nil
+    return stack, state ~= nil and state.status == "ready"
+        and (state.target ~= nil or state.stuck == true)
 end
 
 --- The button's click: one stack. A real click, as the game asks.
@@ -399,6 +411,11 @@ function LegacyBuy:Buy()
     if not state then return false end
     local stack, ready = self:Next()
     if not stack then return false end
+    if state.stuck and not state.target then
+        state.reread = nil
+        self:Reread(state)
+        return false
+    end
     if not ready then
         if state.status == "ready" then self:FindNext(state) end
         return false
@@ -413,6 +430,12 @@ function LegacyBuy:Buy()
     end
 
     local money = ns.AHBuys and ns.AHBuys.Money and ns.AHBuys:Money()
+    -- Short of gold the game buys nothing and says little: say so, and keep
+    -- the stack ready for when there is enough.
+    if money and money < stack.buyout then
+        if ns.Warn then ns.Warn(L["not enough gold on you"]) end
+        return false
+    end
     local placed = pcall(PlaceAuctionBid, "list", target.index, stack.buyout)
     if not placed then return false end
 

@@ -467,6 +467,9 @@ function LegacyScan:ReadItemPage(search)
         local readOk, row = pcall(PackRow, index)
         if readOk and row[7] then
             rows[#rows + 1] = row
+            -- Era fills in a seller's name a moment late: look once more,
+            -- so your own stacks are known as yours and never undercut.
+            if row[4] == nil and row[7] == itemID then missing = true end
         else
             missing = true
         end
