@@ -23,6 +23,15 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.3.0
+
+- The auction house List button now lists in one press.
+- The auction house Buy button buys your queue's materials stack by stack.
+- Item tooltips show what a vendor sells the item for.
+
+Fixes and changes:
+- Various bug fixes.
+
 ## 0.2.1
 
 Fixes and changes:
