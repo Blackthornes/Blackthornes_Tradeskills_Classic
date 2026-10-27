@@ -864,7 +864,10 @@ have not learned that a trainer or vendor teaches and that raise the skill
 now, cheapest way up first, then any a few points out of reach
 (`LearnNext.REACH`), greyed, "At 120". `Logic/LearnNext.lua` builds the
 rows (`GetRows`, `Place` picks a trainer or vendor of the player's side
-that teaches that far, the zone they are in first, then a city);
+that teaches that far: the nearest on the continent the character is on,
+by where the game saw it stand else Classic's spot (`Nearest`, `Closest`,
+2026-10-27: Road to 300 sent a player in The Barrens to Undercity), else
+the zone they are in, then a city; `TrainerFor` picks the same way);
 `UI/Tab_LevelUp.lua` adds the LEARN, WHERE and Show the way columns (shown
 only while "Learn next" is ticked, `levelUpLearnNext`, on unless unticked,
 never rename it) and a detail pane with Show the way and Queue materials
