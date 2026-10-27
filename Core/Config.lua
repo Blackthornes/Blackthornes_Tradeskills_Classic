@@ -362,6 +362,10 @@ local DEFAULTS = {
         -- Level Up's "Can afford" (2026-10-22): only crafts whose missing
         -- materials the gold carried can buy. Never rename it.
         levelUpCanAfford = false,
+        -- Road to 300's "Pick By:" (2026-10-27): "lowest" ranks recipes by
+        -- what their materials cost, "real" takes off what a craft sells
+        -- back for. Never rename it.
+        roadPickBy = "lowest",
 
         -- Keep the game's "A buyer has been found for your auction" lines out
         -- of chat. The sale still goes into the Sales tab (Data/Mail.lua's

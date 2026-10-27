@@ -322,6 +322,47 @@ check("done steps after, in order", shown[3] == a and shown[4] == b, true)
 check("nothing lost", #shown, 4)
 check("the plan keeps its own order", plan.steps[1].done, true)
 
+print("\nPick By: lowest or real cost")
+local cheap = { recipeID = 81, name = "Cheap", skill = 1, yellow = 40, grey = 80,
+  reagents = { { itemID = BAR, quantity = 1 } } }
+local sells = { recipeID = 82, name = "Sells", skill = 1, yellow = 40, grey = 80,
+  reagents = { { itemID = BAR, quantity = 2 } } }
+local function PickPlan(pickBy)
+  return Road:Plan({
+    line = 164, skill = 10, max = 75, level = 15, pickBy = pickBy, owned = {},
+    candidates = {
+      { record = cheap, known = true, price = { cost = 20, back = 0,
+        reagents = { { itemID = BAR, quantity = 1, unit = 20 } } } },
+      { record = sells, known = true, price = { cost = 30, back = 25,
+        reagents = { { itemID = BAR, quantity = 2, unit = 15 } } } },
+    },
+  })
+end
+local function FirstCraft(p)
+  for _, step in ipairs(p.steps) do
+    if not step.done and step.kind == "craft" then return step end
+  end
+end
+local lowest = PickPlan(nil)
+check("the usual pick is lowest cost", lowest.pickBy, "lowest")
+check("lowest cost takes the cheaper craft", FirstCraft(lowest).recipeID, 81)
+check("nothing comes back from it", lowest.back, 0)
+local real = PickPlan("real")
+check("real cost is kept on the plan", real.pickBy, "real")
+check("real cost takes the craft that sells back", FirstCraft(real).recipeID, 82)
+check("what selling brings back", real.back > 0, true)
+check("To 300 still counts what you spend", real.total > lowest.total, true)
+check("the setting is lowest unless picked", Road.PickBy(), "lowest")
+local before = Road:Get(professions[1])
+settings.roadPickBy = "real"
+check("the setting reads real once picked", Road.PickBy(), "real")
+local switched = Road:Get(professions[1])
+check("a new pick makes a new plan", switched ~= before, true)
+check("planned by real cost", switched and switched.pickBy, "real")
+settings.roadPickBy = "junk"
+check("anything else reads as lowest", Road.PickBy(), "lowest")
+settings.roadPickBy = nil
+
 print("\nthe Welcome card's picks order the roads")
 ns.Recipes.GetLearnedProfessions = function()
   return {
