@@ -733,7 +733,7 @@ print("")
 print("the auction house bar")
 
 local bar = UI:GetAuctionBar()
-check("its status line has a width before the buttons come", bar.status.width, 350 - 32 - 10)
+check("its status line has a width before the buttons come", bar.status.width, 350 - 10 - 10)
 
 bar.status:SetWidth(150)
 lastScan, capped = NOW - 3 * 3600, true

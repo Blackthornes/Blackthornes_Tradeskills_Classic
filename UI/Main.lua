@@ -46,9 +46,9 @@ local AUCTION_BAR_HEIGHT = 44
 local AUCTION_BAR_PAD = 10
 local AUCTION_BAR_WIDTH = 350
 
--- The sell list's fold button sits at the strip's left end, and the words
--- start past it.
-local AUCTION_BAR_TEXT_LEFT = 32
+-- Where the words start: the sell list's fold gem sits on its rim, beside
+-- the close gem, so they start just past the gold stripe.
+local AUCTION_BAR_TEXT_LEFT = 10
 
 -- The two buttons on the strip: quiet metal, one line high, as wide as
 -- their words. The one solid gold button is List all, at the list's foot.
