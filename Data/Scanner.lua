@@ -2100,9 +2100,15 @@ function Scanner:ITEM_SEARCH_RESULTS_UPDATED(_, itemKey)
     if next(bySuffix) and ns.Prices.CommitSuffixes then ns.Prices:CommitSuffixes(itemID, bySuffix, time()) end
 end
 
-function Scanner:FinishItemScan(itemID, listings, isCommodity)
+function Scanner:FinishItemScan(itemID, listings, isCommodity, suffix)
     local pending = self.pendingItem
     self.pendingItem = nil
+
+    -- Era's search for one random suffix: its listings are that suffix's
+    -- price. The item's own price is kept as it is, unless it has none yet.
+    if suffix and ns.Prices.RecordSuffix then
+        return self:FinishSuffixScan(itemID, listings, suffix, pending)
+    end
 
     local marketValue, minBuyout, quantity, rivalMin, ownMin, ignoredLow, ladder =
         ns.Prices:Summarise(listings, ns.Prices:GetScanValue(itemID, "market"))
@@ -2133,6 +2139,33 @@ function Scanner:FinishItemScan(itemID, listings, isCommodity)
     if pending and pending.callback then
         pending.callback(itemID, marketValue, minBuyout, quantity, isCommodity,
             listings, status)
+    end
+end
+
+function Scanner:FinishSuffixScan(itemID, listings, suffix, pending)
+    local Prices = ns.Prices
+    local marketValue, minBuyout, quantity, rivalMin =
+        Prices:Summarise(listings, Prices:GetSuffixValue(itemID, suffix, "market"))
+
+    local status = "fresh"
+    if marketValue then
+        if type(Prices:GetTable()[itemID]) ~= "table" then
+            Prices:Record(itemID, marketValue, minBuyout, quantity, nil, rivalMin)
+        end
+        Prices:RecordSuffix(itemID, suffix, marketValue, minBuyout, rivalMin, quantity)
+    else
+        -- None of this suffix up: nobody to undercut.
+        status = "empty"
+        local entry = Prices:GetSuffixEntry(itemID, suffix)
+        if entry then
+            entry.rival, entry.min, entry.quantity = nil, nil, 0
+            entry.seen = time()
+            Prices:Touch(itemID)
+        end
+    end
+
+    if pending and pending.callback then
+        pending.callback(itemID, marketValue, minBuyout, quantity, false, listings, status)
     end
 end
 
