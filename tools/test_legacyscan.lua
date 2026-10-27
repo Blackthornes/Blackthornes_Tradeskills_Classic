@@ -361,6 +361,11 @@ check("the search goes out", LegacyScan:Browse("Linen Cloth", function(r) gaveUp
 check("by name, first page, not the whole house", #queries == 1 and queries[1].text == "Linen Cloth"
     and queries[1].page == 0 and not queries[1].getAll)
 check("the game's list now holds it", #list == 1 and list[1][3] == LINEN and gaveUp == nil)
+check("a plain search stays wide", queries[1].exact == false)
+
+Reset()
+LegacyScan:Browse("Linen Cloth", nil, true)
+check("an exact search asks for that name only", #queries == 1 and queries[1].exact == true)
 
 Reset()
 canQuery = false

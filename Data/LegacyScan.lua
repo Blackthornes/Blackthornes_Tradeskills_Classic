@@ -409,13 +409,16 @@ end
 --- a query, as the game's own Search button would be, and never mid-scan
 --- (UI:SearchAuctionHouse checks). Not marked as ours, so a price check out
 --- steps aside for it, as it does for the player's own Search.
+--- exact asks for that name only: the game's name search also matches longer
+--- names, so "Light Leather" brought up Light Leather Pants too. Gear that can
+--- roll a suffix ("of the Monkey") is left wide, or its copies would not show.
 -- @return true when it was sent
-function LegacyScan:Browse(name, onGiveUp)
+function LegacyScan:Browse(name, onGiveUp, exact)
     if type(name) ~= "string" or name == "" or type(QueryAuctionItems) ~= "function" then
         return false
     end
     self:WhenCanQuery(function()
-        local sent = pcall(QueryAuctionItems, name, nil, nil, 0, false, nil, false, false, nil)
+        local sent = pcall(QueryAuctionItems, name, nil, nil, 0, false, nil, false, exact == true, nil)
         if not sent and onGiveUp then onGiveUp(true) end
     end, function()
         if onGiveUp then onGiveUp(false) end

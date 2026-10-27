@@ -276,4 +276,28 @@ if ns.RecipeBook and ns.RecipeBook.GetAll then
     check("the recipe book is Classic's alone", fine and any and not forever, fine and "forever recipe found" or all)
 end
 
+-- The auction house buttons search for the exact name, except gear that can
+-- roll a suffix, whose copies carry a longer name.
+if ns.UI and ns.UI.MaySearchWide then
+    local savedItem, savedInstant, savedGet = C_Item, GetItemInfoInstant, GetItemInfo
+    local items = { [2318] = { 1, 7 }, [2647] = { 2, 4 }, [4243] = { 1, 4 }, [7909] = { 2, 3 } }
+    C_Item = {
+        GetItemInfo = function(id)
+            local row = items[id]
+            if row then return "Item", nil, row[1] end
+        end,
+        GetItemInfoInstant = function(id)
+            local row = items[id]
+            if row then return id, nil, nil, nil, nil, row[2] end
+        end,
+    }
+    GetItemInfoInstant, GetItemInfo = nil, nil
+    check("a trade good searches by its exact name", ns.UI.MaySearchWide(2318) == false)
+    check("plain white gear does too", ns.UI.MaySearchWide(4243) == false)
+    check("green gear stays wide for its suffixes", ns.UI.MaySearchWide(2647) == true)
+    check("a green gem is exact", ns.UI.MaySearchWide(7909) == false)
+    check("an item not loaded stays wide", ns.UI.MaySearchWide(99999) == true)
+    C_Item, GetItemInfoInstant, GetItemInfo = savedItem, savedInstant, savedGet
+end
+
 assert(failures == 0, failures .. " era check(s) failed")
