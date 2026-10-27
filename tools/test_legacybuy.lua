@@ -194,6 +194,12 @@ check("a search of your own lets go of the loaded page", not select(2, LegacyBuy
 Fire("AUCTION_HOUSE_CLOSED")
 check("closing the auction house closes the plan", LegacyBuy.state == nil)
 
+-- The Buy button's price uses the game's coin icons, which read on gold.
+local priced = ns.Util.FormatMoney(230, { icons = true })
+check("the Buy button's price shows coin icons", priced:find("UI-SilverIcon", 1, true)
+    and priced:find("UI-CopperIcon", 1, true) and priced:find("^2") ~= nil)
+check("coin icons leave out the coloured letters", not priced:find("|cff", 1, true))
+
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
 print("")
