@@ -1878,6 +1878,26 @@ function UI:BuildMinimapButton()
     self.lastMinimapWidth = Minimap:GetWidth()
 end
 
+-- Whether a name search for this item must stay wide: green or better
+-- weapons and armour can roll a suffix, and their copies carry a longer name.
+-- An item not loaded yet stays wide too, so nothing is hidden by a guess.
+function UI.MaySearchWide(itemID)
+    local quality
+    if Util.HasFunction("C_Item.GetItemInfo") then
+        local ok, _, _, rarity = pcall(C_Item.GetItemInfo, itemID)
+        if ok then quality = tonumber(rarity) end
+    end
+    if quality == nil and type(GetItemInfo) == "function" then
+        local ok, _, _, rarity = pcall(GetItemInfo, itemID)
+        if ok then quality = tonumber(rarity) end
+    end
+    if quality == nil then return true end
+    local Scanner = ns.Scanner
+    if not (Scanner and Scanner.MayHaveSuffix) then return quality >= 2 end
+    local ok, may = pcall(Scanner.MayHaveSuffix, itemID, quality)
+    return not ok or may == true
+end
+
 --- Point Blizzard's auction browse at one item.
 --
 -- Searching is unrestricted; buying is never automated. The addon puts the item
@@ -1926,7 +1946,7 @@ function UI:SearchAuctionHouse(itemID, quantity)
             elseif ns.Scanner.isAuctionHouseOpen then
                 ns.Warn(L["the auction house stayed busy; that search was not sent."])
             end
-        end)
+        end, not UI.MaySearchWide(itemID))
     end
 
     if ns.BuyQuantity then ns.BuyQuantity:Want(itemID, quantity) end
