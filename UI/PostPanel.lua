@@ -208,6 +208,11 @@ local function CreateRow(row)
         ns.Posting:Request(row.data.itemID, row.data.postQuantity, row.data.unitPrice)
     end, { width = BUTTON_WIDTH, height = 18 })
     row.post:SetPoint("RIGHT", -(6 + IGNORE_WIDTH + 6), 0)
+    -- Era: the stack goes in the auction slot as the mouse comes over, so
+    -- the click lists it.
+    row.post:HookScript("OnEnter", function()
+        if row.data and ns.Posting.PrepareFor then ns.Posting:PrepareFor(row.data.itemID) end
+    end)
 
     -- How many to list, beside the button that lists them. Empty-handed this
     -- panel posted whole stacks with no way to say otherwise.
@@ -733,6 +738,12 @@ function PostPanel:Build()
     end, { width = 110, height = 22, primary = true })
     listAll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(EDGE_PAD + 6), EDGE_PAD + 6)
     self.listAll = listAll
+    listAll:HookScript("OnEnter", function()
+        local line = PostPanel.nextLine
+        if line and not PostPanel.checksFirst and ns.Posting.PrepareFor then
+            ns.Posting:PrepareFor(line.itemID)
+        end
+    end)
 
     -- Search all (asked 2026-10-14): on Buy, the same place holds one
     -- button that looks up everything the auction house can sell you at
@@ -880,6 +891,18 @@ function PostPanel:UpdateListAll(lines)
     button.tooltipFunc = PostPanel.ListNextTooltip
     self:RefreshListAllLabel()
     self:RefreshListAllTip()
+
+    -- Era: the stack the next click lists goes in the auction slot now, so
+    -- one press lists it. Next frame, out of this redraw; it is a no-op
+    -- once that stack is in.
+    if nextLine and Posting.PrepareFor and Posting.IsLegacy and Posting.IsLegacy() then
+        local itemID = nextLine.itemID
+        C_Timer.After(0, function()
+            if PostPanel.nextLine and PostPanel.nextLine.itemID == itemID then
+                Posting:PrepareFor(itemID)
+            end
+        end)
+    end
 
     button:SetEnabledState(count > 0)
     button.tooltipText = count > 0

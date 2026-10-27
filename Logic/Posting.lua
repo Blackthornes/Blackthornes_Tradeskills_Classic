@@ -1640,10 +1640,33 @@ function Posting:PrepareNext()
         lines = ok and shown or nil
     end
     local line = self:GetNextPostable({ skipSettling = true }, lines)
-    if not line or HeldSlot(line.itemID) then return end
+    if line then self:PrepareFor(line.itemID) end
+end
 
-    local bag, slot = FindInBags(line.itemID)
-    if bag then PlaceInSellSlot(line.itemID, bag, slot) end
+--- Era: put one item's stack in the auction slot ahead of the click that
+--- lists it, so that click lists straight away (the owner, 2026-10-26:
+--- every listing took two presses). Asked when the Sell list draws, after
+--- each listing and when the mouse goes over a List button.
+--
+-- Left alone: a fight, something on the cursor, an item the player put in
+-- the auction slot by hand, and a Yes/No box up for another item (its Yes
+-- lists the stack that is in).
+-- @return true when the stack is in the auction slot now
+function Posting:PrepareFor(itemID)
+    if not itemID or not Posting.IsLegacy() then return false end
+    if not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then return false end
+    if InCombatLockdown and InCombatLockdown() then return false end
+    if CursorHasItem and CursorHasItem() then return false end
+    if HeldSlot(itemID) then return true end
+
+    local inSlot = SellSlotItem()
+    if inSlot and not (held and SellSlotHolds(held.itemID)) then return false end
+    local box = rawget(self, "confirming")
+    if type(box) == "table" and box.itemID ~= itemID then return false end
+
+    local bag, slot = FindInBags(itemID)
+    if not bag then return false end
+    return PlaceInSellSlot(itemID, bag, slot)
 end
 
 function Posting:Post(itemID, quantity, unitPrice, byHand)

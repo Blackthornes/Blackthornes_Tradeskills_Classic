@@ -435,6 +435,43 @@ check("one box", popup ~= nil, true)
 Advance(6)
 check("still one search", #searches, 1)
 
+print("")
+print("one press: the stack goes in ahead of the click")
+
+Reset()
+check("put in ahead", Posting:PrepareFor(SCORPID), true)
+check("the scorpid stack is in", sellSlot and sellSlot.itemID, SCORPID)
+Advance(1)
+Posting:Post(SCORPID, 10, 11)
+check("one press lists it", #started, 1)
+check("no 'ready' line", Said("is ready to list"), 0)
+
+Reset()
+Posting:PrepareFor(LINEN)
+Posting:PrepareFor(SCORPID)
+check("hover over another row swaps it in", sellSlot and sellSlot.itemID, SCORPID)
+Advance(1)
+Posting:Post(SCORPID, 10, 11)
+check("that row lists in one press", #started, 1)
+
+Reset()
+local own = { itemID = BOOTS, stackCount = 1 }
+sellSlot = own   -- put in by hand on the game's Auctions tab
+check("an item put in by hand is left", Posting:PrepareFor(SCORPID), false)
+check("still the player's", sellSlot, own)
+
+Reset()
+Posting.confirming = { itemID = LINEN }
+check("a box up for another item is left", Posting:PrepareFor(SCORPID), false)
+check("nothing put in", sellSlot, nil)
+Posting.confirming = nil
+
+Reset()
+cursor = { itemID = BOOTS }
+CursorHasItem = function() return cursor ~= nil end
+check("something on the cursor is left", Posting:PrepareFor(SCORPID), false)
+CursorHasItem = nil
+
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
 print("")
