@@ -15,6 +15,8 @@
 
 local _, ns = ...
 
+local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
+
 local LegacyBuy = ns.NewModule("LegacyBuy")
 
 local Util = ns.Util
@@ -419,6 +421,12 @@ function LegacyBuy:Buy()
     end
 
     local money = ns.AHBuys and ns.AHBuys.Money and ns.AHBuys:Money()
+    -- Short of gold the game buys nothing and says little: say so, and keep
+    -- the stack ready for when there is enough.
+    if money and money < stack.buyout then
+        if ns.Warn then ns.Warn(L["not enough gold on you"]) end
+        return false
+    end
     local placed = pcall(PlaceAuctionBid, "list", target.index, stack.buyout)
     if not placed then return false end
 

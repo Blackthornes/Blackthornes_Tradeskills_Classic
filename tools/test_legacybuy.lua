@@ -166,6 +166,16 @@ local stack, ready = LegacyBuy:Next()
 check("the cheapest stack is next, and its page is loaded", stack.buyout == 500 and ready)
 check("the plan was redrawn", changes > 0)
 
+local warned
+ns.Warn = function(text) warned = text end
+local purse = money
+money = 499
+LegacyBuy:Buy()
+check("short of gold, nothing is bid", #bids == 0 and warned == "not enough gold on you")
+check("and the stack stays ready", select(2, LegacyBuy:Next()))
+money = purse
+ns.Warn = noop
+
 LegacyBuy:Buy()
 check("a click buys it at its buyout", #bids == 1 and bids[1].row[3] == "Cheap" and bids[1].amount == 500)
 check("only once until it goes through", not select(2, LegacyBuy:Next()))
