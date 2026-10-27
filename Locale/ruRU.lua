@@ -178,6 +178,7 @@ L["ITEM"] = "ПРЕДМЕТ"
 
 -- UI/ItemTooltip.lua
 L["Auction value"] = "Цена на аукционе"
+L["Vendor price"] = "Цена продажи"
 L["This one"] = "Вот этот"
 L["Random suffixes"] = "Случайные суффиксы"
 L["Price for each suffix"] = "Цена для каждого суффикса"

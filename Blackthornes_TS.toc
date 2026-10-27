@@ -136,6 +136,7 @@ UI\CastBarOnTop.lua
 UI\CraftProgress.lua
 UI\RecipeValue.lua
 UI\ItemTooltip.lua
+UI\VendorPriceTip.lua
 UI\EnchantTooltip.lua
 UI\VendorPins.lua
 UI\WayArrow.lua
