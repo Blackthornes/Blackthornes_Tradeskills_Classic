@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.4.0
+
+- The Road to 300 and Learn Next now send you to the closest trainer.
+- The Road to 300 lets you pick recipes by lowest cost or real cost.
+- Various bug fixes.
+
 ## 0.3.1
 
 - Various bug fixes.
