@@ -97,7 +97,7 @@ ns.Print = function(text) said[#said + 1] = text end
 ns.Warn = function(text) said[#said + 1] = "WARN " .. text end
 ns.PrintRaw, ns.Debug = noop, noop
 
-local settings = { postDuration = 2, verifyPriceBeforePosting = true }
+local settings = { postDuration = 2, verifyPriceBeforePosting = true, askBeforeListing = true }
 ns.db = {}
 ns.Config = {
     Get = function(_, k) return settings[k] end,
@@ -372,6 +372,65 @@ Reset()
 Posting:NoteChecked(POTION)
 check("a fresh item does not count down the spacing", (Posting:SecondsUntilPostable(POTION)), 0)
 check("one not checked still does", (Posting:SecondsUntilPostable(OIL)) > 0, true)
+
+print("")
+print("with the Yes or No box off (the default since 2026-10-28)")
+
+Reset()
+settings.askBeforeListing = nil
+check("the box is off unless ticked", Posting:AsksFirst(), false)
+Posting:Request(POTION, 5, 290)
+check("a price never checked is checked first", #searches, 1)
+searches[1].cb(POTION, 290, 290, 5, true, {}, "fresh")
+check("no box comes up", popup, nil)
+check("nothing listed on the check's answer", #posted, 0)
+check("it says to click again", Said("Click again to list it"), true)
+check("and the price counts as checked", Posting:IsFresh(POTION), true)
+Posting:Request(POTION, 5, 290)
+check("the next click lists it", #posted, 1)
+check("with no second search", #searches, 1)
+
+Reset()
+settings.askBeforeListing = nil
+settings.fastListing = false
+recorded[POTION] = 290
+Posting:NoteChecked(POTION)
+Posting:Request(POTION, 5, 290)
+-- Classic keeps #47: fast listing unticked brings the box back too.
+check("fast listing unticked asks again, even with the box off", #posted, 0)
+
+Reset()
+settings.askBeforeListing = true
+settings.fastListing = nil
+Posting:Request(POTION, 5, 290)
+searches[1].cb(POTION, 290, 290, 5, true, {}, "fresh")
+check("Ask Before Listing ticked: the box comes up after the check", popup ~= nil, true)
+check("and nothing is listed yet", #posted, 0)
+settings.askBeforeListing = nil
+
+Reset()
+settings.askBeforeListing = nil
+settings.allowPostingAtALoss = true
+costs[POTION] = 500
+recorded[POTION] = 290
+Posting:NoteChecked(POTION)
+Posting:Request(POTION, 5, 290)
+check("a loss lists when Sell at a Loss is on", #posted, 1)
+
+Reset()
+settings.askBeforeListing = nil
+costs[POTION] = 500
+recorded[POTION] = 290
+Posting:NoteChecked(POTION)
+Posting:Request(POTION, 5, 290)
+check("a loss is refused when it is off", #posted, 0)
+check("and no box", popup, nil)
+
+Reset()
+settings.askBeforeListing = nil
+Posting:NoteChecked(RING, { itemID = RING, itemSuffix = 7 })
+check("a suffix check is not the plain item's", Posting:IsFresh(RING), false)
+settings.askBeforeListing = true
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

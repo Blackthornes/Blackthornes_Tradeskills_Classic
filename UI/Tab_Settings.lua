@@ -918,10 +918,9 @@ local function Build(outer)
     end, false)
     widgets.altKeeps:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    -- No "Confirm before each listing" switch: the confirmation's Yes is the
-    -- click that lists. Posting needs a real click, and after the price
-    -- check (an auction house search, answered later) there is no other.
-    -- The switch never did anything; its saved value is left where it is.
+    -- The old "Confirm before each listing" switch (confirmBeforePosting)
+    -- never did anything and its saved value is left where it is. The Yes/No
+    -- box is "Ask Before Listing" below, a key of its own.
     local verifyRow = CreateRow(pages.auction, 1, L["Check Price First:"],
         L["Searches for the item first so your price is current."])
 
@@ -939,6 +938,17 @@ local function Build(outer)
         Config:Set("fastListing", checked)
     end, true)
     widgets.fastListing:SetPoint("TOPLEFT", CONTROL_X, -2)
+
+    -- Ask before listing (the owner, 2026-10-28): off unless ticked. Off, a
+    -- checked price lists on the click; one not checked yet is checked
+    -- first and the next click lists it.
+    local askRow = CreateRow(pages.auction, 1, L["Ask Before Listing:"],
+        L["Shows a Yes or No box with the prices before each listing."])
+
+    widgets.askBeforeListing = Widgets.CreateCheckbox(askRow, L["On"], function(checked)
+        Config:Set("askBeforeListing", checked)
+    end, false)
+    widgets.askBeforeListing:SetPoint("TOPLEFT", CONTROL_X, -2)
 
     -- The mouse wheel (a player asked, the owner said build it, 2026-10-16):
     -- off unless ticked, and only while the auction house is open.
@@ -2295,6 +2305,7 @@ local function Refresh()
     widgets.altKeeps:SetChecked(Config:Get("sellHoldsAltUpgrades") == true)
     widgets.verifyPrice:SetChecked(Config:Get("verifyPriceBeforePosting") ~= false)
     widgets.fastListing:SetChecked(Config:Get("fastListing") ~= false)
+    widgets.askBeforeListing:SetChecked(Config:Get("askBeforeListing") == true)
     widgets.mouseWheel:SetChecked(Config:Get("mouseWheelListing") == true)
     widgets.overcutting:SetChecked(Config:Get("overcutting") == true)
     widgets.subCrafts:SetChecked(Config:Get("autoQueueSubCrafts") ~= false)

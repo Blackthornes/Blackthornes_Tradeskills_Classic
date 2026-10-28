@@ -1712,6 +1712,20 @@ deposit, market, vendor, disenchant, cost to make, then what comes after. "Fast 
 auction page (`fastListing`, on unless unticked, never rename it). Tested
 in `tools/test_fastlisting.lua`. Not yet seen in game.
 
+No Yes/No box by default (the owner, 2026-10-28: less in the way). "Ask
+Before Listing:" on the auction page (`askBeforeListing`, off unless
+ticked, never rename it; `Posting:AsksFirst`) brings the box back as it
+was. Off, a click on a checked price lists it (`CanListOnClick`, fast
+a copy with a random suffix once that suffix was searched,
+`checkedSuffix`), and a click on one not checked searches, says "ready to
+list" (on Era the stack goes in the auction slot) and the next click
+lists; on Era "Fast listing" unticked still brings the box back, as #47
+had it (`AsksFirst` is true then too); `Post` and
+`RefusesEarly` still refuse what the box warned about. "Sell at a Loss:"
+(`allowPostingAtALoss`) defaults on the same day, which reaches only new
+installs: a saved value is kept. The old `confirmBeforePosting` is still
+unread.
+
 ## The mouse wheel at the auction house
 
 A player asked (2026-10-16, the owner said build it, off by default): with
