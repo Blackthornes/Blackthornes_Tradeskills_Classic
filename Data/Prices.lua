@@ -18,6 +18,44 @@ local Util = ns.Util
 -- one weird scan cannot swing a price, high enough to track a real move.
 local EMA_ALPHA = 0.3
 
+-- A scan whose market value is this many times above or below the running
+-- one is held back rather than averaged in (the owner, 2026-10-28: a cloak
+-- that sold for 10s read 45g after one scan saw only two at 150g each).
+Prices.ODD_RATIO = 3
+
+-- Scans in a row that must agree on an odd value before it is believed. Then
+-- the running value jumps straight to it: the market really did move.
+Prices.ODD_SCANS = 3
+
+--- Fold one scan's market value into a record's running value (the item's,
+--- or one suffix's). `odd` (never rename it) counts the scans in a row held
+--- back, and which way they went.
+function Prices.Smooth(record, marketValue)
+    local market = record.market
+    if not market or market <= 0 then
+        record.market = marketValue
+        record.odd = nil
+        return
+    end
+
+    local up = marketValue > market * Prices.ODD_RATIO
+    local down = marketValue * Prices.ODD_RATIO < market
+    if up or down then
+        local odd = type(record.odd) == "table" and record.odd or nil
+        local count = (odd and odd.up == up and (tonumber(odd.n) or 0) or 0) + 1
+        if count >= Prices.ODD_SCANS then
+            record.market = math.floor(marketValue + 0.5)
+            record.odd = nil
+        else
+            record.odd = { up = up, n = count }
+        end
+        return
+    end
+
+    record.odd = nil
+    record.market = math.floor(market * (1 - EMA_ALPHA) + marketValue * EMA_ALPHA + 0.5)
+end
+
 -- Fraction of an item's listed quantity treated as "the market" when pricing.
 -- Only the cheap end of the book matters: nobody sells at the 40th percentile.
 local MARKET_DEPTH = 0.25
@@ -350,11 +388,7 @@ function Prices:Record(itemID, marketValue, minBuyout, quantity, scannedAt, riva
     end
 
     -- EMA, seeded on first sight so a brand new item is not anchored to zero.
-    if record.market then
-        record.market = math.floor(record.market * (1 - EMA_ALPHA) + marketValue * EMA_ALPHA + 0.5)
-    else
-        record.market = marketValue
-    end
+    Prices.Smooth(record, marketValue)
 
     if ladder ~= nil then
         record.ladder = ValidLadder(ladder) and ladder or nil
@@ -954,11 +988,7 @@ function Prices:RecordSuffix(itemID, suffix, marketValue, minBuyout, rival, quan
         suffixes[suffix] = entry
     end
 
-    if entry.market then
-        entry.market = math.floor(entry.market * (1 - EMA_ALPHA) + marketValue * EMA_ALPHA + 0.5)
-    else
-        entry.market = marketValue
-    end
+    Prices.Smooth(entry, marketValue)
     entry.min = minBuyout
     entry.rival = rival
     entry.quantity = quantity

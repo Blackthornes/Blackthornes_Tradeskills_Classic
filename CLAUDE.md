@@ -1782,6 +1782,22 @@ thing (`AuctionWheel.GAP`). A list under the mouse still scrolls; the
 camera does not zoom while it is bound. Tested in
 `tools/test_auctionwheel.lua`. Not yet seen in game.
 
+## Odd scans and the price floor
+
+A player's Fine Leather Cloak sold for about 10s for days, then one scan saw
+only two listed at 150g each, and the usual price jumped to 45g; the price
+floor (a fifth of market) then refused to list it at 55s, Sell at a Loss or
+not (the owner, 2026-10-28). Two fixes: `Prices.Smooth` holds back a scan
+whose market value is over `Prices.ODD_RATIO` (3) times above or below the
+running one, and after `Prices.ODD_SCANS` (3) such scans in a row the same
+way the running value jumps straight there (`record.odd = { up, n }`, also
+on suffix entries; never rename it). And `Posting:GetPriceFloor` takes a
+fifth of the lower of market and the cheapest listing from a scan under
+`Posting.FLOOR_LISTED_FRESH` (a day) old (`Posting.ListedRecently`), so a
+price near what others list it for is never called a mistake. A 1 copper
+slip is still refused. Tested in `tools/test_oddscan.lua` and
+`tools/test_ownprice.lua`.
+
 ## Overcutting
 
 The owner said build it (2026-10-15, from a mockup, and picked the name):
