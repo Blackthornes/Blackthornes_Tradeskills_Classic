@@ -538,9 +538,10 @@ local DEFAULTS = {
         -- See Logic/GuildCrafters.lua.
         friendNames = "",
         -- Share scans with players on your realm over a hidden channel, and
-        -- fill what is still missing with theirs (2026-10-20). Off unless
-        -- ticked; never rename it. See Logic/RealmPrices.lua.
-        realmPrices = false,
+        -- fill what is still missing with theirs (2026-10-20). On unless
+        -- unticked for new saves (the owner, 2026-10-28); a value already
+        -- saved is kept. Never rename it. See Logic/RealmPrices.lua.
+        realmPrices = true,
         -- Send your own disenchant results and recipe skills to the
         -- addon's maker (2026-10-18). Off unless ticked; never rename it.
         -- See Logic/Contribute.lua.

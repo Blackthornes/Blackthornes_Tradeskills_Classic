@@ -2,7 +2,8 @@
 -- with players on your realm over a hidden chat channel.
 --
 -- What must hold:
---   1. Off by default: nothing joins, nothing goes out, nothing is taken.
+--   1. Off (unticked, or a save without it): nothing joins, nothing goes
+--      out, nothing is taken.
 --   2. On: the channel is joined, and its join and leave lines are hidden.
 --   3. A scan goes out one message at a time, only on our channel.
 --   4. A price is used only once 3 players sent one, and the middle is taken.
@@ -161,7 +162,7 @@ local function Scan(client, prices, at)
 end
 
 --------------------------------------------------------------------------------
-print("\noff by default")
+print("\noff")
 --------------------------------------------------------------------------------
 
 local ana = NewClient("Ana", "Forever-Alliance")

@@ -7,7 +7,9 @@
 -- 2026-10-07 for fear of made-up prices, so this one asks more before it
 -- believes anything. Tradeskills only: Farmer stays guild at most.
 --
--- Off unless ticked; Settings, Sharing, YOUR REALM: `realmPrices`. When on:
+-- On unless unticked for new saves (the owner, 2026-10-28; a save made
+-- before keeps its value); Settings, Sharing, YOUR REALM: `realmPrices`.
+-- When on:
 --   * Tradeskills joins a hidden chat channel named for the realm's side
 --     (CHANNEL_BASE plus A, H or N) and keeps its join and leave lines out of
 --     chat. The probe of 2026-10-20 found Forever lets addons join one and
