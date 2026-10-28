@@ -33,6 +33,10 @@ LegacyBuy.MAX_UNITS = 5000
 LegacyBuy.BUY_WAIT = 4
 -- A page that has not answered in this long gives up.
 LegacyBuy.PAGE_WAIT = 10
+-- A buy whose gold leaves after BUY_WAIT still counts up to this long after.
+LegacyBuy.LATE_WAIT = 30
+-- How often to look whether the auction house takes our next search.
+LegacyBuy.POLL = 0.2
 
 LegacyBuy.state = nil
 
@@ -226,9 +230,52 @@ function LegacyBuy:IsOpenFor(itemID)
     return self.state ~= nil and self.state.itemID == itemID
 end
 
+--- A scan or a price check of ours has the auction house's list: our
+--- search waits for it, or the two would read each other's answers.
+function LegacyBuy.ScanBusy()
+    local scan = ns.LegacyScan
+    if not scan then return false end
+    if scan.state ~= nil then return true end
+    local search = scan.itemSearch
+    return type(search) == "table" and search.awaiting == true
+end
+
+local function CanQuery()
+    if type(CanSendAuctionQuery) ~= "function" then return true end
+    local ok, canQuery = pcall(CanSendAuctionQuery)
+    return ok and canQuery and true or false
+end
+
+--- Run fn once the game takes a search and no scan of ours holds the list.
+--- Kept to this plan alone: a scan starting or ending never drops it, so a
+--- plan waiting here always hears back. The wait for the game counts toward
+--- giving up; the wait for a scan does not (closing the auction house
+--- closes the plan).
+function LegacyBuy:WhenFree(state, fn, onGiveUp)
+    local waited = 0
+    local function Look()
+        if LegacyBuy.state ~= state then return end
+        if LegacyBuy.ScanBusy() then
+            C_Timer.After(LegacyBuy.POLL, Look)
+            return
+        end
+        if CanQuery() then
+            fn()
+            return
+        end
+        waited = waited + LegacyBuy.POLL
+        if waited >= LegacyBuy.PAGE_WAIT then
+            onGiveUp()
+            return
+        end
+        C_Timer.After(LegacyBuy.POLL, Look)
+    end
+    Look()
+end
+
 function LegacyBuy:SendPage(state, page)
     state.awaiting = nil
-    ns.LegacyScan:WhenCanQuery(function()
+    self:WhenFree(state, function()
         if LegacyBuy.state ~= state then return end
         state.awaiting = page
         state.loaded = nil
@@ -405,6 +452,16 @@ function LegacyBuy:Next()
         and (state.target ~= nil or state.stuck == true)
 end
 
+local function Counted(state, stack)
+    state.bought = state.bought + stack.count
+    stack.bought = true
+    state.boughtStacks = state.boughtStacks or {}
+    state.boughtStacks[#state.boughtStacks + 1] = stack
+    for i, listing in ipairs(state.listings) do
+        if listing == stack then table.remove(state.listings, i); break end
+    end
+end
+
 --- The button's click: one stack. A real click, as the game asks.
 function LegacyBuy:Buy()
     local state = self.state
@@ -430,6 +487,17 @@ function LegacyBuy:Buy()
     end
 
     local money = ns.AHBuys and ns.AHBuys.Money and ns.AHBuys:Money()
+    -- The last buy given up on: its gold gone means it went through, so the
+    -- plan is worked out again first. Still here, it never will.
+    local late = state.late
+    state.late = nil
+    if late and late.money and money and late.money - money >= late.stack.buyout then
+        Counted(state, late.stack)
+        state.loaded = nil
+        state.reread = nil
+        self:Reread(state)
+        return false
+    end
     -- Short of gold the game buys nothing and says little: say so, and keep
     -- the stack ready for when there is enough.
     if money and money < stack.buyout then
@@ -454,28 +522,44 @@ end
 function LegacyBuy:PLAYER_MONEY()
     local state = self.state
     local buying = state and state.buying
-    if not buying then return end
     local money = ns.AHBuys and ns.AHBuys:Money()
+    if not buying then
+        -- A buy given up on whose gold left after all: count it, or the
+        -- plan buys that much again.
+        local late = state and state.late
+        if not late then return end
+        if GetTime() - (late.at or 0) > self.LATE_WAIT then
+            state.late = nil
+            return
+        end
+        if not (late.money and money and late.money - money >= late.stack.buyout) then return end
+        state.late = nil
+        Counted(state, late.stack)
+        state.loaded = nil
+        state.reread = nil
+        -- A look under way plans with the new count when it ends.
+        if state.status ~= "reading" then self:Reread(state) end
+        return
+    end
     if buying.money and money and buying.money - money < buying.stack.buyout then return end
     state.buying = nil
     if state.timer then state.timer:Cancel(); state.timer = nil end
-    state.bought = state.bought + buying.stack.count
-    buying.stack.bought = true
-    state.boughtStacks = state.boughtStacks or {}
-    state.boughtStacks[#state.boughtStacks + 1] = buying.stack
-    for i, listing in ipairs(state.listings) do
-        if listing == buying.stack then table.remove(state.listings, i); break end
-    end
+    Counted(state, buying.stack)
     -- The list the game holds changed with the buy.
     state.loaded = nil
     state.reread = nil
     self:MakePlan(state)
 end
 
--- Someone else bought it first, or the game said no: look again.
+-- Someone else bought it first, or the game said no: look again. The gold
+-- can still leave a moment later on a slow server (PLAYER_MONEY's late buy).
 function LegacyBuy:BuyFailed(state)
+    local buying = state.buying
     state.buying = nil
     state.loaded = nil
+    if buying and buying.money then
+        state.late = { stack = buying.stack, money = buying.money, at = GetTime() }
+    end
     self:Reread(state)
 end
 
