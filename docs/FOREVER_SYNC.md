@@ -37,6 +37,9 @@ Copied over since, one at a time:
   Left out: `fcd2720` (Forever's recipient names), the changelog and
   release PRs, and `deploy.ps1`. Already here: Price Order, QueueLearned,
   the five-minute hello and Pick By.
+- `b974d36` One minimap button for every Blackthornes addon (2026-10-28,
+  Forever PR #1015, cherry-picked as it is; `UI/SharedMinimap.lua` and its test
+  are the same in all five Classic repos).
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.
