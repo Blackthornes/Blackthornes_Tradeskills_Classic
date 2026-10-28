@@ -1802,8 +1802,15 @@ Highest (whole silver for an item auction; one under the floor is left
 out) and a 5th return `waits`, never for a "derived" or "uncontested"
 price; `Posting:GetPostable` then holds the row ("Waiting, others are
 selling for less"), so List all skips it, its own List still lists it and a
-typed price wins. `GetValue` is unchanged. The screens wait for his "build
-it" (mockup `previews/ts-price-limits/` in the project files). Tested in
+typed price wins. `GetValue` is unchanged. The screens (the owner said
+build it from the mockup `previews/ts-price-limits/`, words approved,
+2026-10-28): the Prices tab's own price shows "Highest:" (gold, silver,
+copper) and "When Cheaper:" (List Anyway or Wait) only under "Never
+below", and its line adds "Never above X." (`UI/Tab_Prices.lua`, the graph
+hangs from `my.foot`); the Rules window (`UI/ListRulesWindow.lua`, now
+420 wide) has Lowest Price with a Set Price, % of Market or % of Cost
+drop-down (`FLOOR_KINDS`, `PickFloor`), Highest Price and When Cheaper;
+the Sell list adds "(the most you set)" to a row at Highest. Tested in
 `tools/test_myprices.lua`, `tools/test_listrules.lua` and
 `tools/test_ownprice.lua`. Not yet seen in game.
 

@@ -254,4 +254,99 @@ check("units at or under the price, less your own", ns.BuyQuantity.UnitsUpTo(lis
 check("none cheap enough is 0", ns.BuyQuantity.UnitsUpTo(listings, 10) == 0)
 check("no listings is nil", ns.BuyQuantity.UnitsUpTo(nil, 45) == nil)
 
+
+print("\nthe Rules window")
+
+-- Frames that remember what is set on them and answer anything else.
+local function Stub()
+    local f = { scripts = {}, shown = true }
+    function f:SetScript(name, fn) self.scripts[name] = fn end
+    function f:GetScript(name) return self.scripts[name] end
+    function f:SetShown(on) self.shown = on and true or false end
+    function f:Show() self.shown = true end
+    function f:Hide() self.shown = false end
+    function f:IsShown() return self.shown end
+    function f:CreateTexture() return Stub() end
+    return setmetatable(f, { __index = function() return noop end })
+end
+CreateFrame = function() return Stub() end
+UIParent = Stub()
+GameTooltip = Stub()
+ns.Theme = setmetatable({
+    Unpack = function() return 1, 1, 1, 1 end,
+    CreateLabel = function() return Stub() end,
+    CreateHeading = function() return Stub() end,
+}, { __index = function() return noop end })
+local function Box()
+    local box = Stub()
+    box.editBox = Stub()
+    function box:SetValue(value) self.value = value end
+    function box:GetValue() return self.value end
+    return box
+end
+local drops = {}
+ns.Widgets = {
+    CreateButton = function() return Stub() end,
+    CreateNumberBox = function(_, opts)
+        local box = Box()
+        box.onChange = opts.onChange
+        return box
+    end,
+    CreateDropdown = function(_, options, onSelect)
+        local drop = Box()
+        drop.menu, drop.label, drop.options, drop.onSelect = Stub(), Stub(), options, onSelect
+        drops[#drops + 1] = drop
+        return drop
+    end,
+}
+local moneys = {}
+ns.PriceEditor = { MoneyBoxes = function(_, onCommit)
+    local money = { onCommit = onCommit, copper = Stub() }
+    function money:SetPoint() end
+    function money:Set(copper) self.value = copper end
+    moneys[#moneys + 1] = money
+    return money
+end }
+assert(loadfile(lfs_cwd .. "/UI/ListRulesWindow.lua"))("Blackthornes_TS", ns)
+local UI = ns.ListRulesUI
+Rules:Clear(herbs)
+UI:Open(herbs)
+check("opens on Set Price", UI.floorKind:GetValue() == "floor")
+check("with the money boxes showing", UI.floorMoneyHolder.shown and not UI.floorPercentHolder.shown)
+check("When Cheaper starts at List Anyway", UI.under:GetValue() == "list")
+UI.floor.onCommit(2500)
+check("a set price saves", Rules.Of(Lists:Get(herbs)).floor == 2500)
+
+UI.floorKind.onSelect("floorCost")
+check("% of Cost takes the set price off", Rules.Of(Lists:Get(herbs)).floor == nil)
+check("and shows the percent box", UI.floorPercentHolder.shown and not UI.floorMoneyHolder.shown)
+check("the kind stays picked while it is empty", UI.floorKind:GetValue() == "floorCost")
+UI.floorPercent.onChange(150)
+check("a percent saves as that kind", Rules.Of(Lists:Get(herbs)).floorCost == 150)
+UI:Draw()
+check("drawn again, it shows that percent", UI.floorPercent:GetValue() == 150)
+
+UI.floorKind.onSelect("floorMarket")
+UI.floorPercent.onChange(90)
+local rules = Rules.Of(Lists:Get(herbs))
+check("% of Market swaps it", rules.floorMarket == 90 and rules.floorCost == nil)
+
+UI.high.onCommit(40000)
+check("Highest Price saves", Rules.Of(Lists:Get(herbs)).high == 40000)
+UI.high.onCommit(0)
+check("0 takes it off", Rules.Of(Lists:Get(herbs)).high == nil)
+
+UI.under.onSelect("wait")
+check("Wait saves", Rules.Of(Lists:Get(herbs)).wait == 1)
+UI:Draw()
+check("and shows", UI.under:GetValue() == "wait")
+UI.under.onSelect("list")
+check("List Anyway takes it off", Rules.Of(Lists:Get(herbs)).wait == nil)
+
+UI:Hide()
+Rules:Set(herbs, "floor", 700)
+UI:Open(herbs)
+check("opened again, it reads what is saved", UI.floorKind:GetValue() == "floor"
+    and UI.floor.value == 700)
+
 print(("\n%d checks passed"):format(checks))

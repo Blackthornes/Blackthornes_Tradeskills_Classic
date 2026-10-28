@@ -451,6 +451,37 @@ local MY_STATUS = {
     floor = L["AH price, but never below"],
 }
 
+-- When Cheaper (2026-10-28): what a "Never below" price does while others
+-- sell under it.
+local MY_UNDER = {
+    { text = L["List Anyway"], value = "list" },
+    { text = L["Wait"], value = "wait" },
+}
+
+--- A hover on a frame that may already have one: ours runs after it.
+local function AddHover(frame, title, lines)
+    local before = frame.GetScript and frame:GetScript("OnEnter")
+    local after = frame.GetScript and frame:GetScript("OnLeave")
+    frame:SetScript("OnEnter", function(self, ...)
+        if before then before(self, ...) end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(title, 1, 1, 1)
+        for _, line in ipairs(lines) do GameTooltip:AddLine(line, 0.9, 0.9, 0.9, true) end
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function(self, ...)
+        if after then after(self, ...) end
+        GameTooltip:Hide()
+    end)
+end
+
+local HIGHEST_HOVER = { L["The most it lists for. When the auction house asks more, it lists at this price. Leave it empty for no limit."] }
+local UNDER_HOVER = {
+    L["What to do when others sell it for less than your price."],
+    L["List Anyway: list it at your price."],
+    L["Wait: keep it in your bags until the price comes back up."],
+}
+
 local function MyPriceTyped(my)
     local gold = my.gold:GetValue() or 0
     local silver = my.silver:GetValue() or 0
@@ -466,6 +497,25 @@ local function SaveMyPrice()
     if not itemID then return end
 
     ns.Prices:SetMine(itemID, MyPriceTyped(my), my.mode:GetValue() or "use", PlainName(itemID))
+    if Refresh then Refresh() end
+end
+
+local function MyHighTyped(my)
+    local gold = my.highGold:GetValue() or 0
+    local silver = my.highSilver:GetValue() or 0
+    local copper = my.highCopper:GetValue() or 0
+    return gold * 10000 + silver * 100 + copper
+end
+
+local function SaveMyLimits(field)
+    local my = widgets.detail and widgets.detail.myPrice
+    local itemID = my and my.itemID
+    if not itemID or not ns.Prices.SetMyHigh then return end
+    if field == "high" then
+        ns.Prices:SetMyHigh(itemID, MyHighTyped(my))
+    else
+        ns.Prices:SetMyWait(itemID, my.under:GetValue() == "wait")
+    end
     if Refresh then Refresh() end
 end
 
@@ -528,6 +578,73 @@ BuildMyPrice = function(detail, anchor)
     my.status = status
     parts[#parts + 1] = status
 
+    -- Highest and When Cheaper, under the status line, only with a
+    -- "Never below" price.
+    local limits = {}
+    local highLabel = Theme.CreateLabel(detail, "small", "text")
+    highLabel:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, -12)
+    highLabel:SetWidth(96)
+    highLabel:SetText(L["Highest:"])
+    limits[#limits + 1] = highLabel
+
+    local lastHigh
+    local function HighCoin(key, width, max, suffix)
+        local box = Widgets.CreateNumberBox(detail, {
+            width = width, min = 0, max = max,
+            onChange = function() SaveMyLimits("high") end,
+        })
+        if lastHigh then
+            box:SetPoint("LEFT", lastHigh, "RIGHT", 4, 0)
+        else
+            box:SetPoint("LEFT", highLabel, "RIGHT", 4, 0)
+        end
+        local mark = Theme.CreateLabel(detail, "small", "text")
+        mark:SetPoint("LEFT", box, "RIGHT", 2, 0)
+        mark:SetText(suffix)
+        my[key] = box
+        limits[#limits + 1] = box
+        limits[#limits + 1] = mark
+        lastHigh = mark
+    end
+    HighCoin("highGold", 44, 214748, "|cffffd700g|r")
+    HighCoin("highSilver", 28, 99, "|cffc7c7cfs|r")
+    HighCoin("highCopper", 28, 99, "|cffeda55fc|r")
+
+    local underLabel = Theme.CreateLabel(detail, "small", "text")
+    underLabel:SetPoint("TOPLEFT", highLabel, "BOTTOMLEFT", 0, -14)
+    underLabel:SetWidth(96)
+    underLabel:SetText(L["When Cheaper:"])
+    limits[#limits + 1] = underLabel
+
+    my.under = Widgets.CreateDropdown(detail, MY_UNDER, function() SaveMyLimits("under") end, { width = 118 })
+    my.under:SetPoint("LEFT", underLabel, "RIGHT", 4, 0)
+    my.under:SetValue("list")
+    limits[#limits + 1] = my.under
+    AddHover(my.under, L["When Cheaper"], UNDER_HOVER)
+    for _, key in ipairs({ "highGold", "highSilver", "highCopper" }) do
+        AddHover(my[key].editBox, L["Highest"], HIGHEST_HOVER)
+    end
+
+    -- What the price graph hangs from: under the status line, or under
+    -- When Cheaper while the limits show.
+    local foot = CreateFrame("Frame", nil, detail)
+    foot:SetSize(1, 1)
+    foot:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, 0)
+    my.foot = foot
+    my.limits = limits
+
+    local function ShowLimits(shown)
+        for _, part in ipairs(limits) do part:SetShown(shown) end
+        foot:ClearAllPoints()
+        if shown then
+            foot:SetPoint("TOPLEFT", underLabel, "BOTTOMLEFT", 0, -8)
+        else
+            foot:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, 0)
+        end
+    end
+    my.ShowLimits = ShowLimits
+    ShowLimits(false)
+
     -- Tooltips on the boxes, so what they are for is never a guess.
     for _, box in ipairs({ my.gold, my.silver, my.copper }) do
         box.editBox:SetScript("OnEnter", function(self)
@@ -546,6 +663,7 @@ BuildMyPrice = function(detail, anchor)
     function my:SetShown(shown)
         heading:SetShown(shown)
         for _, part in ipairs(parts) do part:SetShown(shown) end
+        if not shown then ShowLimits(false) end
     end
 
     local function Focused(box)
@@ -572,8 +690,24 @@ BuildMyPrice = function(detail, anchor)
         self.mode:SetValue(mode or self.mode:GetValue() or "use")
         self.clear:SetEnabledState(price ~= nil)
 
+        local limited = price ~= nil and mode == "floor" and ns.Prices.GetMyLimits ~= nil
+        local high, wait
+        if limited then high, wait = ns.Prices:GetMyLimits(itemID) end
+        ShowLimits(limited)
+        if limited then
+            local hg, hs, hc = Util.SplitMoney(high or 0)
+            if not Focused(self.highGold) then self.highGold:SetValue(hg, true) end
+            if not Focused(self.highSilver) then self.highSilver:SetValue(hs, true) end
+            if not Focused(self.highCopper) then self.highCopper:SetValue(hc, true) end
+            self.under:SetValue(wait and "wait" or "list")
+        end
+
         if price then
             status:SetText(MY_STATUS[mode])
+            if high then
+                status:SetText(L.Format("AH price, but never below. Never above %s.",
+                    Util.FormatMoney(high, { noColor = true })))
+            end
             status:SetTextColor(Theme.Unpack("warn"))
         else
             status:SetText(L["Not set, the AH price is used"])
@@ -700,7 +834,7 @@ local function BuildDetail(parent)
     -- buttons, so it gets whatever room the rows above leave.
     if ns.PriceGraph then
         local graph = ns.PriceGraph.Create(detail, { heading = L["PRICE HISTORY"] })
-        graph:SetPoint("TOPLEFT", detail.myPrice.status, "BOTTOMLEFT", 0, -12)
+        graph:SetPoint("TOPLEFT", detail.myPrice.foot, "BOTTOMLEFT", 0, -12)
         graph:SetPoint("BOTTOMRIGHT", detail, "BOTTOMRIGHT", -12, 14 + 24 + 8)
         detail.graph = graph
     end

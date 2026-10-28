@@ -369,6 +369,8 @@ function UpdateRow(row, line)
     local each = line.postQuantity < maxQuantity
         and L.Format("%d of %d @ %s", line.postQuantity, maxQuantity, eachPrice)
         or L.Format("%d @ %s", line.postQuantity, eachPrice)
+    -- Held down to the Highest price the player set (2026-10-28).
+    if line.priceBasis == "highest" then each = L.Format("%s (the most you set)", each) end
     local total = "  =  " .. Util.FormatMoney(line.postTotal or 0, { noColor = true, short = true })
 
     -- Beside the price, so selling and disenchanting read against each
