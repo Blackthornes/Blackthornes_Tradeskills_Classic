@@ -8,9 +8,7 @@ ns.WHATS_NEW = {
     { version = "0.5.0", lines = {
         "The Profit tab now has a Shuffles view.",
         "The auction house now shows a Sale Total counter.",
-        "Posting to the auction house no longer asks Yes or No.",
         "You can set the highest price you will sell for.",
-        "The guide arrow now comes in three sizes.",
     } },
     { version = "0.4.0", lines = {
         "The Road to 300 and Learn Next now send you to the closest trainer.",
