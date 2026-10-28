@@ -1784,6 +1784,29 @@ under it, `BuyQuantity.UnitsUpTo`). The Sell list tags a row with its list
 or "Own price" (`PostPanel._ListTag`). Tested in `tools/test_listrules.lua`.
 Not yet seen in game.
 
+## Price limits
+
+The owner said yes (2026-10-28) to three limits on a price the player
+sets. A "Never below" price on the Prices tab can carry **Highest**
+(`myPrices[realm][itemID].high`, copper: never list above it) and **When
+Cheaper** (`.under = "wait"`: while others sell under the floor it stays in
+the bags; nil lists at the floor, as before). `Prices:GetMyLimits`,
+`SetMyHigh`, `SetMyWait`; `SetMine` keeps both when the price changes, and a
+"use" price ignores them. A list's rules get the same (`high`, `wait`) and a
+Lowest Price as a percent (`floorMarket`, `floorCost`, 1 to
+`ListRules.MAX_PERCENT`; one floor kind at a time). % of Cost is the last
+craft (`CraftedCost`), else the caller's costing for the item's recipe,
+else `Cost:GetMaterialValue` (`ListRules.CostOf`); no base, no floor. Never
+rename any of these. `Profit:ChoosePostPrice` returns basis "highest" over
+Highest (whole silver for an item auction; one under the floor is left
+out) and a 5th return `waits`, never for a "derived" or "uncontested"
+price; `Posting:GetPostable` then holds the row ("Waiting, others are
+selling for less"), so List all skips it, its own List still lists it and a
+typed price wins. `GetValue` is unchanged. The screens wait for his "build
+it" (mockup `previews/ts-price-limits/` in the project files). Tested in
+`tools/test_myprices.lua`, `tools/test_listrules.lua` and
+`tools/test_ownprice.lua`. Not yet seen in game.
+
 ## The fold gem
 
 A player asked, the owner picked the mockup (2026-10-24), in all five

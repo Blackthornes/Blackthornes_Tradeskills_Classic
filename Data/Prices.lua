@@ -1558,7 +1558,7 @@ end
 --   "floor"  the auction price, but never below this: a craft worth more
 --            to you than the auction house is paying right now.
 -- Kept per realm, like the price table, in `myPrices[realm][itemID] =
--- { price, mode, name }`. Never rename it. Apart from the price table, so
+-- { price, mode, name, high, under }`. Never rename it. Apart from the price table, so
 -- pruning old prices never takes a player's own price with it.
 
 local MY_MODES = { use = true, floor = true }
@@ -1619,8 +1619,63 @@ function Prices:SetMine(itemID, price, mode, name)
         name = type(old) == "table" and type(old.name) == "string" and old.name or nil
     end
 
-    realm[itemID] = { price = math.floor(price), mode = mode, name = name }
+    -- Highest and When Cheaper (below) stay with the price when it changes.
+    local high = type(old) == "table" and old.high or nil
+    local under = type(old) == "table" and old.under or nil
+    realm[itemID] = { price = math.floor(price), mode = mode, name = name, high = high, under = under }
     Prices:Touch(itemID)
+    return true
+end
+
+-- Highest and When Cheaper (the owner said yes, 2026-10-28), kept on the
+-- same entry beside a "floor" price, never renamed:
+--   high   copper: never list above it (Highest)
+--   under  "wait": keep it in the bags while the auction house is under
+--          the floor (When Cheaper: Wait); nil lists at the floor, as before
+-- Read only while the entry is a "floor" price; a "use" price is used as it is.
+
+--- The limits on a "floor" price: highest (copper or nil) and whether to
+--- wait while the auction house is cheaper (true or nil).
+function Prices:GetMyLimits(itemID)
+    local _, mode = self:GetMine(itemID)
+    if mode ~= "floor" then return nil, nil end
+    local entry = MyPrices(false)[itemID]
+    local high = tonumber(entry.high)
+    high = high and high >= 1 and math.floor(high) or nil
+    return high, entry.under == "wait" or nil
+end
+
+--- Set Highest on an item with a price of its own. nil or 0 takes it off.
+-- @return true when saved or cleared, false when the item has no price set
+function Prices:SetMyHigh(itemID, high)
+    local realm = itemID and MyPrices(false)
+    local entry = realm and realm[itemID]
+    if type(entry) ~= "table" then return false end
+    high = tonumber(high)
+    if high and high >= 1 then
+        if not Prices.IsCredible(high) then return false end
+        high = math.floor(high)
+    else
+        high = nil
+    end
+    if entry.high ~= high then
+        entry.high = high
+        Prices:Touch(itemID)
+    end
+    return true
+end
+
+--- Set When Cheaper on an item with a price of its own: true waits, false
+--- or nil lists at the floor.
+function Prices:SetMyWait(itemID, wait)
+    local realm = itemID and MyPrices(false)
+    local entry = realm and realm[itemID]
+    if type(entry) ~= "table" then return false end
+    local under = wait and "wait" or nil
+    if entry.under ~= under then
+        entry.under = under
+        Prices:Touch(itemID)
+    end
     return true
 end
 

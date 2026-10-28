@@ -676,7 +676,7 @@ end
 -- Profit:ChoosePostPrice, which is also where the whole-silver step that item
 -- auctions impose is applied.
 --
--- @return price, basis  -- basis is "undercut", "match", "market" or nil
+-- @return price, basis, why, uncertain, waits  -- as Profit:ChoosePostPrice
 --
 -- A random suffix ("of the Monkey") is priced as the copy that would be
 -- listed, the first unlocked one in the bags, when its suffix has a price.
@@ -1207,7 +1207,7 @@ function Posting:GetPostable(opts)
 
             local sellable, count = self:GetSellInfo(itemID, held)
             local copy = held and held.link and Util.LinkSuffix(held.link) and held.link or nil
-            local price, basis = self:GetPostPrice(itemID, copy or false)
+            local price, basis, _, _, waits = self:GetPostPrice(itemID, copy or false)
 
             -- A price the player set this session wins, with the suggested
             -- one kept beside it for the editor's reset.
@@ -1262,6 +1262,14 @@ function Posting:GetPostable(opts)
                 elseif listRoom and listRoom < count then
                     count = listRoom
                 end
+            end
+
+            -- When Cheaper, Wait (the Prices tab or its list, 2026-10-28):
+            -- others sell it for less than the least the player set, so it
+            -- waits in the bags, dimmed as a keep. A price typed this
+            -- session still lists, and so does its own List button.
+            if waits and not chosen and count and count > 0 and not heldAll then
+                heldAll = L["Waiting, others are selling for less"]
             end
 
             if keep and count and count <= 0 then

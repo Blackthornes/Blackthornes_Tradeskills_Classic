@@ -513,7 +513,8 @@ local function UpdateRow(row, analysis)
         -- (Discord, 2026-10-08).
         cells.age:SetText("--")
         cells.age:SetTextColor(Theme.Unpack("dim"))
-    elseif analysis.priceBasis == "mine" or analysis.priceBasis == "floor" then
+    elseif analysis.priceBasis == "mine" or analysis.priceBasis == "floor"
+        or analysis.priceBasis == "highest" then
         -- Priced at what the player set on the Prices tab, not a scan.
         SetFitted(cells.age, L["my price"], L["mine"])
         cells.age:SetTextColor(Theme.Unpack("warn"))

@@ -27,7 +27,11 @@ local settings = { postDuration = 2 }
 ns.Config = { Get = function(_, key) return settings[key] end }
 
 local mine = {}
-ns.Prices = { GetMine = function(_, id) if mine[id] then return mine[id], "floor" end end }
+local marketOf = {}
+ns.Prices = {
+    GetMine = function(_, id) if mine[id] then return mine[id], "floor" end end,
+    GetValue = function(_, id) return marketOf[id] end,
+}
 
 local posted = {}
 ns.Auctions = { GetOwnPostedCount = function(_, id) return posted[id] or 0 end }
@@ -153,6 +157,84 @@ check("above it, the usual price", price == 4000 and basis == "undercut")
 market = 2500
 price, basis = ns.Profit:ChoosePostPrice(SILK)
 check("an item on no list is as before", price == 2500 and basis == "undercut")
+
+print("\npercent floors, Highest and When Cheaper")
+
+-- Lowest Price as a percent: one kind at a time.
+Rules:Set(herbs, "floorMarket", 150)
+check("% of Market takes the place of a set price",
+    Rules.Of(Lists:Get(herbs)).floor == nil and Rules.Of(Lists:Get(herbs)).floorMarket == 150)
+check("a percent stays in range", Rules:Set(herbs, "floorMarket", 5000)
+    and Rules.Of(Lists:Get(herbs)).floorMarket == Rules.MAX_PERCENT)
+Rules:Set(herbs, "floorMarket", 150)
+marketOf[MAGE] = 2001
+check("150% of a 20.01s market is 30.02s", Rules:Floor(MAGE) == 3002)
+marketOf[MAGE] = nil
+check("no market price, no Lowest Price", Rules:Floor(MAGE) == nil)
+
+local made, recipes, materials = {}, {}, {}
+ns.CraftedCost = { Get = function(_, id) return made[id] end }
+ns.Cost = {
+    FindAnyRecipeForItem = function(_, id) return recipes[id] end,
+    GetMaterialValue = function(_, recipeID)
+        if materials[recipeID] == "boom" then error("no price") end
+        return materials[recipeID]
+    end,
+}
+Rules:Set(herbs, "floorCost", 200)
+check("% of Cost takes the place of % of Market",
+    Rules.Of(Lists:Get(herbs)).floorMarket == nil and Rules.Of(Lists:Get(herbs)).floorCost == 200)
+check("not made by any recipe: no Lowest Price", Rules:Floor(MAGE) == nil)
+recipes[MAGE] = 77
+materials[77] = 500
+check("today's materials: twice 5s", Rules:Floor(MAGE) == 1000)
+check("a costing the caller has for that recipe wins",
+    Rules:Floor(MAGE, { recipeID = 77, priceable = true, perUnit = 400 }) == 800)
+check("one for another recipe is not used",
+    Rules:Floor(MAGE, { recipeID = 78, priceable = true, perUnit = 400 }) == 1000)
+made[MAGE] = { cost = 300 }
+check("the last craft's cost wins over both",
+    Rules:Floor(MAGE, { recipeID = 77, priceable = true, perUnit = 400 }) == 600)
+made[MAGE], materials[77] = nil, "boom"
+check("a costing that fails is no Lowest Price", Rules:Floor(MAGE) == nil)
+materials[77] = 500
+
+-- Highest Price and When Cheaper
+check("no limits yet", Rules:Limits(MAGE) == nil)
+Rules:Set(herbs, "high", 5000)
+Rules:Set(herbs, "wait", 1)
+local high, wait, listName = Rules:Limits(MAGE)
+check("the list's limits", high == 5000 and wait == true and listName == "Herbs")
+check("When Cheaper is on or off", Rules:Set(herbs, "wait", 3) and Rules.Of(Lists:Get(herbs)).wait == 1)
+mine[MAGE] = 2000
+check("its own price beats the list's limits too", Rules:Limits(MAGE) == nil)
+check("and says so", Rules:OwnPriceWins(MAGE) == true)
+mine[MAGE] = nil
+
+-- In the price chosen. Lowest Price here is 2 x 5s = 10s.
+market = 800
+local waits
+price, basis, why, _, waits = ns.Profit:ChoosePostPrice(MAGE)
+check("under the Lowest Price: lists at it", price == 1000 and basis == "list")
+check("and waits, since others sell for less", waits == true)
+ns.Profit.ChooseMarketPostPrice = function() return market, "derived" end
+price, basis, why, _, waits = ns.Profit:ChoosePostPrice(MAGE)
+check("a price from the materials is no rival: no wait", price == 1000 and waits == nil)
+ns.Profit.ChooseMarketPostPrice = function() return market, "undercut" end
+market = 9000
+price, basis, why = ns.Profit:ChoosePostPrice(MAGE)
+check("over the Highest Price: lists at it", price == 5000 and basis == "highest")
+check("saying which list", why == "Following your Herbs list.")
+market = 3000
+price, basis = ns.Profit:ChoosePostPrice(MAGE)
+check("between the two: the usual price", price == 3000 and basis == "undercut")
+Rules:Set(herbs, "floorCost", 0)
+Rules:Set(herbs, "wait", 0)
+market = 9000
+price, basis = ns.Profit:ChoosePostPrice(MAGE)
+check("Highest alone still holds", price == 5000 and basis == "highest")
+Rules:Set(herbs, "high", 0)
+Rules:Set(herbs, "floor", 3000)
 
 -- Post For in the posting length.
 assert(loadfile(lfs_cwd .. "/Logic/Posting.lua"))("Blackthornes_TS", ns)

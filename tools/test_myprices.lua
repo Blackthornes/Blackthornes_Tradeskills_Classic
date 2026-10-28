@@ -192,4 +192,58 @@ check("an unscanned item with my price still shows", rows[1] and rows[1].itemID,
 check("found by the name it was saved with", #ns.UI._PricesList("never", false, true), 1)
 check("everything shows without the tick", #ns.UI._PricesList("", false, false), 3)
 
+-- 6. Highest and When Cheaper on a "floor" price (2026-10-28)
+check("no price: Highest is refused", Prices:SetMyHigh(SILK, 80), false)
+check("no price: Wait is refused", Prices:SetMyWait(SILK, true), false)
+Prices:SetMine(SILK, 50, "floor")
+check("Highest: saved", Prices:SetMyHigh(SILK, 80), true)
+check("Highest: read back", (Prices:GetMyLimits(SILK)), 80)
+local why
+price, basis, why = Profit:ChoosePostPrice(SILK)
+check("Highest: the market over it lists at it", price, 80)
+check("Highest: basis", basis, "highest")
+check("Highest: says so", why, "the most you set on the Prices tab")
+check("Highest: the market price itself is untouched", Prices:GetValue(SILK, "market"), 120)
+
+Prices:SetMine(SILK, 60, "floor")
+check("Highest: kept when the price changes", (Prices:GetMyLimits(SILK)), 80)
+Prices:SetMyHigh(SILK, 40)
+price, basis = Profit:ChoosePostPrice(SILK)
+check("Highest under the floor means nothing", price, 99)
+check("so the usual price", basis, "undercut")
+check("Highest: nil takes it off", Prices:SetMyHigh(SILK, nil) and Prices:GetMyLimits(SILK), nil)
+
+Prices:SetMine(SILK, 150, "floor")
+local waits
+price, basis, _, _, waits = Profit:ChoosePostPrice(SILK)
+check("List Anyway: lists at the floor", price, 150)
+check("List Anyway: does not wait", waits, nil)
+check("Wait: saved", Prices:SetMyWait(SILK, true), true)
+check("Wait: read back", select(2, Prices:GetMyLimits(SILK)), true)
+price, basis, _, _, waits = Profit:ChoosePostPrice(SILK)
+check("Wait: still priced at the floor", price, 150)
+check("Wait: says to wait", waits, true)
+Prices:SetMine(SILK, 90, "floor")
+price, basis, _, _, waits = Profit:ChoosePostPrice(SILK)
+check("Wait: the market over the floor lists", price, 99)
+check("Wait: and does not wait", waits, nil)
+
+Prices:SetMine(SILK, 80, "use")
+check("a use price has no limits", Prices:GetMyLimits(SILK), nil)
+price, basis = Profit:ChoosePostPrice(SILK)
+check("a use price lists at it, limits or not", price, 80)
+check("use: the limits stay in the save", ns.db.myPrices[realm][SILK].under, "wait")
+Prices:SetMine(SILK, nil)
+check("clearing the price takes the limits too", ns.db.myPrices[realm][SILK], nil)
+
+commodity = false
+Prices:Record(BOLT, 1000, 1000, 10, time(), 1000, nil)
+Prices:SetMine(BOLT, 100, "floor")
+Prices:SetMyHigh(BOLT, 550)
+price, basis = Profit:ChoosePostPrice(BOLT)
+check("item auction: Highest rounds down to the silver", price, 500)
+check("item auction: basis", basis, "highest")
+Prices:SetMine(BOLT, nil)
+commodity = true
+
 if failures > 0 then error(("%d my-price check(s) failed"):format(failures)) end

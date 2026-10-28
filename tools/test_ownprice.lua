@@ -262,6 +262,34 @@ do
 end
 
 print("")
+print("when cheaper, wait")
+
+Reset()
+do
+    local realPrice = Posting.GetPostPrice
+    Posting.GetPostPrice = function(self, itemID, link)
+        if itemID == CLOTH then return 900, "floor", "the least you set", false, true end
+        return realPrice(self, itemID, link)
+    end
+
+    local held
+    for _, line in ipairs(Posting:GetPostable({ includeAll = true, showHeld = true })) do
+        if line.itemID == CLOTH then held = line end
+    end
+    check("the row still shows on the drawer", held ~= nil, true)
+    check("dimmed, saying why", held and held.held, "Waiting, others are selling for less")
+    check("left out of what List all takes", LineFor(CLOTH), nil)
+    check("other items list as before", LineFor(SWORD) ~= nil, true)
+
+    Posting:SetChosenPrice(CLOTH, 950)
+    local chosen = LineFor(CLOTH)
+    check("a price typed by hand lists it anyway", chosen and chosen.unitPrice, 950)
+    Posting:SetChosenPrice(CLOTH, nil)
+
+    Posting.GetPostPrice = realPrice
+end
+
+print("")
 if failures > 0 then
     print(("%d check(s) failed"):format(failures))
     os.exit(1)
