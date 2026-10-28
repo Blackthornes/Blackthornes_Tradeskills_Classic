@@ -1851,6 +1851,8 @@ function PostPanel:Refresh()
     local lines, hidden, toVendor = self:ShownLines()
     self.shownLines = lines
     self:UpdateListAll(lines)
+    -- The plaque on top of the drawer counts the same total (UI/SaleTotal.lua).
+    if ns.SaleTotal then ns.SaleTotal:Update(lines) end
 
     self.list:SetData(lines)
     self.empty:SetShown(#lines == 0)
