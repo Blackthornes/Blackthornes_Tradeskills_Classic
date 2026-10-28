@@ -1674,6 +1674,24 @@ valuable first of what Sell shows). Beside it on Sell, a Duration box (2, 8 or 2
 hours, opening upward) sets the same `postDuration` as the Post tab's. Tested in `tools/test_postdrawer.lua`.
 Not yet seen in game.
 
+## Sale Total
+
+A player asked, the owner said build it (2026-10-28, from a mockup whose
+words he approved): a gold plaque on top of the auction house drawer with
+what the Sell list could sell for, the same total as the drawer's title.
+After each scan with prices (`UI:OnScanComplete` calls
+`SaleTotal:ScanFinished`) it counts up from nothing an item at a time over
+`SaleTotal.PLAY` seconds ("14 priced, 23 to go"), a "+3g 20s" floating
+off each; an item adding `BIG` of the total shines and sparks; the end
+glows green, plays a coin sound (with the scan sounds) and says "Up X since
+your last scan" and "Scan done. Your Sell list is ready." Effects Subtle
+counts without the shine, Off shows the number at once. `UI/SaleTotal.lua`
+takes the lines from `PostPanel:Refresh` and the scan's progress from
+`UI:RefreshAuctionStatus`; its OnUpdate runs only while something moves.
+"Sale Total:" on the Auction house page (`saleTotal`, off unless ticked,
+never rename it). Tested in `tools/test_saletotal.lua`. Not yet seen in
+game.
+
 ## Fast listing
 
 Players kept asking (the owner said build it, 2026-10-14) for posting

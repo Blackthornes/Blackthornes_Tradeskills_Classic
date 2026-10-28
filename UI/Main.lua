@@ -441,6 +441,8 @@ function UI:OnScanComplete(result)
 
     if result then
         self:CelebrateScan(result)
+        -- Sale Total counts the Sell list up again (UI/SaleTotal.lua).
+        if ns.SaleTotal then ns.SaleTotal:ScanFinished() end
 
         -- Other addons that asked to hear about it (Prices:WatchScans).
         if ns.Prices and ns.Prices.ScanFinished then ns.Prices:ScanFinished(result) end
@@ -1048,6 +1050,7 @@ function UI:RefreshAuctionStatus()
     if not (bar and bar.status) then return end
 
     local scan = ns.Scanner and ns.Scanner.GetScanStatus and ns.Scanner:GetScanStatus()
+    if ns.SaleTotal then ns.SaleTotal:Scanning(scan and scan.fraction, scan ~= nil) end
 
     if scan then
         bar.doneUntil = nil

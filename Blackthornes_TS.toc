@@ -125,6 +125,7 @@ UI\ShoppingListsView.lua
 UI\AuctionWheel.lua
 UI\LegacyBuyView.lua
 UI\PostPanel.lua
+UI\SaleTotal.lua
 UI\PriceEditor.lua
 UI\ListRulesWindow.lua
 UI\KeepBox.lua

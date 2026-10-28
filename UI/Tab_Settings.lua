@@ -961,6 +961,17 @@ local function Build(outer)
     end, false)
     widgets.mouseWheel:SetPoint("TOPLEFT", CONTROL_X, -2)
 
+    -- Sale Total (the owner said build it from a mockup, 2026-10-28): off
+    -- unless ticked, a plaque on top of the drawer (UI/SaleTotal.lua).
+    local saleTotalRow = CreateRow(pages.auction, 1, L["Sale Total:"],
+        L["Counts up what your Sell list could sell for after each scan."])
+
+    widgets.saleTotal = Widgets.CreateCheckbox(saleTotalRow, L["On"], function(checked)
+        Config:Set("saleTotal", checked)
+        if ns.PostPanel then ns.PostPanel:Refresh() end
+    end, false)
+    widgets.saleTotal:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     -- The sale alarm and the scan chime moved down to SOUNDS, with a switch
     -- for every other sound (2026-10-02).
     CreateSection(pages.mail, 2, L["AFTER A SALE"])
@@ -2307,6 +2318,7 @@ local function Refresh()
     widgets.fastListing:SetChecked(Config:Get("fastListing") ~= false)
     widgets.askBeforeListing:SetChecked(Config:Get("askBeforeListing") == true)
     widgets.mouseWheel:SetChecked(Config:Get("mouseWheelListing") == true)
+    widgets.saleTotal:SetChecked(Config:Get("saleTotal") == true)
     widgets.overcutting:SetChecked(Config:Get("overcutting") == true)
     widgets.subCrafts:SetChecked(Config:Get("autoQueueSubCrafts") ~= false)
     widgets.freeSpaceFirst:SetChecked(Config:Get("craftFreesSpaceFirst") ~= false)
