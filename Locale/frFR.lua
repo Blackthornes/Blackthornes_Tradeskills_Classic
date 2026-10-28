@@ -3332,3 +3332,10 @@ L["Wait: keep it in your bags until the price comes back up."] = "Attendre : le 
 L["What to do when others sell it for less than your price."] = "Que faire quand d'autres le vendent moins cher que ton prix."
 L["When Cheaper"] = "Si moins cher"
 L["When Cheaper:"] = "Si moins cher :"
+
+-- The shared Blackthornes minimap button (2026-10-28)
+L["Click a name to open it. Right-click for its settings."] = "Clique sur un nom pour l'ouvrir. Clic droit pour ses réglages."
+L["Click to pick an addon"] = "Clique pour choisir un addon"
+L["Combine Addon Buttons:"] = "Regrouper les boutons d'addons :"
+L["Crafting, prices and the auction house"] = "Artisanat, prix et hôtel des ventes"
+L["Right-click for settings"] = "Clic droit pour les réglages"
