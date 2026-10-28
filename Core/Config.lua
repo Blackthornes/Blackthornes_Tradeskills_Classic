@@ -129,9 +129,11 @@ local DEFAULTS = {
         confirmBeforePosting = true,
 
         -- Whether to recommend selling below material cost. Such items are
-        -- always shown, just marked red and skipped when picking what is
-        -- worth listing.
-        allowPostingAtALoss = false,
+        -- always shown, marked red; with this off they are skipped when
+        -- picking what is worth listing. On unless unticked for new saves
+        -- (the owner, 2026-10-28: less in the way of posting); a value
+        -- already saved is kept.
+        allowPostingAtALoss = true,
 
         -- Refuse a listing that, after the auction house's cut, brings in
         -- less than what the last craft of it cost (asked 2026-10-05). Off

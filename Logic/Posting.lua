@@ -2605,18 +2605,21 @@ function Posting:OnCheckResults()
 end
 
 --- List this item on this click, without the Yes/No box? Only while its
---- price is fresh, it is not a copy with a random suffix, and the box would
---- not have warned about anything (a listing under what it cost to make).
+--- price is fresh and it is not a copy with a random suffix. A listing under
+--- what it cost to make asks first only while selling at a loss is off
+--- (the owner, 2026-10-28: ticking it is the player saying yes to losses).
 function Posting:CanListOnClick(itemID, price)
     if not self:FastListing() then return false end
     if not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then return false end
     if not self:IsFresh(itemID) then return false end
     if self:GetSearchKey(itemID) then return false end
 
-    local recipeID = ns.Cost:FindAnyRecipeForItem(itemID)
-    local analysis = recipeID and ns.Profit:Analyse(recipeID)
-    local unitCost = analysis and analysis.costPerUnit
-    if unitCost and price and price < unitCost then return false end
+    if ns.Config:Get("allowPostingAtALoss") ~= true then
+        local recipeID = ns.Cost:FindAnyRecipeForItem(itemID)
+        local analysis = recipeID and ns.Profit:Analyse(recipeID)
+        local unitCost = analysis and analysis.costPerUnit
+        if unitCost and price and price < unitCost then return false end
+    end
 
     return true
 end
@@ -2662,6 +2665,11 @@ function Posting:Request(itemID, quantity, unitPrice)
 
     if not verify or not ns.Scanner.isAuctionHouseOpen then
         if self:RefusesEarly(itemID, unitPrice, chosen ~= nil) then return false end
+        -- No check to wait for, so this click can list it (the owner,
+        -- 2026-10-28). Fast listing unticked brings the box back.
+        if self:FastListing() and ns.Scanner.isAuctionHouseOpen then
+            return self:Post(itemID, quantity, unitPrice, chosen ~= nil) and true or false
+        end
         self:Confirm(itemID, quantity, unitPrice, { byHand = chosen ~= nil })
         return true
     end
@@ -2733,6 +2741,20 @@ function Posting:Request(itemID, quantity, unitPrice)
         -- fraction of market after a rival's dump, or under what it cost to
         -- make) is said now rather than after Yes.
         if self:RefusesEarly(itemID, price, chosen ~= nil) then return end
+
+        -- Fast listing (the owner, 2026-10-28): the check came back, so the
+        -- next click lists it with no Yes/No box. Listing needs a real
+        -- click, and this answer came later on its own. A check that did
+        -- not leave the price fresh (no answer, a random suffix) still asks.
+        if self:CanListOnClick(itemID, price) then
+            -- Era: the stack goes in the auction slot now, so that next
+            -- click is the one that lists it.
+            if Posting.IsLegacy() then self:PrepareFor(itemID) end
+            ns.Print(L.Format("%s is ready to list. Click again to list it.",
+                self:ListedCopy(itemID) or Util.GetItemLabel(itemID)))
+            if ns.PostPanel and ns.PostPanel.Refresh then pcall(ns.PostPanel.Refresh, ns.PostPanel) end
+            return
+        end
 
         self:Confirm(itemID, quantity, price, { state = state, byHand = chosen ~= nil })
     end

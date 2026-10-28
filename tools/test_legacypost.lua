@@ -427,13 +427,18 @@ print("")
 print("quick clicks while the price is checked")
 
 Reset()
+bags[0][#bags[0] + 1] = { itemID = BOOTS, stackCount = 1 }
 for _ = 1, 5 do Posting:Request(BOOTS, 1, 2020) end
 check("one search", #searches, 1)
 check("said once", Said("checking the current price"), 1)
 Answer(1)
-check("one box", popup ~= nil, true)
+check("no box", popup, nil)
+check("said it is ready once", Said("is ready to list"), 1)
+check("the stack goes in ahead", sellSlot and sellSlot.itemID, BOOTS)
 Advance(6)
 check("still one search", #searches, 1)
+Posting:Request(BOOTS, 1, 2020)
+check("the next click lists it", #started, 1)
 
 print("")
 print("one press: the stack goes in ahead of the click")

@@ -1649,7 +1649,14 @@ it cost to make still asks), and `Post`'s guards all still run. List all
 passes over an item still being confirmed (`GetNextPostable`'s
 `skipSettling`), so nothing goes up twice. Listings close together share
 one read back (`ShareVerify`, `NewerVerifying`), and `MAX_CONFIRMING` is
-6. Leaving the auction house forgets every check. The button says what its
+6. Leaving the auction house forgets every check. Since 2026-10-28 (the
+owner: less in the way of posting) a click whose price was not fresh
+checks it and says "ready to list" instead of the Yes/No box (on Era the
+stack goes in the auction slot then), so the next click lists; with Check
+Price First off the click lists at once; and with selling at a loss on, a
+listing under its cost lists on the click too. Fast listing unticked
+brings the box back for every listing. `allowPostingAtALoss` is on by
+default for new saves; a value already saved is kept. The button says what its
 next click does (the owner, 2026-10-16): "Check Prices - N to list" when
 it would only check prices (`Posting:WouldCheckAll`, the same test as
 `PostPanel:ListNext`, read again with the wait labels since a check goes
