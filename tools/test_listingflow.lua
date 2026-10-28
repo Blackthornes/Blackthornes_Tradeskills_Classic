@@ -91,7 +91,7 @@ ns.Print = function(text) said[#said + 1] = text end
 ns.Warn = function(text) said[#said + 1] = "WARN " .. text end
 ns.PrintRaw, ns.Debug = noop, noop
 
-local settings = { postDuration = 2, verifyPriceBeforePosting = true }
+local settings = { postDuration = 2, verifyPriceBeforePosting = true, askBeforeListing = true }
 ns.db = {}
 ns.Config = {
     Get = function(_, k) return settings[k] end,

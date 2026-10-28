@@ -246,6 +246,17 @@ loads them, and every reader asks for them first.
   rename it), out of the Characters list but not deleted. Tested in
   `tools/test_friends.lua`.
 
+- Arrow Size (from Forever, 2026-10-28): Forever's choices are 50%, 75% and
+  100%, 100% usual. Era's arrow already stood at 65%, so here the choices
+  are 50%, 65% and 100%, and 65% is the usual size that saves nothing
+  (`ArrowUI.USUAL`). A catch-up keeps that.
+
+- Ask Before Listing (from Forever, 2026-10-28): Forever's box is off
+  unless ticked and "Fast listing" no longer matters to it. Era keeps #47
+  too: with "Fast listing" unticked the box still comes back
+  (`Posting:AsksFirst`), and a checked price says "ready to list" with the
+  stack put in Era's auction slot, so the next click lists.
+
 ## Not yet done
 - Steps 4 (the auction house), 5 (the probe in Era) and
   6 (data from Era's tables, such as recipe skills in `Data/LearnSpots.lua`)

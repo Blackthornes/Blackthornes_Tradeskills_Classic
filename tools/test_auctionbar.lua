@@ -100,7 +100,7 @@ UI:AttachPostButton()
 check("no Post Crafted button is made", UI.postButton, nil)
 check("no button made at all", made, 0)
 if bar.status then
-    check("the status runs up to Scan", statusWidth, 350 - 32 - 10 - 56 - 10)
+    check("the status runs up to Scan", statusWidth, 350 - 10 - 10 - 56 - 10)
 end
 UI:UpdatePostButton()
 check("updating it does nothing and raises nothing", UI.postButton, nil)

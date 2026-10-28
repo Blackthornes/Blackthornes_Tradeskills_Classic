@@ -56,6 +56,7 @@ Logic\DisenchantLog.lua
 Logic\SkillUp.lua
 Logic\Profit.lua
 Logic\CraftOrFarm.lua
+Logic\Shuffle.lua
 Logic\LevelUp.lua
 Logic\RecipeBook.lua
 Logic\Waypoints.lua
@@ -149,6 +150,7 @@ UI\GoldGoal.lua
 UI\QueueMailPanel.lua
 UI\RecipeBookView.lua
 UI\YourTimeView.lua
+UI\ShuffleView.lua
 UI\Tab_Profit.lua
 UI\RoadView.lua
 UI\Tab_LevelUp.lua

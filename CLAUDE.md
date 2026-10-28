@@ -693,6 +693,32 @@ out again only when the recipe count changes (checked at most every
 (`tradeRequests`, off unless ticked, the owner 2026-10-12; never rename it) and `/bts requests`.
 Tested in `tools/test_craftrequests.lua`. Not yet seen in game.
 
+## Shuffles
+
+A player asked for a shuffle calculator, and the owner said build it
+(2026-10-25, from a mockup whose words he approved). The Profit tab's
+switch reads MY CRAFTS, YOUR TIME, RECIPES TO LEARN, SHUFFLES (an extra
+with `last = true` goes after the learn view in `RecipeBookView.WithSwitch`).
+Pick something in the bags ("Start With:", only items some recipe uses) and
+"How Many:", and every way to turn it into gold is listed, best gain first:
+sell it as it is, or craft it up to `Shuffle.DEPTH` (3) crafts deep and
+sell, vendor or disenchant the result. `Logic/Shuffle.lua` works it out a
+few steps a frame (`BUDGET`), at most `MAX_NODES` looked at and `MAX_WAYS`
+shown, kept `KEEP` seconds, nothing saved. Prices are the usual order:
+`Prices:GetValue` (own scans, guild, realm, TSM, Auctionator), auction net
+of the cut through `Profit:NetFromListing`, a grey vendor only
+(`Util.GetVendorSellPrice`), a disenchant at `Disenchant:GetValue` with the
+odds the player's own breaks gave. Other materials a craft needs are bought
+(`Cost:GetReagentCost`); a craft with a material nobody prices is left out.
+Each step says what stopping there is worth, the best one "Best place to
+stop", one worth less than the step before "This step loses gold. Sell
+before it." "Only My Recipes" (on, session only) leaves out recipes not
+known. Queue It (`Queue:Ensure`, only when every craft is known) and Add to
+List (a shopping list named for the start, never doubling a count).
+`UI/ShuffleView.lua` draws it (columns `shuffles`). Tested in
+`tools/test_shuffle.lua` and `tools/test_shuffleview.lua`. Not yet seen in
+game.
+
 ## Parts an alt makes, in the profit math
 
 A player asked, the owner said yes (2026-10-24): a part only another of
@@ -926,6 +952,16 @@ shared TomTom file: "Use TomTom:" on the Look page (`useTomTom`, account
 wide, on unless unticked, never rename it) hands TomTom the place
 instead. Never rename `wayArrowPlace`, `wayArrowX` or `wayArrowY`. Tested
 in `tools/test_learnnext.lua`. Not yet seen in game.
+
+Arrow Size (the owner, 2026-10-26, in every addon with an arrow): "Arrow
+Size:" under "Guide Me:" picks 50%, 65% or 100% for the whole dial,
+plate and words (`ArrowUI.SIZES`, `Scale`, `Size`, `SetSize`;
+`wayArrowSize`, account wide, never rename it). On Era 65% is the usual
+size and saves nothing (`ArrowUI.USUAL`, nil reads as 65), since Classic's
+arrow already stood at 65%; Forever's usual is 100% with 75% between. The saved
+spot is kept in the screen's own units (stored times the scale), so a new
+size keeps the arrow where it was. No hover. Tested in
+`tools/test_arrowsize.lua`. A fix belongs in all five.
 
 ## Road to 300
 
@@ -1428,9 +1464,15 @@ hover, only on North American clients (`Contribute:InRegion`,
 `Logic/Contribute.lua` whispers a hello (`Q<id>:<hash>`) over Comm to each
 name in `Contribute.RECIPIENTS` (full names, only in code, never shown; the
 same two as Farmer's list, change both together) 30 s after login and
-every half hour. Only those characters ask (`R<id>`), one sender at a time,
-each at most every half hour, and the sender answers only a recipient
-asking for its own id. The table (`K`) is checked by `Contribute:Clean` and
+every five minutes (the owner, 2026-10-26). Only those characters ask
+(`R<id>`), one sender at a time, the next as soon as one is done (or given
+up after `SYNC_TIMEOUT`), each at most every five minutes, and the sender
+answers only a recipient asking for its own id, at most every `SEND_GAP`.
+The sender builds and hashes its table at most every `PAYLOAD_KEEP`
+(`Contribute:Built`, kept per id; the hello and the answer send the same
+build, so a hash a recipient heard always matches what it then keeps), and
+the receiver waits `SYNC_TIMEOUT` (30 minutes, a big table takes a while
+at Comm's pace) before giving one up. The table (`K`) is checked by `Contribute:Clean` and
 kept apart on the receiver in `sharedData[id] = { at, hash, disenchants,
 skills }`, each sender's newest replacing the last (at most `MAX_SENDERS`);
 it never joins the receiver's own logs. A chat line, a sound and a screen
@@ -1671,6 +1713,20 @@ deposit, market, vendor, disenchant, cost to make, then what comes after. "Fast 
 auction page (`fastListing`, on unless unticked, never rename it). Tested
 in `tools/test_fastlisting.lua`. Not yet seen in game.
 
+No Yes/No box by default (the owner, 2026-10-28: less in the way). "Ask
+Before Listing:" on the auction page (`askBeforeListing`, off unless
+ticked, never rename it; `Posting:AsksFirst`) brings the box back as it
+was. Off, a click on a checked price lists it (`CanListOnClick`, fast
+a copy with a random suffix once that suffix was searched,
+`checkedSuffix`), and a click on one not checked searches, says "ready to
+list" (on Era the stack goes in the auction slot) and the next click
+lists; on Era "Fast listing" unticked still brings the box back, as #47
+had it (`AsksFirst` is true then too); `Post` and
+`RefusesEarly` still refuse what the box warned about. "Sell at a Loss:"
+(`allowPostingAtALoss`) defaults on the same day, which reaches only new
+installs: a saved value is kept. The old `confirmBeforePosting` is still
+unread.
+
 ## The mouse wheel at the auction house
 
 A player asked (2026-10-16, the owner said build it, off by default): with
@@ -1752,6 +1808,36 @@ wins with `SisterKeeps`; Keep Listed against `Auctions:GetOwnPostedCount`,
 under it, `BuyQuantity.UnitsUpTo`). The Sell list tags a row with its list
 or "Own price" (`PostPanel._ListTag`). Tested in `tools/test_listrules.lua`.
 Not yet seen in game.
+
+## Price limits
+
+The owner said yes (2026-10-28) to three limits on a price the player
+sets. A "Never below" price on the Prices tab can carry **Highest**
+(`myPrices[realm][itemID].high`, copper: never list above it) and **When
+Cheaper** (`.under = "wait"`: while others sell under the floor it stays in
+the bags; nil lists at the floor, as before). `Prices:GetMyLimits`,
+`SetMyHigh`, `SetMyWait`; `SetMine` keeps both when the price changes, and a
+"use" price ignores them. A list's rules get the same (`high`, `wait`) and a
+Lowest Price as a percent (`floorMarket`, `floorCost`, 1 to
+`ListRules.MAX_PERCENT`; one floor kind at a time). % of Cost is the last
+craft (`CraftedCost`), else the caller's costing for the item's recipe,
+else `Cost:GetMaterialValue` (`ListRules.CostOf`); no base, no floor. Never
+rename any of these. `Profit:ChoosePostPrice` returns basis "highest" over
+Highest (whole silver for an item auction; one under the floor is left
+out) and a 5th return `waits`, never for a "derived" or "uncontested"
+price; `Posting:GetPostable` then holds the row ("Waiting, others are
+selling for less"), so List all skips it, its own List still lists it and a
+typed price wins. `GetValue` is unchanged. The screens (the owner said
+build it from the mockup `previews/ts-price-limits/`, words approved,
+2026-10-28): the Prices tab's own price shows "Highest:" (gold, silver,
+copper) and "When Cheaper:" (List Anyway or Wait) only under "Never
+below", and its line adds "Never above X." (`UI/Tab_Prices.lua`, the graph
+hangs from `my.foot`); the Rules window (`UI/ListRulesWindow.lua`, now
+420 wide) has Lowest Price with a Set Price, % of Market or % of Cost
+drop-down (`FLOOR_KINDS`, `PickFloor`), Highest Price and When Cheaper;
+the Sell list adds "(the most you set)" to a row at Highest. Tested in
+`tools/test_myprices.lua`, `tools/test_listrules.lua` and
+`tools/test_ownprice.lua`. Not yet seen in game.
 
 ## The fold gem
 

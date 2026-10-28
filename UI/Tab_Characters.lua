@@ -293,7 +293,7 @@ local function BuildCard(row)
         end
 
         button.armed = key
-        button:SetText(L["Really forget?"])
+        button:SetText(L["Click Again"])
         -- Red while armed, like the craft pane's Clear queue.
         button:SetConfirming(true)
         C_Timer.After(4, function()

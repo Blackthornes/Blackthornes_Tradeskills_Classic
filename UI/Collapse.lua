@@ -1,6 +1,7 @@
 -- Blackthornes Tradeskills -- UI/Collapse.lua
--- The header strip on the side panels, and the small button at its left that
--- folds a panel down to that strip and opens it back up.
+-- The header strip on the side panels, and the fold button that folds a
+-- panel down to that strip and opens it back up: the gold gem on the
+-- panel's trim, beside its close gem (2026-10-27, as on every other window).
 --
 -- The sell list and the craft pane both sit beside a Blizzard window and take
 -- up a lot of the screen. Closing them outright means losing them until the
@@ -15,7 +16,7 @@
 -- header stays on the panel itself, so it is still there to read and click
 -- when the body is hidden.
 
-local _, ns = ...
+local ADDON, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
 local Collapse = {}
@@ -99,7 +100,165 @@ local function CreateGlyph(button)
     return ok and glyph or nil
 end
 
+--------------------------------------------------------------------------------
+-- The fold gem
+--------------------------------------------------------------------------------
+
+-- On a dressed panel the fold button is the house gold gem, left of the red
+-- close gem as on every other window (UI/FoldWindow.lua draws the same one);
+-- with no close gem it takes the close gem's corner. The panel still folds
+-- here, down to its header, and remembers it.
+local GEM = 22
+local GEM_GAP = 2
+local CLOSE_OUT = 8
+
+local INK = { 0.165, 0.110, 0.024 }
+local GOLD = { 0.910, 0.784, 0.451 }
+
+-- The game's own minimize and maximize art, for the Blizzard window style.
+local ATLAS = {
+    fold = { "RedButton-Condense", "RedButton-Condense-Pressed" },
+    open = { "RedButton-Expand", "RedButton-Expand-Pressed" },
+    highlight = "RedButton-Highlight",
+}
+
+local function Media(name)
+    return ([[Interface\AddOns\%s\Media\Frame\%s]]):format(ADDON or "Blackthornes_TS", name)
+end
+
+local function Call(object, method, ...)
+    local fn = object and object[method]
+    if type(fn) ~= "function" then return false end
+    return pcall(fn, object, ...)
+end
+
+local function Width(object)
+    local ok, value = Call(object, "GetWidth")
+    if ok and type(value) == "number" and value > 0 then return value end
+    return nil
+end
+
+local function HasAtlas(name)
+    local textures = C_Texture
+    if type(textures) ~= "table" or type(textures.GetAtlasInfo) ~= "function" then return false end
+    local ok, info = pcall(textures.GetAtlasInfo, name)
+    return ok and info ~= nil
+end
+
+local function UseAtlas(button)
+    for _, name in ipairs({ ATLAS.fold[1], ATLAS.fold[2], ATLAS.open[1], ATLAS.open[2], ATLAS.highlight }) do
+        if not HasAtlas(name) then return false end
+    end
+    if not (Call(button, "SetNormalAtlas", ATLAS.fold[1])
+        and Call(button, "SetPushedAtlas", ATLAS.fold[2])
+        and Call(button, "SetHighlightAtlas", ATLAS.highlight, "ADD")) then
+        return false
+    end
+    button.atlas = true
+    return true
+end
+
+local function Bar(button)
+    local bar = button:CreateTexture(nil, "OVERLAY", nil, 2)
+    bar:SetColorTexture(INK[1], INK[2], INK[3], 1)
+    return bar
+end
+
+--- The gold gem with its glow, a lit copy for the mouse, and a bar (open)
+--- or a plus (folded) on its face.
+local function DrawGem(button)
+    local glow = button:CreateTexture(nil, "BACKGROUND")
+    glow:SetTexture(Media("Glow"))
+    glow:SetPoint("CENTER")
+    glow:SetSize(GEM * 2.2, GEM * 2.2)
+    glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
+    pcall(glow.SetBlendMode, glow, "ADD")
+
+    local gem = button:CreateTexture(nil, "ARTWORK")
+    gem:SetTexture(Media("FoldGem"))
+    gem:SetAllPoints(button)
+
+    local lit = button:CreateTexture(nil, "ARTWORK", nil, 1)
+    lit:SetTexture(Media("FoldGem"))
+    lit:SetAllPoints(button)
+    pcall(lit.SetBlendMode, lit, "ADD")
+
+    local across = Bar(button)
+    across:SetSize(10, 3)
+    across:SetPoint("CENTER", 0, 0)
+    local down = Bar(button)
+    down:SetSize(3, 10)
+    down:SetPoint("CENTER", 0, 0)
+
+    local function Light(p)
+        glow:SetAlpha(0.25 + 0.55 * p)
+        lit:SetAlpha(0.45 * p)
+    end
+    Light(0)
+
+    button.Light = Light
+    button.gemGlyph = { across = across, down = down }
+end
+
+local function GemTooltip(button)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(button, "ANCHOR_TOP")
+    GameTooltip:SetText(button.tooltipText, 1, 1, 1)
+    GameTooltip:Show()
+end
+
+local function CreateGem(trim, onClick)
+    local button = CreateFrame("Button", nil, trim)
+    button.isGem = true
+
+    local close = rawget(trim, "closeButton")
+    local size = GEM
+    if rawget(trim, "blizzard") and close then size = Width(close) or GEM end
+    button:SetSize(size, size)
+    if close then
+        local closeSize = Width(close) or 26
+        button:SetPoint("CENTER", close, "CENTER", -(closeSize / 2 + size / 2 + GEM_GAP), 0)
+    else
+        button:SetPoint("CENTER", trim, "TOPRIGHT", -CLOSE_OUT, -CLOSE_OUT)
+    end
+
+    if not (rawget(trim, "blizzard") and UseAtlas(button)) then DrawGem(button) end
+
+    button:SetScript("OnEnter", function(self)
+        self.hovered = true
+        local light = rawget(self, "Light")
+        if light then
+            if ns.Motion and type(ns.Motion.Blend) == "function" then ns.Motion:Blend(self, "hover", 1, 0.12, light) else light(1) end
+        end
+        GemTooltip(self)
+    end)
+    button:SetScript("OnLeave", function(self)
+        self.hovered = false
+        local light = rawget(self, "Light")
+        if light then
+            if ns.Motion and type(ns.Motion.Blend) == "function" then ns.Motion:Blend(self, "hover", 0, 0.18, light) else light(0) end
+        end
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    button:SetScript("OnClick", function() onClick() end)
+
+    return button
+end
+
 local function UpdateButton(button, collapsed)
+    button.tooltipText = collapsed and L["Expand this window"] or L["Collapse this window"]
+    if rawget(button, "isGem") then
+        if rawget(button, "atlas") then
+            local art = collapsed and ATLAS.open or ATLAS.fold
+            Call(button, "SetNormalAtlas", art[1])
+            Call(button, "SetPushedAtlas", art[2])
+        elseif rawget(button, "gemGlyph") then
+            button.gemGlyph.down:SetShown(collapsed)
+        end
+        if rawget(button, "hovered") then GemTooltip(button) end
+        return
+    end
+
     local glyph = rawget(button, "glyph")
     if glyph then
         button:SetText("")
@@ -107,32 +266,40 @@ local function UpdateButton(button, collapsed)
     else
         button:SetText(collapsed and "+" or "-")
     end
-    button.tooltipText = collapsed and L["Expand this window"] or L["Collapse this window"]
 end
 
---- Put the button at the left of a panel's header.
+--- Put the fold button on a panel: the gold gem on a dressed panel's trim,
+--- else a small button at the left of its header.
 --
 -- opts.key       settings key that remembers the state between sessions
 -- opts.header    the strip from CreateHeader
--- opts.title     its title, moved over to make room for the button
+-- opts.title     its title, moved over to make room for a header button
 -- opts.body      the frame holding everything that folds away
 -- opts.onToggle  called with the new state after it changes; the panel
 --                re-measures its height and refreshes itself there
 function Collapse.Attach(frame, opts)
-    local button = ns.Widgets.CreateButton(opts.header, "-", function()
+    local function Toggle()
         local collapsed = not Collapse.IsCollapsed(opts.key)
 
         ns.Config:Set(opts.key, collapsed)
         Collapse.Apply(frame)
 
         if opts.onToggle then opts.onToggle(collapsed) end
-    end, { width = BUTTON_SIZE, height = BUTTON_SIZE })
+    end
 
-    button.glyph = CreateGlyph(button)
-    button:SetPoint("LEFT", opts.header, "LEFT", 8, 0)
+    local trim = type(frame) == "table" and rawget(frame, "titan") or nil
+    local button
+    if trim and type(CreateFrame) == "function" then
+        button = CreateGem(trim, Toggle)
+    else
+        button = ns.Widgets.CreateButton(opts.header, "-", Toggle, { width = BUTTON_SIZE, height = BUTTON_SIZE })
 
-    opts.title:ClearAllPoints()
-    opts.title:SetPoint("LEFT", button, "RIGHT", 7, 0)
+        button.glyph = CreateGlyph(button)
+        button:SetPoint("LEFT", opts.header, "LEFT", 8, 0)
+
+        opts.title:ClearAllPoints()
+        opts.title:SetPoint("LEFT", button, "RIGHT", 7, 0)
+    end
 
     frame.collapse = { button = button, key = opts.key, body = opts.body }
     Collapse.Apply(frame)

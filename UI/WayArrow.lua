@@ -35,10 +35,11 @@ local MIN_WIDTH = 150
 local MAX_WIDTH = 320
 -- The room the arrow leaves under Farmer's XP bar.
 local CLEAR_GAP = 4
--- The whole arrow, plate and words too, is drawn at this size (the owner,
--- 2026-10-24: it stood too large). The saved spot stays in UIParent's
--- units, so it does not move.
-ArrowUI.SCALE = 0.65
+-- How big the whole arrow is drawn, in percent (Settings, "Arrow Size:").
+-- Classic's arrow stood at 65% before the choice came (the owner,
+-- 2026-10-24: it stood too large), so 65 is the usual size here.
+ArrowUI.SIZES = { 50, 65, 100 }
+ArrowUI.USUAL = 65
 
 -- Redrawn this often, seconds: smooth to the eye, cheap to run.
 local STEP = 0.03
@@ -86,7 +87,7 @@ function ArrowUI:Build()
 
     local frame = CreateFrame("Frame", "BlackthornesTSWayArrow", UIParent)
     frame:SetSize(MIN_WIDTH, RING + PLATE_HEIGHT + 56)
-    pcall(frame.SetScale, frame, ArrowUI.SCALE)
+    pcall(frame.SetScale, frame, ArrowUI.Scale())
     frame:SetFrameStrata("MEDIUM")
     frame:SetClampedToScreen(true)
     frame:EnableMouse(true)
@@ -441,16 +442,47 @@ end
 -- Position
 --------------------------------------------------------------------------------
 
+--- The arrow's size as a scale: the percent picked under "Arrow Size:"
+--- (`wayArrowSize`, account wide, nil for the usual 65), else the usual.
+function ArrowUI.Scale()
+    local percent = tonumber(type(ns.db) == "table" and ns.db.wayArrowSize)
+    for _, size in ipairs(ArrowUI.SIZES) do
+        if percent == size then return size / 100 end
+    end
+    return ArrowUI.USUAL / 100
+end
+
+--- The size picked, in percent.
+function ArrowUI.Size()
+    return math.floor(ArrowUI.Scale() * 100 + 0.5)
+end
+
+--- Draws the whole arrow, plate and words too, at `percent` (50, 65 or
+--- 100). 65 saves nothing, so nobody's save changes until a smaller size
+--- is picked. The arrow stays where it was left.
+function ArrowUI:SetSize(percent)
+    percent = tonumber(percent)
+    local known = false
+    for _, size in ipairs(ArrowUI.SIZES) do
+        if percent == size then known = true end
+    end
+    if not known or type(ns.db) ~= "table" then return end
+    ns.db.wayArrowSize = percent ~= ArrowUI.USUAL and percent or nil
+    local frame = self.frame
+    if not frame then return end
+    pcall(frame.SetScale, frame, ArrowUI.Scale())
+    self:RestorePosition()
+end
+
 function ArrowUI:SavePosition()
     local frame = self.frame
     local ok, x, y = pcall(function() return frame:GetCenter() end)
     if not (ok and type(x) == "number" and type(y) == "number") then return end
 
-    -- GetCenter answers in the arrow's own (smaller) units; the spot is
-    -- kept in UIParent's, as it was before the arrow was made smaller.
-    local scale = ArrowUI.SCALE
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
+    -- Kept in the screen's own units, so a new size keeps the spot.
+    local scale = ArrowUI.Scale()
     ns.db.wayArrowX, ns.db.wayArrowY = x * scale, y * scale
 end
 
@@ -521,7 +553,7 @@ function ArrowUI:AvoidXPBar()
         if left < barLeft + barWidth + gap and right > barLeft - gap
             and bottom < barBottom + barHeight + gap and top > barBottom - gap then
             frame:ClearAllPoints()
-            frame:SetPoint("TOP", bar, "BOTTOM", 0, -(gap + 2))
+            frame:SetPoint("TOP", bar, "BOTTOM", 0, -(gap + 2) / ArrowUI.Scale())
         end
     end)
 end
@@ -531,12 +563,11 @@ function ArrowUI:RestorePosition()
     if not frame then return end
     frame:ClearAllPoints()
     if ns.db.wayArrowX and ns.db.wayArrowY then
-        local scale = ArrowUI.SCALE
-        frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT",
-            ns.db.wayArrowX / scale, ns.db.wayArrowY / scale)
+        local scale = ArrowUI.Scale()
+        frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", ns.db.wayArrowX / scale, ns.db.wayArrowY / scale)
     else
         -- Top middle, under where the game puts its own messages.
-        frame:SetPoint("TOP", UIParent, "TOP", 0, -140 / ArrowUI.SCALE)
+        frame:SetPoint("TOP", UIParent, "TOP", 0, -140 / ArrowUI.Scale())
     end
     self:AvoidXPBar()
 end

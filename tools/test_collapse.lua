@@ -86,6 +86,65 @@ check("built folded after a reload: body hidden", laterBody:IsShown(), false)
 check("built folded after a reload: button offers to expand", laterButton.text, "+")
 
 --------------------------------------------------------------------------------
+-- A dressed panel gets the gold fold gem on its trim instead
+--------------------------------------------------------------------------------
+
+local function Texture()
+  local t = Frame()
+  for _, name in ipairs({ "SetTexture", "SetSize", "SetAllPoints", "SetVertexColor", "SetBlendMode",
+      "SetColorTexture", "SetAlpha" }) do t[name] = function() end end
+  return t
+end
+
+local function GemFrame(parent)
+  local f = Frame()
+  f.parent, f.scripts = parent, {}
+  function f:SetSize(w, h) self.width, self.height = w, h end
+  function f:GetWidth() return self.width end
+  function f:CreateTexture() return Texture() end
+  function f:SetScript(name, fn) self.scripts[name] = fn end
+  return f
+end
+
+CreateFrame = function(_, _, parent) return GemFrame(parent) end
+
+local closeGem = GemFrame()
+closeGem:SetSize(26, 26)
+local trim = GemFrame()
+trim.closeButton = closeGem
+local dressed, dressedHeader, dressedTitle, dressedBody = Frame(), Frame(), Frame(), Frame()
+dressed.titan = trim
+dressedTitle:SetPoint("LEFT", dressedHeader, "LEFT", 10, 0)
+
+local gem = Collapse.Attach(dressed, { key = "gemCollapsed", header = dressedHeader, title = dressedTitle, body = dressedBody })
+check("dressed: the button is the fold gem", gem.isGem, true)
+check("the gem rides on the trim", gem.parent, trim)
+check("the gem sits beside the close gem", gem.points[1][2], closeGem)
+check("left of the close gem", gem.points[1][4] < 0, true)
+check("the title stays where it was", dressedTitle.points[1][2], dressedHeader)
+check("open: a bar on the gem, no plus", gem.gemGlyph.down.shown, false)
+check("open: offers to collapse", gem.tooltipText, "Collapse this window")
+
+gem.scripts.OnClick(gem)
+check("gem click: body hidden", dressedBody:IsShown(), false)
+check("gem click: remembered in settings", settings.gemCollapsed, true)
+check("gem click: a plus on the gem", gem.gemGlyph.down.shown, true)
+check("gem click: offers to expand", gem.tooltipText, "Expand this window")
+gem.scripts.OnClick(gem)
+check("gem again: body back", dressedBody:IsShown(), true)
+check("gem again: remembered as open", settings.gemCollapsed, false)
+
+-- The craft pane has no close gem: its gem takes that corner.
+local bare = GemFrame()
+local lone, loneBody = Frame(), Frame()
+lone.titan = bare
+local loneGem = Collapse.Attach(lone, { key = "loneCollapsed", header = Frame(), title = Frame(), body = loneBody })
+check("no close gem: the gem sits in the top right corner", loneGem.points[1][3], "TOPRIGHT")
+check("no close gem: on the trim", loneGem.points[1][2], bare)
+
+CreateFrame = nil
+
+--------------------------------------------------------------------------------
 -- The sell list uses it
 --------------------------------------------------------------------------------
 

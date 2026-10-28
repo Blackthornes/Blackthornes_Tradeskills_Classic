@@ -144,6 +144,7 @@ local function Load(path) assert(loadfile(lfs_cwd .. path))("Blackthornes_TS", n
 Load("/Core/Util.lua")
 Load("/UI/Theme.lua")
 Load("/UI/Widgets.lua")
+Load("/UI/Titanforged.lua")
 Load("/Logic/Banks.lua")
 Load("/Data/Mail.lua")
 Load("/Logic/MailHaul.lua")
@@ -312,6 +313,21 @@ check("the report says where it came from",           MailReport.frame.sources.t
     "from 4 sales, refunded bids and 1 letter")
 check("a line in chat as well",                        printed[#printed]:find("Mail collected", 1, true) ~= nil, true)
 check("closing the mailbox twice does nothing more",   Close(), nil)
+
+--------------------------------------------------------------------------------
+print("")
+print("the red close gems")
+--------------------------------------------------------------------------------
+
+local gem = MailReport.frame.titan and MailReport.frame.titan.closeButton
+check("the report wears the close gem",                 gem ~= nil, true)
+MailReport.tally:Show()
+gem.scripts.OnClick(gem)
+check("which closes the report",                        MailReport.frame.shown, false)
+local tallyGem = MailReport.tally.close
+check("the tally has its own gem",                      tallyGem ~= gem and tallyGem.scripts.OnClick ~= nil, true)
+tallyGem.scripts.OnClick(tallyGem)
+check("which puts the tally away",                      MailReport.tally.shown, false)
 
 --------------------------------------------------------------------------------
 print("")

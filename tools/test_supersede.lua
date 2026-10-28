@@ -41,6 +41,7 @@ ns.Config = {
     Get = function(_, key)
         if key == "undercutCopper" then return 1 end
         if key == "verifyPriceBeforePosting" then return true end
+        if key == "askBeforeListing" then return true end
         return nil
     end,
     GetPriceTable = function() return priceTable end,

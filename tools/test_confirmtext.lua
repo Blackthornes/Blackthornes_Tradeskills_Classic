@@ -108,7 +108,7 @@ check("four lines exactly", #l == 4)
 check("market value first", l[1] == "Average Market Value: 500")
 check("cheapest rival second", l[2] == "Lowest Market Posting: 450")
 check("the price being listed third", l[3] == "Posting at: 400, item2589")
-check("the question last", l[4] == "Do you wish to continue?")
+check("the question last", l[4] == "List it at this price, or skip it.")
 
 -- The price about to go up is drawn in gold, and only the price.
 local raw = Posting:BuildConfirmText(2589, 1, 400, { state = "fresh" })
@@ -152,6 +152,6 @@ ns.Cost.FindAnyRecipeForItem = ns.Cost.FindRecipeForItem
 ns.Profit.Analyse = function() return { costPerUnit = 600 } end
 local loss = lines(Posting:BuildConfirmText(3530, 1, 240, { state = "fresh" }))
 check("a loss adds one line", #loss == 5 and loss[4]:find("Below the 600 it cost to make", 1, true) ~= nil)
-check("and the question stays last", loss[5] == "Do you wish to continue?")
+check("and the question stays last", loss[5] == "List it at this price, or skip it.")
 
 print(("\n%d check(s) passed\n"):format(checks))

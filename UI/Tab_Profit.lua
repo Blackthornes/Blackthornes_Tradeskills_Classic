@@ -513,7 +513,8 @@ local function UpdateRow(row, analysis)
         -- (Discord, 2026-10-08).
         cells.age:SetText("--")
         cells.age:SetTextColor(Theme.Unpack("dim"))
-    elseif analysis.priceBasis == "mine" or analysis.priceBasis == "floor" then
+    elseif analysis.priceBasis == "mine" or analysis.priceBasis == "floor"
+        or analysis.priceBasis == "highest" then
         -- Priced at what the player set on the Prices tab, not a scan.
         SetFitted(cells.age, L["my price"], L["mine"])
         cells.age:SetTextColor(Theme.Unpack("warn"))
@@ -2292,11 +2293,21 @@ local switch = ns.RecipeBookView and ns.RecipeBookView.WithSwitch({
     end,
     -- Your time (UI/YourTimeView.lua, the owner said build it 2026-10-15):
     -- farming a craft's materials against selling them and buying them.
-    extras = ns.YourTimeView and {
-        { key = "time", text = L["YOUR TIME"],
-          tip = L["Farm it, sell the mats, or buy them: which pays best for your time"],
-          build = ns.YourTimeView.Build, refresh = ns.YourTimeView.Refresh },
-    } or nil,
+    -- Shuffles (UI/ShuffleView.lua, the owner said build it 2026-10-25):
+    -- every way to turn one item into gold, after RECIPES TO LEARN.
+    extras = (function()
+        local list = {}
+        if ns.YourTimeView then
+            list[#list + 1] = { key = "time", text = L["YOUR TIME"],
+                tip = L["Farm it, sell the mats, or buy them: which pays best for your time"],
+                build = ns.YourTimeView.Build, refresh = ns.YourTimeView.Refresh }
+        end
+        if ns.ShuffleView then
+            list[#list + 1] = { key = "shuffles", text = L["SHUFFLES"], last = true,
+                build = ns.ShuffleView.Build, refresh = ns.ShuffleView.Refresh }
+        end
+        return list[1] and list or nil
+    end)(),
 })
 
 local Build = switch and switch.Build or BuildCrafts

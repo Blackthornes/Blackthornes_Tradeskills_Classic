@@ -152,14 +152,17 @@ end
 --
 -- @return price, basis, why, uncertain  -- basis is "undercut", "match",
 --   "market", "derived", "uncontested", "mine", "floor", "list" (raised to
---   its list's Lowest Price) or "overcut", and nil price when there is
+--   its list's Lowest Price), "highest" (lowered to the Highest the player
+--   set) or "overcut", and nil price when there is
 --   nothing to go on. "derived" (never scanned) and "uncontested" (scanned,
 --   but every listing is yours) are both the material-value figure from
 --   DeriveFromMaterials above, and are the two bases that are not evidence
 --   of what anybody else is charging. why is a sentence explaining a match
 --   or either of those, since none of those words says on its own where the
 --   number came from. uncertain is true when the item's commodity status is
---   not known, see below.
+--   not known, see below. A fifth return, waits, is true when the player
+--   said to wait while others sell for less than their Lowest Price: the
+--   price is that Lowest Price, and the Sell list holds the item back.
 -- @param knownCost  optional, passed straight to DeriveFromMaterials; see
 --   there for when it is used and when it is ignored.
 -- @param link optional: the copy to be listed. A random suffix ("of the
@@ -169,17 +172,26 @@ function Profit:ChoosePostPrice(itemID, knownCost, link)
 
     -- A price the player set on the Prices tab (2026-10-06): "use"
     -- lists at it, "floor" undercuts as usual but never goes below it.
-    local mine, mode
+    -- A "floor" may also carry Highest and When Cheaper (2026-10-28).
+    local mine, mode, high, wait
     if ns.Prices.GetMine then mine, mode = ns.Prices:GetMine(itemID) end
+    if mode == "floor" and ns.Prices.GetMyLimits then high, wait = ns.Prices:GetMyLimits(itemID) end
 
     -- Else its list's Lowest Price (Logic/ListRules.lua, 2026-10-19):
-    -- undercuts as usual, never below it.
+    -- undercuts as usual, never below it; and its Highest Price and When
+    -- Cheaper (2026-10-28). The Lowest Price may be a percent of the
+    -- market price or of what one cost to make.
     local listName
     if not mine and ns.ListRules then
-        mine, listName = ns.ListRules:Floor(itemID)
+        mine, listName = ns.ListRules:Floor(itemID, knownCost)
         mode = mine and "floor" or nil
+        if ns.ListRules.Limits then
+            local limitsName
+            high, wait, limitsName = ns.ListRules:Limits(itemID)
+            listName = listName or limitsName
+        end
     end
-    if not mine then return self:ChooseMarketPostPrice(itemID, knownCost, link) end
+    if not mine and not high then return self:ChooseMarketPostPrice(itemID, knownCost, link) end
 
     local status
     if ns.Scanner.GetCommodityStatus then
@@ -187,19 +199,37 @@ function Profit:ChoosePostPrice(itemID, knownCost, link)
     else
         status = ns.Scanner:IsCommodity(itemID)
     end
-    local floor = RoundForSale(mine, status ~= false)
+    local floor = mine and RoundForSale(mine, status ~= false)
 
     if mode == "use" then
         return floor, "mine", L["your own price, set on the Prices tab"], status == nil
     end
 
     local price, basis, why, uncertain = self:ChooseMarketPostPrice(itemID, knownCost, link)
-    if price and price >= floor then return price, basis, why, uncertain end
 
-    if listName then
-        return floor, "list", L.Format("Following your %s list.", listName), status == nil
+    -- Highest: never list above it. An item auction takes whole silver only,
+    -- so it rounds down. Under the Lowest Price it means nothing and is left out.
+    local top = high and (status == false and Util.RoundToSilver(high) or high)
+    if top and floor and top < floor then top = nil end
+
+    if floor and (not price or price < floor) then
+        -- When Cheaper, Wait: others are selling for less, so it stays in
+        -- the bags. Only while others really are: a price worked out from
+        -- the materials, or one where every listing is yours, is no rival.
+        local waits = wait and price and basis ~= "derived" and basis ~= "uncontested" or nil
+        if listName then
+            return floor, "list", L.Format("Following your %s list.", listName), status == nil, waits
+        end
+        return floor, "floor", L["the least you set on the Prices tab"], status == nil, waits
     end
-    return floor, "floor", L["the least you set on the Prices tab"], status == nil
+
+    if top and price and price > top then
+        if listName then
+            return top, "highest", L.Format("Following your %s list.", listName), status == nil
+        end
+        return top, "highest", L["the most you set on the Prices tab"], status == nil
+    end
+    return price, basis, why, uncertain
 end
 
 -- Why a price matches the cheapest rival when Undercut by is set to 0c.
@@ -1313,10 +1343,15 @@ ns.RegisterCommand("why", L["<name, link or row number>: full cost breakdown"], 
             ns.COLORS.profit))
         ns.PrintRaw(L.Format("  vendor pays     %s  (makes %.1f)",
             Util.FormatMoney(analysis.unitRevenue), analysis.yield))
-    elseif analysis.priceBasis == "mine" or analysis.priceBasis == "floor" then
-        ns.PrintRaw(("  |c%s%s|r"):format(ns.COLORS.warn, analysis.priceBasis == "mine"
-            and L["priced at your own price, set on the Prices tab"]
-            or L["raised to the least you set on the Prices tab"]))
+    elseif analysis.priceBasis == "mine" or analysis.priceBasis == "floor"
+        or analysis.priceBasis == "highest" then
+        local said = L["raised to the least you set on the Prices tab"]
+        if analysis.priceBasis == "mine" then
+            said = L["priced at your own price, set on the Prices tab"]
+        elseif analysis.priceBasis == "highest" then
+            said = L["lowered to the most you set on the Prices tab"]
+        end
+        ns.PrintRaw(("  |c%s%s|r"):format(ns.COLORS.warn, said))
         ns.PrintRaw(L.Format("  you post at     %s  (makes %.1f)",
             Util.FormatMoney(analysis.unitRevenue), analysis.yield))
     elseif analysis.undercut then

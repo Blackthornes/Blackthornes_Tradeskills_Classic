@@ -128,6 +128,13 @@ local DEFAULTS = {
         -- posts (Logic/Posting.lua). Kept so a saved value is never dropped.
         confirmBeforePosting = true,
 
+        -- Show the Yes/No box with the prices before each listing. Off by
+        -- default (the owner, 2026-10-28: less in the way when posting): a
+        -- click on a checked price lists it, and a click on one not checked
+        -- yet checks it, then the next click lists. Fast listing unticked
+        -- asks too (Classic's #47). Never rename it.
+        askBeforeListing = false,
+
         -- Whether to recommend selling below material cost. Such items are
         -- always shown, marked red; with this off they are skipped when
         -- picking what is worth listing. On unless unticked for new saves

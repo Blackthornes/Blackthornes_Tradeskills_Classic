@@ -2,7 +2,7 @@
 --
 -- The icon sits beside the four lines, not as a line of its own: the house rule
 -- is that the dialog says exactly "Average Market Value", "Lowest Market
--- Posting", "Posting at" and "Do you wish to continue?". It goes with the
+-- Posting", "Posting at" and "List it at this price, or skip it.". It goes with the
 -- dialog when it closes, since the game lends the same popup frame to other
 -- dialogs afterwards.
 
@@ -124,7 +124,7 @@ check("the text is still exactly four lines", #l == 4
     and l[1] == "Average Market Value: 500"
     and l[2] == "Lowest Market Posting: 450"
     and l[3] == "Posting at: 400, item2589"
-    and l[4] == "Do you wish to continue?")
+    and l[4] == "List it at this price, or skip it.")
 
 -- Closing the dialog takes the icon with it: the frame is lent to other
 -- dialogs next.

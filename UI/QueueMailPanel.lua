@@ -142,22 +142,50 @@ function QueueMailPanel:Build()
     panel:SetFrameStrata("HIGH")
     panel:SetClampedToScreen(true)
     Theme.Fill(panel, "window", 0.94)
-    Theme.Border(panel, "accent", 0.6)
-    Theme.AccentStripe(panel, 3)
-    Theme.TopSheen(panel, 0.08)
     Theme.Halo(panel, 6, 0.14)
     panel:Hide()
 
-    local heading = Theme.CreateLabel(panel, "tiny", "accent")
-    heading:SetPoint("TOPLEFT", PAD, -8)
+    -- Shut until the next mailbox visit.
+    local function Dismiss()
+        QueueMailPanel.dismissed = true
+        panel:Hide()
+    end
+    local tip = L["Hide this until the next mailbox visit"]
+
+    -- The house frame (UI/Titanforged.lua): the gold rim and the red close
+    -- gem on the top right corner.
+    local gem
+    if ns.Titanforged then
+        local trim = ns.Titanforged:Dress(panel, { close = Dismiss })
+        gem = trim and trim.closeButton
+    else
+        Theme.Border(panel, "accent", 0.6)
+        Theme.AccentStripe(panel, 3)
+    end
+    if gem and gem.HookScript then
+        -- The gem says "Close"; this one says what closing does here.
+        gem:HookScript("OnEnter", function(self)
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText(tip, 1, 1, 1)
+                GameTooltip:Show()
+            end
+        end)
+    end
+    panel.close = gem
+
+    local heading = Theme.CreateLabel(panel, "small", "accent")
+    heading:SetPoint("TOPLEFT", PAD, -12)
     heading:SetText(L["SEND FOR THE CRAFT QUEUE"])
     panel.heading = heading
 
-    local close = Widgets.CreateButton(panel, "X", function()
-        QueueMailPanel.dismissed = true
-        panel:Hide()
-    end, { width = 18, height = 16, fontSize = "tiny", tooltip = L["Hide this until the next mailbox visit"] })
-    close:SetPoint("TOPRIGHT", -4, -4)
+    local close
+    if not gem then
+        close = Widgets.CreateButton(panel, "X", Dismiss,
+            { width = 18, height = 16, fontSize = "tiny", tooltip = tip })
+        close:SetPoint("TOPRIGHT", -4, -4)
+        panel.close = close
+    end
 
     -- Asked 2026-10-04: the words under the heading were too many, and
     -- there was no way from here to the setting that picks the disenchanter.
@@ -166,13 +194,18 @@ function QueueMailPanel:Build()
         if not ns.UI then return end
         ns.UI:Show()
         ns.UI:SelectTab("settings")
-    end, { width = 60, height = 16, fontSize = "tiny",
+    end, { width = 70,
         tooltip = L["Pick your disenchanter and the best quality mailed to them"] })
     local labelWidth = Theme.TextWidth and Theme.TextWidth(settings.label)
-    if type(labelWidth) == "number" and labelWidth + 14 > 60 then
-        settings:SetWidth(math.ceil(labelWidth) + 14)
+    if type(labelWidth) == "number" and labelWidth + 18 > 70 then
+        settings:SetWidth(math.ceil(labelWidth) + 18)
     end
-    settings:SetPoint("RIGHT", close, "LEFT", -6, 0)
+    if close then
+        settings:SetPoint("RIGHT", close, "LEFT", -6, 0)
+    else
+        -- Clear of the close gem over the corner.
+        settings:SetPoint("TOPRIGHT", -24, -7)
+    end
     panel.settings = settings
 
     panel.rows = {}
@@ -297,7 +330,7 @@ function QueueMailPanel:Refresh()
     for _, delivery in ipairs(deliveries) do
         if not delivery.crafts then onlyCrafts = false end
     end
-    local headingRoom = WIDTH - PAD - 4 - 18 - 6 - (panel.settings:GetWidth() or 60) - 8
+    local headingRoom = WIDTH - PAD - 24 - (panel.settings:GetWidth() or 70) - 8
     Theme.FitText(panel.heading, onlyTake and { L["TAKE FOR THE CRAFT QUEUE"], L["TAKE"] }
         or deliveries[1].take and not hasGear and { L["FOR THE CRAFT QUEUE"], L["QUEUE"] }
         or onlyGear and { L["SEND TO YOUR DISENCHANTER"], L["DISENCHANTER"] }
@@ -305,7 +338,7 @@ function QueueMailPanel:Refresh()
         or onlyCrafts and { L["SEND YOUR FINISHED CRAFTS"], L["FINISHED CRAFTS"], L["CRAFTS"] }
         or { L["SEND FOR THE CRAFT QUEUE"], L["FOR THE QUEUE"] }, headingRoom)
     local room = WIDTH - 2 * PAD
-    local top = -28
+    local top = -34
 
     for index, delivery in ipairs(deliveries) do
         if index > MAX_ROWS then break end
@@ -362,7 +395,7 @@ function QueueMailPanel:Refresh()
     end
 
     local shownRows = math.min(#deliveries, MAX_ROWS)
-    local height = 28 + shownRows * ROW_HEIGHT + 30
+    local height = 34 + shownRows * ROW_HEIGHT + 30
 
     panel.more:ClearAllPoints()
     if #deliveries > MAX_ROWS then

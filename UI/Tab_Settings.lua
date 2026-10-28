@@ -436,7 +436,7 @@ local function BuildBar(outer)
     LayoutSwitch()
 
     -- The house order for an option bar: search, then tick boxes.
-    widgets.describe = Widgets.CreateCheckbox(bar, L["Show descriptions"], function(checked)
+    widgets.describe = Widgets.CreateCheckbox(bar, L["Show Descriptions"], function(checked)
         ns.Config:Set("settingsDescriptions", checked)
         ShowDescriptions(checked)
     end, false)
@@ -918,10 +918,9 @@ local function Build(outer)
     end, false)
     widgets.altKeeps:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    -- No "Confirm before each listing" switch: the confirmation's Yes is the
-    -- click that lists. Posting needs a real click, and after the price
-    -- check (an auction house search, answered later) there is no other.
-    -- The switch never did anything; its saved value is left where it is.
+    -- The old "Confirm before each listing" switch (confirmBeforePosting)
+    -- never did anything and its saved value is left where it is. The Yes/No
+    -- box is "Ask Before Listing" below, a key of its own.
     local verifyRow = CreateRow(pages.auction, 1, L["Check Price First:"],
         L["Searches for the item first so your price is current."])
 
@@ -939,6 +938,17 @@ local function Build(outer)
         Config:Set("fastListing", checked)
     end, true)
     widgets.fastListing:SetPoint("TOPLEFT", CONTROL_X, -2)
+
+    -- Ask before listing (the owner, 2026-10-28): off unless ticked. Off, a
+    -- checked price lists on the click; one not checked yet is checked
+    -- first and the next click lists it.
+    local askRow = CreateRow(pages.auction, 1, L["Ask Before Listing:"],
+        L["Shows a Yes or No box with the prices before each listing."])
+
+    widgets.askBeforeListing = Widgets.CreateCheckbox(askRow, L["On"], function(checked)
+        Config:Set("askBeforeListing", checked)
+    end, false)
+    widgets.askBeforeListing:SetPoint("TOPLEFT", CONTROL_X, -2)
 
     -- The mouse wheel (a player asked, the owner said build it, 2026-10-16):
     -- off unless ticked, and only while the auction house is open.
@@ -1444,7 +1454,7 @@ local function Build(outer)
     widgets.textSize:SetPoint("TOPLEFT", CONTROL_X, 0)
 
     -- ReloadUI is allowed from a click, and saves everything first.
-    widgets.textReload = Widgets.CreateButton(textRow, L["Reload now"], function()
+    widgets.textReload = Widgets.CreateButton(textRow, L["Reload"], function()
         if ReloadUI then ReloadUI() end
     end, { width = 90, height = 20 })
     FitButton(widgets.textReload)
@@ -1466,7 +1476,7 @@ local function Build(outer)
     end, { width = 110 })
     widgets.windowStyle:SetPoint("TOPLEFT", CONTROL_X, 0)
 
-    widgets.styleReload = Widgets.CreateButton(styleRow, L["Reload now"], function()
+    widgets.styleReload = Widgets.CreateButton(styleRow, L["Reload"], function()
         if ReloadUI then ReloadUI() end
     end, { width = 90, height = 20 })
     FitButton(widgets.styleReload)
@@ -1644,6 +1654,18 @@ local function Build(outer)
         if ns.Travel then ns.Travel:SetOn(checked) end
     end, true)
     widgets.arrowRoute:SetPoint("TOPLEFT", CONTROL_X, -2)
+
+    -- How big the whole arrow is drawn, 65% unless picked (the owner,
+    -- 2026-10-26; Classic's arrow already stood at 65%). It keeps its spot.
+    local arrowSizeRow = CreateRow(pages.look, 2, L["Arrow Size:"])
+    widgets.arrowSize = Widgets.CreateDropdown(arrowSizeRow, {
+        { text = "50%", value = 50 },
+        { text = "65%", value = 65 },
+        { text = "100%", value = 100 },
+    }, function(value)
+        if ns.WayArrowUI then ns.WayArrowUI:SetSize(value) end
+    end, { width = 80 })
+    widgets.arrowSize:SetPoint("TOPLEFT", CONTROL_X, 0)
 
     -- Goblin Gold (asked 2026-10-17): the gold on every character of this
     -- realm and side, on a small bar, with a goal. Off unless ticked; its
@@ -2283,6 +2305,7 @@ local function Refresh()
     widgets.altKeeps:SetChecked(Config:Get("sellHoldsAltUpgrades") == true)
     widgets.verifyPrice:SetChecked(Config:Get("verifyPriceBeforePosting") ~= false)
     widgets.fastListing:SetChecked(Config:Get("fastListing") ~= false)
+    widgets.askBeforeListing:SetChecked(Config:Get("askBeforeListing") == true)
     widgets.mouseWheel:SetChecked(Config:Get("mouseWheelListing") == true)
     widgets.overcutting:SetChecked(Config:Get("overcutting") == true)
     widgets.subCrafts:SetChecked(Config:Get("autoQueueSubCrafts") ~= false)
@@ -2360,6 +2383,7 @@ local function Refresh()
     widgets.vendorMapPins:SetChecked(Config:Get("vendorMapPins") == true)
     widgets.arrowRoute:SetChecked(type(ns.db) == "table" and ns.db.arrowRoute ~= false)
     widgets.useTomTom:SetChecked(type(ns.db) ~= "table" or ns.db.useTomTom ~= false)
+    widgets.arrowSize:SetValue(ns.WayArrowUI and ns.WayArrowUI.Size() or 65, true)
     widgets.goldTracker:SetChecked(Config:Get("goldTracker") == true)
     widgets.priceOrder:SetValue(Config:Get("priceOrder") == "auctionator" and "auctionator" or "tsm", true)
     widgets.goldCount:SetValue(Config:Get("goldTrackerCount") == "character" and "character" or "all", true)

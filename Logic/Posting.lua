@@ -676,7 +676,7 @@ end
 -- Profit:ChoosePostPrice, which is also where the whole-silver step that item
 -- auctions impose is applied.
 --
--- @return price, basis  -- basis is "undercut", "match", "market" or nil
+-- @return price, basis, why, uncertain, waits  -- as Profit:ChoosePostPrice
 --
 -- A random suffix ("of the Monkey") is priced as the copy that would be
 -- listed, the first unlocked one in the bags, when its suffix has a price.
@@ -1207,7 +1207,7 @@ function Posting:GetPostable(opts)
 
             local sellable, count = self:GetSellInfo(itemID, held)
             local copy = held and held.link and Util.LinkSuffix(held.link) and held.link or nil
-            local price, basis = self:GetPostPrice(itemID, copy or false)
+            local price, basis, _, _, waits = self:GetPostPrice(itemID, copy or false)
 
             -- A price the player set this session wins, with the suggested
             -- one kept beside it for the editor's reset.
@@ -1262,6 +1262,14 @@ function Posting:GetPostable(opts)
                 elseif listRoom and listRoom < count then
                     count = listRoom
                 end
+            end
+
+            -- When Cheaper, Wait (the Prices tab or its list, 2026-10-28):
+            -- others sell it for less than the least the player set, so it
+            -- waits in the bags, dimmed as a keep. A price typed this
+            -- session still lists, and so does its own List button.
+            if waits and not chosen and count and count > 0 and not heldAll then
+                heldAll = L["Waiting, others are selling for less"]
             end
 
             if keep and count and count <= 0 then
@@ -1994,8 +2002,8 @@ if type(StaticPopupDialogs) == "table" then
 
 StaticPopupDialogs["BLACKTHORNES_TS_CONFIRM_POST"] = {
     text = "%s",
-    button1 = YES or L["List it"],
-    button2 = NO or L["Skip"],
+    button1 = L["List It"],
+    button2 = L["Skip"],
     timeout = 0,
     whileDead = true,
     hideOnEscape = true,
@@ -2130,7 +2138,7 @@ function Posting:BuildConfirmText(itemID, quantity, unitPrice, check)
         end
     end
 
-    return text .. "\n\n" .. L["Do you wish to continue?"]
+    return text .. "\n\n" .. L["List it at this price, or skip it."]
 end
 
 -- The item's icon in the confirmation, one texture per popup frame it has
@@ -2356,9 +2364,33 @@ end
 --   ("of the Monkey") is not the price of the plain item, so it is not kept.
 function Posting:NoteChecked(itemID, itemKey)
     if not itemID then return end
-    if type(itemKey) == "table" and (tonumber(itemKey.itemSuffix) or 0) ~= 0 then return end
+    local suffix = type(itemKey) == "table" and tonumber(itemKey.itemSuffix) or 0
+    if suffix ~= 0 then
+        -- That one suffix's price, kept apart: only the copy with it may be
+        -- listed on the click, and only while the box is off.
+        if type(rawget(self, "checkedSuffix")) ~= "table" then self.checkedSuffix = {} end
+        self.checkedSuffix[itemID .. ":" .. suffix] = GetTime()
+        return
+    end
     if type(rawget(self, "checkedAt")) ~= "table" then self.checkedAt = {} end
     self.checkedAt[itemID] = GetTime()
+end
+
+--- Is the Yes/No box on? Off unless ticked ("Ask Before Listing").
+function Posting:AsksFirst()
+    if ns.Config:Get("askBeforeListing") == true then return true end
+    -- Classic's #47: fast listing unticked brings the box back too.
+    return not self:FastListing()
+end
+
+--- Was the price of the copy that would be listed checked lately? For a
+--- copy with a random suffix, that suffix's own search counts.
+function Posting:IsFreshCopy(itemID)
+    local key = self:GetSearchKey(itemID)
+    if not key then return self:IsFresh(itemID) end
+    local checked = rawget(self, "checkedSuffix")
+    local at = type(checked) == "table" and checked[itemID .. ":" .. (tonumber(key.itemSuffix) or 0)]
+    return type(at) == "number" and (GetTime() - at) <= FRESH_FOR
 end
 
 --- Was this item's price checked recently enough to list on the click?
@@ -2371,6 +2403,7 @@ end
 --- Forget every check: the auction house closed, and prices move while away.
 function Posting:ForgetChecks()
     self.checkedAt = {}
+    self.checkedSuffix = {}
     self.bulkTried = {}
     self.checkAll = nil
 end
@@ -2654,8 +2687,13 @@ end
 --- what it cost to make asks first only while selling at a loss is off
 --- (the owner, 2026-10-28: ticking it is the player saying yes to losses).
 function Posting:CanListOnClick(itemID, price)
-    if not self:FastListing() then return false end
     if not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then return false end
+
+    -- With the box off, a checked price is all it takes: Post and
+    -- RefusesEarly still refuse what the box would have warned about.
+    if not self:AsksFirst() then return self:IsFreshCopy(itemID) end
+
+    if not self:FastListing() then return false end
     if not self:IsFresh(itemID) then return false end
     if self:GetSearchKey(itemID) then return false end
 
@@ -2679,6 +2717,8 @@ end
 -- The search is asynchronous and posting needs a hardware event, so the
 -- confirmation click is what actually creates the listing. That ordering is
 -- deliberate: search, show the fresh number, and let the click commit it.
+-- With "Ask Before Listing" off (the default since 2026-10-28) there is no
+-- box: the answer marks the price checked and the next click lists it.
 function Posting:Request(itemID, quantity, unitPrice)
     local allowed, reason = self:CanPost(itemID)
     if not allowed then
@@ -2711,8 +2751,9 @@ function Posting:Request(itemID, quantity, unitPrice)
     if not verify or not ns.Scanner.isAuctionHouseOpen then
         if self:RefusesEarly(itemID, unitPrice, chosen ~= nil) then return false end
         -- No check to wait for, so this click can list it (the owner,
-        -- 2026-10-28). Fast listing unticked brings the box back.
-        if self:FastListing() and ns.Scanner.isAuctionHouseOpen then
+        -- 2026-10-28). Ask Before Listing, or fast listing unticked, brings
+        -- the box back.
+        if not self:AsksFirst() and ns.Scanner.isAuctionHouseOpen then
             return self:Post(itemID, quantity, unitPrice, chosen ~= nil) and true or false
         end
         self:Confirm(itemID, quantity, unitPrice, { byHand = chosen ~= nil })
@@ -2787,11 +2828,15 @@ function Posting:Request(itemID, quantity, unitPrice)
         -- make) is said now rather than after Yes.
         if self:RefusesEarly(itemID, price, chosen ~= nil) then return end
 
-        -- Fast listing (the owner, 2026-10-28): the check came back, so the
-        -- next click lists it with no Yes/No box. Listing needs a real
+        -- With the box off (the owner, 2026-10-28) the check came back, so
+        -- the next click lists it with no Yes/No box. Listing needs a real
         -- click, and this answer came later on its own. A check that did
         -- not leave the price fresh (no answer, a random suffix) still asks.
-        if self:CanListOnClick(itemID, price) then
+        -- Ask Before Listing ticked shows the box here instead.
+        if not self:AsksFirst() then
+            self:NoteChecked(itemID, self:GetSearchKey(itemID))
+        end
+        if not self:AsksFirst() and self:CanListOnClick(itemID, price) then
             -- Era: the stack goes in the auction slot now, so that next
             -- click is the one that lists it.
             if Posting.IsLegacy() then self:PrepareFor(itemID) end

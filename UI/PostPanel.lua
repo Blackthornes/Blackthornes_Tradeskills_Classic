@@ -369,6 +369,8 @@ function UpdateRow(row, line)
     local each = line.postQuantity < maxQuantity
         and L.Format("%d of %d @ %s", line.postQuantity, maxQuantity, eachPrice)
         or L.Format("%d @ %s", line.postQuantity, eachPrice)
+    -- Held down to the Highest price the player set (2026-10-28).
+    if line.priceBasis == "highest" then each = L.Format("%s (the most you set)", each) end
     local total = "  =  " .. Util.FormatMoney(line.postTotal or 0, { noColor = true, short = true })
 
     -- Beside the price, so selling and disenchanting read against each
@@ -595,7 +597,7 @@ function PostPanel:Build()
     body:SetAllPoints(frame)
     self.body = body
 
-    local fold = ns.Collapse.Attach(frame, {
+    ns.Collapse.Attach(frame, {
         key = COLLAPSE_KEY,
         header = header,
         title = title,
@@ -605,15 +607,6 @@ function PostPanel:Build()
             PostPanel:Refresh()
         end,
     })
-
-    -- On the header's first line, beside the title, rather than centred on
-    -- the strip: the scan's status line sits under the title.
-    if fold and fold.ClearAllPoints then
-        fold:ClearAllPoints()
-        fold:SetPoint("TOPLEFT", header, "TOPLEFT", 8, -7)
-        title:ClearAllPoints()
-        title:SetPoint("TOPLEFT", header, "TOPLEFT", (ns.UI and ns.UI.AUCTION_BAR_TEXT_LEFT) or 32, -8)
-    end
 
     -- Lists (a player asked, 2026-10-14): the player's own named shopping
     -- lists, UI/ShoppingListsView.lua. Auctions (asked the same day): your

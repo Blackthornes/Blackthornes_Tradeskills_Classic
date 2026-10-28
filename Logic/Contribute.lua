@@ -61,8 +61,10 @@ Contribute.REGION_NAME = "US"
 Contribute.HELLO_SECONDS = 300    -- a hello every five minutes (the owner, 2026-10-26)
 Contribute.FIRST_HELLO = 30       -- and this long after login
 Contribute.SYNC_GAP = 300         -- one sender taken at most this often
-Contribute.SYNC_TIMEOUT = 180     -- an ask left unanswered this long is given up
+Contribute.SYNC_TIMEOUT = 1800    -- an ask left unanswered this long is given up (a big
+                                  -- table takes a while at Comm's pace)
 Contribute.SEND_GAP = 300         -- a sender answers a recipient at most this often
+Contribute.PAYLOAD_KEEP = 1800    -- the table and its hash are built at most this often
 Contribute.MAX_SENDERS = 500
 Contribute.MAX_ITEMS = 3000       -- disenchanted items in one table
 Contribute.MAX_SKILLS = 5000      -- recipe skills in one table
@@ -232,13 +234,26 @@ local function Empty(payload)
     return next(payload.d) == nil and next(payload.s) == nil
 end
 
+--- The table and its hash, built at most every PAYLOAD_KEEP and kept per
+--- id: a hello goes every five minutes, and building and hashing the whole
+--- table each time would be a hitch for a player with a lot of it. The ask
+--- sends this same build, so what a recipient keeps always carries the hash
+--- it last heard and nothing is asked for twice.
+function Contribute:Built()
+    local id = self:Id()
+    local built = self.built
+    if built and built.id == id and Now() - built.at < self.PAYLOAD_KEEP then return built end
+    local payload = self:Payload()
+    built = { id = id, payload = payload, hash = self:Hash(payload), empty = Empty(payload), at = Now() }
+    self.built = built
+    return built
+end
+
 function Contribute:Hello()
     if not self:Sending() then return end
-    local id = self:Id()
-    local payload = self:Payload()
-    if not id or Empty(payload) then return end
-    local hash = self:Hash(payload)
-    if not hash then return end
+    local built = self:Built()
+    local id, hash = built.id, built.hash
+    if not id or built.empty or not hash then return end
     for _, recipient in ipairs(self:Recipients()) do
         Comm:Send("Q", id .. ":" .. hash, "WHISPER", recipient.name)
     end
@@ -251,10 +266,11 @@ function Contribute:OnAsk(sender, body, channel)
     local key = Comm.NameKey(sender)
     local last = self.sentTo[key]
     if last and Now() - last < self.SEND_GAP then return end
-    local payload = self:Payload()
-    if Empty(payload) then return end
+    local built = self:Built()
+    if built.empty or not built.hash then return end
     self.sentTo[key] = Now()
-    payload.i, payload.h = self:Id(), self:Hash(payload)
+    local payload = built.payload
+    payload.i, payload.h = built.id, built.hash
     Comm:SendTable("K", payload, "WHISPER", sender)
 end
 

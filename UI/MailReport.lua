@@ -362,9 +362,10 @@ function MailReport:Build()
     frame:Hide()
 
     Theme.Fill(frame, "window", 0.97)
-    -- The house frame (UI/Titanforged.lua): the gold rim and corner gems.
+    -- The house frame (UI/Titanforged.lua): the gold rim, corner gems and
+    -- the red close gem in the top right corner.
     if ns.Titanforged then
-        ns.Titanforged:Dress(frame)
+        ns.Titanforged:Dress(frame, { close = function() frame:Hide() end })
     else
         Theme.AddGameOutline(frame, { style = "dialog", color = "natural" })
     end
@@ -391,12 +392,9 @@ function MailReport:Build()
     title:SetText(L["MAIL COLLECTED"])
     frame.title = title
 
-    local close = Widgets.CreateButton(header, "X", function() frame:Hide() end,
-        { width = 22, height = 20, tooltip = L["Close (Escape)"] })
-    close:SetPoint("RIGHT", -6, 0)
-
-    local who = Theme.CreateLabel(header, "tiny", "muted", "RIGHT")
-    who:SetPoint("RIGHT", close, "LEFT", -8, 0)
+    -- Clear of the close gem over the corner.
+    local who = Theme.CreateLabel(header, "small", "muted", "RIGHT")
+    who:SetPoint("RIGHT", -24, 0)
     -- A full two-part name with its time ran back under the title.
     who:SetPoint("LEFT", title, "RIGHT", 8, 0)
     who:SetWordWrap(false)
@@ -865,25 +863,50 @@ function MailReport:BuildTally()
     tally:SetSize(250, 44)
     tally:SetFrameStrata("HIGH")
     Theme.Fill(tally, "window", 0.92)
-    Theme.Border(tally, "accent", 0.6)
+    -- A thin gold rim: a bright line round the edge, a deeper gold inside it.
+    Theme.Border(tally, "accentHi", 1)
+    local inner = CreateFrame("Frame", nil, tally)
+    inner:SetPoint("TOPLEFT", 1, -1)
+    inner:SetPoint("BOTTOMRIGHT", -1, 1)
+    Theme.Border(inner, "accent", 0.9)
     Theme.AccentStripe(tally, 3)
     Theme.TopSheen(tally, 0.08)
     tally.wash = Wash(tally, "BORDER")
     tally:Hide()
 
-    local heading = Theme.CreateLabel(tally, "tiny", "accent")
+    local heading = Theme.CreateLabel(tally, "small", "accent")
     heading:SetPoint("TOPLEFT", 12, -6)
     heading:SetText(L["COLLECTED THIS VISIT"])
 
     -- Asked 2026-09-28: "i see no way to get rid of the message". A close
     -- button, and the tally also goes by itself once the mailbox is gone.
-    local close = Widgets.CreateButton(tally, "X", function() MailReport:HideTally() end,
-        { width = 18, height = 16, fontSize = "tiny", tooltip = L["Hide this until the next mailbox visit"] })
-    close:SetPoint("TOPRIGHT", -4, -4)
+    -- The house's small red close gem over the top right corner.
+    local close
+    local tip = L["Hide this until the next mailbox visit"]
+    if ns.Titanforged and ns.Titanforged.CloseGem then
+        close = ns.Titanforged.CloseGem(tally, function() MailReport:HideTally() end)
+        close:SetSize(18, 18)
+        close:ClearAllPoints()
+        close:SetPoint("CENTER", tally, "TOPRIGHT", -4, -4)
+        local ok, level = pcall(tally.GetFrameLevel, tally)
+        if ok and type(level) == "number" then close:SetFrameLevel(level + 5) end
+        -- The gem says "Close"; this one says what closing does here.
+        close:HookScript("OnEnter", function(self)
+            if GameTooltip then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText(tip, 1, 1, 1)
+                GameTooltip:Show()
+            end
+        end)
+    else
+        close = Widgets.CreateButton(tally, "X", function() MailReport:HideTally() end,
+            { width = 18, height = 16, fontSize = "tiny", tooltip = tip })
+        close:SetPoint("TOPRIGHT", -4, -4)
+    end
     tally.close = close
 
-    local count = Theme.CreateLabel(tally, "tiny", "muted", "RIGHT")
-    count:SetPoint("TOPRIGHT", close, "TOPLEFT", -6, -2)
+    local count = Theme.CreateLabel(tally, "small", "muted", "RIGHT")
+    count:SetPoint("TOPRIGHT", -18, -6)
     tally.count = count
 
     -- A check once a second that the mailbox is still there, whatever the

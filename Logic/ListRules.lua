@@ -11,6 +11,14 @@
 --   bags     units: this many stay in the bags (Keep in Bags)
 --   maxPay   copper: the buy box fills only with what costs this or less
 --            each (Most I'll Pay)
+-- and since 2026-10-28 (the owner said yes):
+--   floorMarket  percent: Lowest Price as a percent of the market price
+--   floorCost    percent: Lowest Price as a percent of what one cost to
+--                make (the last craft, else the materials today)
+--                (floor, floorMarket and floorCost: one at a time)
+--   high     copper: never list above it (Highest Price)
+--   wait     1: keep it in the bags while the auction house is under the
+--            Lowest Price (When Cheaper: Wait); unset lists at the floor
 -- A field left out has no rule. A new list has none, so nothing changes
 -- until the player sets one.
 --
@@ -25,7 +33,11 @@ local _, ns = ...
 
 local ListRules = ns.NewModule("ListRules")
 
-ListRules.FIELDS = { "floor", "listed", "duration", "bags", "maxPay" }
+ListRules.FIELDS = { "floor", "listed", "duration", "bags", "maxPay",
+    "floorMarket", "floorCost", "high", "wait" }
+-- The three ways to set Lowest Price; setting one takes the others off.
+ListRules.FLOORS = { "floor", "floorMarket", "floorCost" }
+ListRules.MAX_PERCENT = 1000
 ListRules.MAX_LISTED = 99
 ListRules.MAX_BAGS = 99999
 -- The most the gold box takes (214748g), as the price editor.
@@ -37,7 +49,13 @@ local LIMITS = {
     duration = { 1, 3 },
     bags = { 1, ListRules.MAX_BAGS },
     maxPay = { 1, ListRules.MAX_MONEY },
+    floorMarket = { 1, ListRules.MAX_PERCENT },
+    floorCost = { 1, ListRules.MAX_PERCENT },
+    high = { 1, ListRules.MAX_MONEY },
+    wait = { 1, 1 },
 }
+
+local IS_FLOOR = { floor = true, floorMarket = true, floorCost = true }
 
 local function Lists() return ns.ShoppingLists end
 
@@ -76,7 +94,16 @@ function ListRules:Set(index, field, value)
     if not list or not LIMITS[field] then return false end
     if type(list.rules) ~= "table" then list.rules = {} end
     local clean = ListRules.Clean(field, value)
-    if list.rules[field] ~= clean then
+    local changed = list.rules[field] ~= clean
+    if clean and IS_FLOOR[field] then
+        for _, other in ipairs(ListRules.FLOORS) do
+            if other ~= field and list.rules[other] ~= nil then
+                list.rules[other] = nil
+                changed = true
+            end
+        end
+    end
+    if changed then
         list.rules[field] = clean
         if next(list.rules) == nil then list.rules = nil end
         Lists():Touch()
@@ -129,21 +156,81 @@ function ListRules:Rule(itemID, field)
     return nil
 end
 
+--- What one of an item cost to make: the last craft, else a costing the
+--- caller has for its recipe, else what the materials are worth today.
+function ListRules.CostOf(itemID, knownCost)
+    local made = ns.CraftedCost and ns.CraftedCost.Get and ns.CraftedCost:Get(itemID)
+    if made and made.cost and made.cost > 0 then return made.cost end
+    local recipeID = ns.Cost and ns.Cost.FindAnyRecipeForItem and ns.Cost:FindAnyRecipeForItem(itemID)
+    if not recipeID then return nil end
+    if type(knownCost) == "table" and knownCost.recipeID == recipeID and knownCost.priceable
+        and (knownCost.perUnit or 0) > 0 then
+        return knownCost.perUnit
+    end
+    if ns.Cost.GetMaterialValue then
+        local ok, value = pcall(ns.Cost.GetMaterialValue, ns.Cost, recipeID)
+        if ok and type(value) == "number" and value > 0 then return value end
+    end
+    return nil
+end
+
+--- An item's Lowest Price from its list in copper, worked out from a
+--- percent when it is set that way; nil when there is nothing to work from.
+local function FloorFor(entry, itemID, knownCost)
+    local rules = entry.rules
+    if rules.floor then return rules.floor end
+    local base
+    if rules.floorMarket then
+        base = ns.Prices and ns.Prices.GetValue and ns.Prices:GetValue(itemID, "market")
+    elseif rules.floorCost then
+        base = ListRules.CostOf(itemID, knownCost)
+    else
+        return nil
+    end
+    if type(base) ~= "number" or base <= 0 then return nil end
+    local floor = math.floor(base * (rules.floorMarket or rules.floorCost) / 100 + 0.5)
+    if floor < 1 then return nil end
+    return floor
+end
+
+local function HasFloor(rules)
+    return rules.floor or rules.floorMarket or rules.floorCost
+end
+
+local function OwnPrice(itemID)
+    return ns.Prices and ns.Prices.GetMine and ns.Prices:GetMine(itemID) ~= nil
+end
+
 --- The least an item may be listed at by its list, unless the Prices tab
 --- has a price of its own for it (that wins).
+-- @param knownCost optional: a costing the caller already has, for % of Cost
 -- @return copper, the list's name; or nil
-function ListRules:Floor(itemID)
-    local floor, name = self:Rule(itemID, "floor")
+function ListRules:Floor(itemID, knownCost)
+    local entry = self:For(itemID)
+    if not entry or not HasFloor(entry.rules) or OwnPrice(itemID) then return nil end
+    local floor = FloorFor(entry, itemID, knownCost)
     if not floor then return nil end
-    if ns.Prices and ns.Prices.GetMine and ns.Prices:GetMine(itemID) then return nil end
-    return floor, name
+    return floor, entry.name
+end
+
+--- The list's Highest Price and When Cheaper for an item, unless the Prices
+--- tab has a price of its own for it (that wins, with its own limits).
+-- @return highest (copper or nil), wait (true or nil), the list's name
+function ListRules:Limits(itemID)
+    local entry = self:For(itemID)
+    if not entry or OwnPrice(itemID) then return nil end
+    local high, wait = entry.rules.high, entry.rules.wait and true or nil
+    if not high and not wait then return nil end
+    return high, wait, entry.name
 end
 
 --- True when the item is on a list with Lowest Price but its own price on
 --- the Prices tab wins, with the list's name.
 function ListRules:OwnPriceWins(itemID)
-    local floor, name = self:Rule(itemID, "floor")
-    if floor and ns.Prices and ns.Prices.GetMine and ns.Prices:GetMine(itemID) then return true, name end
+    local entry = self:For(itemID)
+    if entry and (HasFloor(entry.rules) or entry.rules.high or entry.rules.wait) and OwnPrice(itemID) then
+        return true, entry.name
+    end
     return false
 end
 
