@@ -123,8 +123,9 @@ local DEFAULTS = {
         -- ticked; never rename it.
         mouseWheelListing = false,
         -- Sale Total on top of the auction house drawer, counted up after
-        -- each scan (2026-10-28). Off unless ticked; never rename it.
-        saleTotal = false,
+        -- each scan (2026-10-28). On unless unticked (the owner, the same
+        -- day); a value already saved is kept. Never rename it.
+        saleTotal = true,
 
         -- Nothing reads this any more, and Settings no longer offers it: every
         -- listing is confirmed, as the confirmation's Yes is the click that

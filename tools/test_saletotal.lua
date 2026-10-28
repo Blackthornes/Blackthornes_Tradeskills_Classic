@@ -117,5 +117,11 @@ S.frame.scripts.OnUpdate(S.frame, 0.05)
 S.frame:Hide()
 assert(S.play == nil and S.shown == after and S.cheer == nil, "leaving lands the total quietly")
 
+-- 6. On for new saves (the owner, 2026-10-28); a value already saved is kept.
+local file = io.open("Core/Config.lua") or io.open("../Core/Config.lua")
+local config = assert(file, "Core/Config.lua"):read("*a")
+file:close()
+assert(config:find("saleTotal = true,", 1, true), "on unless unticked")
+
 for key, value in pairs(saved) do _G[key] = value end
 print("test_saletotal: ok")

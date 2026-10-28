@@ -3,7 +3,7 @@
 -- the Sell list could sell for. When a scan finishes it counts the total
 -- up from nothing, item by item, with a "+3g 20s" floating off for each,
 -- a shine and sparks when one item adds a lot, and a small cheer at the
--- end saying how far it moved since the last scan. Off unless ticked
+-- end saying how far it moved since the last scan. On unless unticked
 -- (`saleTotal`, the Auction house page, never rename it).
 --
 -- Smooth play: it only adds up the Sell list's own totals (PostPanel:Refresh
