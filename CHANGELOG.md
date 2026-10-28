@@ -4,6 +4,11 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.6.0
+
+- The Road to 300 now counts what your other characters carry.
+- One minimap button now opens all your Blackthornes add-ons.
+
 ## 0.5.0
 
 - The Profit tab now has a Shuffles view.
