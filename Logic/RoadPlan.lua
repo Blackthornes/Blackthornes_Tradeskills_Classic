@@ -179,7 +179,7 @@ end
 -- @param opts.max         the cap the character has trained to
 -- @param opts.level       the character's level
 -- @param opts.candidates  Candidates' list, each with `price` (Price's)
--- @param opts.owned       { [itemID] = { bags, bank } }, or nil to read them
+-- @param opts.owned       { [itemID] = { bags, bank, alts } }, or nil to read them
 -- @param opts.pickBy      "lowest" (the default) or "real"
 -- @return { steps, current, total, saved, back, stuck, skill, max, pickBy }
 function RoadPlan:Plan(opts)
@@ -273,19 +273,21 @@ function RoadPlan:Plan(opts)
     end
     Walk(now, RoadPlan.TARGET, math.max(opts.max or 75, startCap), false)
 
-    -- What the character owns comes off once, step by step.
+    -- What the character owns comes off once, step by step: bags, bank,
+    -- then what the other characters it can mail hold.
     local pool = {}
     local function Owned(itemID)
         local have = pool[itemID]
         if have then return have end
         local given = opts.owned and opts.owned[itemID]
         if given then
-            have = { bags = given[1] or 0, bank = given[2] or 0 }
+            have = { bags = given[1] or 0, bank = given[2] or 0, alts = given[3] or 0 }
         else
             local inv = ns.Inventory
             local okBags, bags = pcall(inv.GetBagCount, inv, itemID)
             local okBank, bank = pcall(inv.GetBankCount, inv, itemID)
-            have = { bags = okBags and tonumber(bags) or 0, bank = okBank and tonumber(bank) or 0 }
+            have = { bags = okBags and tonumber(bags) or 0, bank = okBank and tonumber(bank) or 0,
+                alts = RoadPlan.AltsHold(itemID) }
         end
         pool[itemID] = have
         return have
@@ -305,12 +307,15 @@ function RoadPlan:Plan(opts)
                     have.bags = have.bags - fromBags
                     local fromBank = math.min(need - fromBags, have.bank)
                     have.bank = have.bank - fromBank
-                    local buy = need - fromBags - fromBank
+                    local fromAlts = math.min(need - fromBags - fromBank, have.alts or 0)
+                    have.alts = (have.alts or 0) - fromAlts
+                    local buy = need - fromBags - fromBank - fromAlts
                     step.needs[#step.needs + 1] = {
-                        itemID = reagent.itemID, count = need, bags = fromBags, bank = fromBank, buy = buy,
+                        itemID = reagent.itemID, count = need, bags = fromBags, bank = fromBank,
+                        alts = fromAlts, buy = buy,
                     }
                     cost = cost + buy * reagent.unit
-                    saved = saved + (fromBags + fromBank) * reagent.unit
+                    saved = saved + (fromBags + fromBank + fromAlts) * reagent.unit
                 end
                 step.cost = cost
                 back = back + ((step.price and step.price.back) or 0) * step.crafts
@@ -323,6 +328,39 @@ function RoadPlan:Plan(opts)
         steps = steps, current = current, total = total, saved = saved, back = back, stuck = stuck,
         skill = now, max = opts.max, line = line, pickBy = real and "real" or "lowest",
     }
+end
+
+--- How many of an item the character playing's other characters hold:
+--- bags, bank and (unless turned off) mail, as last saved, only those it
+--- can mail (same realm and side, not another account's), each character
+--- once under all of its records. A viewer asked (2026-10-28): an alt
+--- farms for the main, and the road counts what it gathered.
+function RoadPlan.AltsHold(itemID)
+    local records = ns.db and ns.db.characters
+    local me = ns.Config and ns.Config:GetCharacterKey()
+    if type(records) ~= "table" or not me then return 0 end
+    local chars, queue = ns.Characters, ns.Queue
+    local withMail = not (ns.Config.Get and ns.Config:Get("countMailAsStock") == false)
+    local counted, total = {}, 0
+    for key, record in pairs(records) do
+        local ok, skip = pcall(function()
+            if type(record) ~= "table" or record.linkedFrom ~= nil then return true end
+            if key == me or (chars and chars.IsPlaying and chars:IsPlaying(key)) then return true end
+            if queue and queue.CanMail and not queue:CanMail(me, key) then return true end
+            for _, other in ipairs(counted) do
+                if chars and chars.Same and chars:Same(key, other) then return true end
+            end
+            return false
+        end)
+        if ok and not skip then
+            counted[#counted + 1] = key
+            local held = ((type(record.inventory) == "table" and record.inventory[itemID]) or 0)
+                + ((type(record.bank) == "table" and record.bank[itemID]) or 0)
+            if withMail then held = held + ((type(record.mail) == "table" and record.mail[itemID]) or 0) end
+            total = total + (tonumber(held) or 0)
+        end
+    end
+    return total
 end
 
 --- The steps as the list shows them: the ones left first, in order, then
@@ -532,6 +570,7 @@ function RoadPlan.NeedText(need)
         end
     end
     if need.bank > 0 then parts[#parts + 1] = L.Format("Your banker has %d.", need.bank) end
+    if (need.alts or 0) > 0 then parts[#parts + 1] = L.Format("Your other characters have %d.", need.alts) end
     if need.bags == 0 and need.buy > 0 then parts[#parts + 1] = L.Format("Buy %d.", need.buy) end
     return table.concat(parts, " ")
 end
@@ -541,6 +580,17 @@ local TRAIN = {
     function(profession) return L.Format("Train Expert %s", profession) end,
     function(profession) return L.Format("Train Artisan %s", profession) end,
 }
+
+--- Does what the character and its other characters hold cover every
+--- material of a step still to make? Then the rest they gather can go
+--- elsewhere.
+function RoadPlan.Covered(step)
+    if step.done or step.kind ~= "craft" or not step.needs or #step.needs == 0 then return false end
+    for _, need in ipairs(step.needs) do
+        if (need.buy or 0) > 0 then return false end
+    end
+    return true
+end
 
 --- What a step says: { title, chip, range, lines = { ... } }.
 -- @param professionName  the profession's name as the client gives it
@@ -578,6 +628,7 @@ function RoadPlan.Texts(step, professionName, level, line)
         texts.chip = L["most crafts"]
     end
     for _, need in ipairs(step.needs or {}) do texts.lines[#texts.lines + 1] = RoadPlan.NeedText(need) end
+    if RoadPlan.Covered(step) then texts.lines[#texts.lines + 1] = L["You have enough for this step."] end
     if step.learn then
         if step.learn.kind == "trainer" then
             -- Where the trainer stands, as the row's Show the Way aims (the
