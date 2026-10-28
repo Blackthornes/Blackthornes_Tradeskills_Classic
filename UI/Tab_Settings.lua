@@ -877,7 +877,7 @@ local function Build(outer)
     widgets.allowLoss = Widgets.CreateCheckbox(lossRow, L["On"], function(checked)
         Config:Set("allowPostingAtALoss", checked)
         UI:RefreshActiveTab()
-    end, false)
+    end, true)
     widgets.allowLoss:SetPoint("TOPLEFT", CONTROL_X, -2)
 
     -- Asked by a player on 2026-10-05: the guard above compares with what the

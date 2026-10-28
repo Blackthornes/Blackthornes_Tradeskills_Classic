@@ -7,7 +7,8 @@
 -- What must hold:
 --   1. A price checked moments ago lists on the click: no search, no box.
 --   2. A price never checked still goes the old way (search, then the box).
---   3. A listing under what it cost to make still asks first.
+--   3. A listing under what it cost to make lists on the click while selling
+--      at a loss is on, and is refused while it is off.
 --   4. Unticked, every listing asks first.
 --   5. One search checks the whole list (SearchForItemKeys), and its answer
 --      makes an item fresh only when the cheapest is someone else's and not
@@ -234,9 +235,20 @@ costs[POTION] = 500
 recorded[POTION] = 290
 Posting:NoteChecked(POTION)
 Posting:Request(POTION, 5, 290)
-check("it lists nothing on the click", #posted, 0)
+check("selling at a loss on: it lists on the click", #posted, 1)
+check("and no Yes or No", popup, nil)
+
+Reset()
+settings.allowPostingAtALoss = false
+costs[POTION] = 500
+recorded[POTION] = 290
+Posting:NoteChecked(POTION)
+Posting:Request(POTION, 5, 290)
+check("selling at a loss off: nothing listed on the click", #posted, 0)
 if searches[1] then searches[1].cb(POTION, 290, 290, 5, true, {}, "recent") end
-check("it still asks first", popup ~= nil, true)
+check("and no box after the check", popup, nil)
+check("nothing listed after it either", #posted, 0)
+settings.allowPostingAtALoss = true
 
 print("")
 print("fast listing unticked")
