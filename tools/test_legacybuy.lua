@@ -248,6 +248,45 @@ LegacyBuy:Buy()
 check("and the name arriving later doesn't stop the buy", #bids == before + 1)
 Fire("AUCTION_HOUSE_CLOSED")
 
+print("")
+print("a scan of ours holds the list")
+
+house = { { 20, 500, "Rival" }, { 20, 600, "Other" } }
+check("it opens", LegacyBuy:Open(LINEN, 20) == true)
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+-- A scan starts, then the plan has to look again (as after a buy).
+ns.LegacyScan.state = { kind = "pages" }
+local beforeScan = #queries
+LegacyBuy:Reread(LegacyBuy.state)
+Advance(30)
+check("its search waits for the scan", #queries == beforeScan and LegacyBuy.state ~= nil)
+-- The scan ends: a new generation, as FinishPages makes.
+ns.LegacyScan.generation = ns.LegacyScan.generation + 1
+ns.LegacyScan.state = nil
+Advance(0.3)
+check("and goes once the scan is done", #queries == beforeScan + 1)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+stack, ready = LegacyBuy:Next()
+check("then plans as usual", stack and stack.buyout == 500 and ready)
+
+print("")
+print("a buy whose gold leaves late")
+
+local lateState = LegacyBuy.state
+local beforeBids = #bids
+LegacyBuy:Buy()
+check("the click bids", #bids == beforeBids + 1)
+Advance(LegacyBuy.BUY_WAIT + 0.1)
+check("no gold gone in time: it looks again", lateState.status == "reading" and lateState.bought == 0)
+money = money - 500
+table.remove(house, 1)
+Fire("PLAYER_MONEY")
+check("the gold leaving late still counts the stack", lateState.bought == 20 and lateState.late == nil)
+for _ = 1, 3 do Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1) end
+check("and nothing more is planned for it", lateState.status == "done" and not LegacyBuy:Next())
+Fire("AUCTION_HOUSE_CLOSED")
+
 -- The Buy button's price uses the game's coin icons, which read on gold.
 local priced = ns.Util.FormatMoney(230, { icons = true })
 check("the Buy button's price shows coin icons", priced:find("UI-SilverIcon", 1, true)
