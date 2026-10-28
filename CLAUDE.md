@@ -1518,7 +1518,8 @@ Not yet seen in game.
 The owner asked (2026-10-20) for live prices without an app, a server or a
 cost, picked a hidden in-game channel, and said build it from a mockup whose
 words he approved. Tradeskills only: Farmer never shares past the guild.
-`Logic/RealmPrices.lua`, off unless ticked (`realmPrices`, YOUR REALM on the
+`Logic/RealmPrices.lua`, on unless unticked for new saves (the owner,
+2026-10-28; a value already saved is kept; `realmPrices`, YOUR REALM on the
 Sharing page, `/bts share realm on|off`, typed only like guild). When on it
 joins a hidden channel for the side (`BTSPrices` plus A, H or N), hides its
 join lines, and shares the last scan (Y announce, then Z prices, the guild's
