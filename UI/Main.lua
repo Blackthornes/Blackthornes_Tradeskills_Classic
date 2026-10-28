@@ -1857,8 +1857,14 @@ function UI:BuildMinimapButton()
         self:SetScript("OnUpdate", nil)
     end)
 
-    button:SetScript("OnClick", function()
-        UI:Toggle()
+    -- Left-click opens the window, right-click its Settings tab (the
+    -- owner, 2026-10-28, the same in every addon).
+    button:SetScript("OnClick", function(_, mouseButton)
+        if mouseButton == "RightButton" then
+            UI:OpenSettings()
+        else
+            UI:Toggle()
+        end
     end)
 
     button:SetScript("OnEnter", function(self)
@@ -1868,6 +1874,7 @@ function UI:BuildMinimapButton()
         -- Which version is installed, so a player can say when reporting.
         GameTooltip:AddLine(ns.VersionLabel(), 0.5, 0.5, 0.5)
         GameTooltip:AddLine(L["Click to open"], 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(L["Right-click for settings"], 0.7, 0.7, 0.7)
         GameTooltip:AddLine(L["Drag to move it round the minimap"], 0.5, 0.5, 0.5)
         GameTooltip:Show()
     end)
@@ -1879,6 +1886,35 @@ function UI:BuildMinimapButton()
 
     self.minimapButton = button
     self.lastMinimapWidth = Minimap:GetWidth()
+
+    self:JoinSharedMinimap()
+end
+
+--- The window on its Settings tab; a second right-click puts it away.
+function UI:OpenSettings()
+    self:Build()
+    if self.window:IsShown() and self.activeTab == "settings" then
+        self:Hide()
+        return
+    end
+    self:Show()
+    self:SelectTab("settings")
+end
+
+--- Sign up for the shared Blackthornes button (UI/SharedMinimap.lua). While
+--- it is combined, this addon's own button stays out of sight.
+function UI:JoinSharedMinimap()
+    if not ns.SharedMinimap or not self.minimapButton then return end
+    ns.SharedMinimap:Join({
+        key = "tradeskills", order = 2, name = "Blackthornes Tradeskills",
+        icon = [[Interface\Icons\Trade_BlackSmithing]],
+        blurb = L["Crafting, prices and the auction house"],
+        button = self.minimapButton,
+        angle = function() return (ns.db and ns.db.minimapAngle) or DEFAULT_ANGLE end,
+        open = function() UI:Toggle() end,
+        settings = function() UI:OpenSettings() end,
+        db = function() return ns.db end,
+    })
 end
 
 -- Whether a name search for this item must stay wide: green or better

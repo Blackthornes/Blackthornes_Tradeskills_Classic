@@ -1196,6 +1196,29 @@ and Known by. Lines are kept per spell until `Inventory.changes` moves or
 (`tooltipEnchantCosts`, on unless unticked, never rename it); `/bts tip`
 counts them. Tested in `tools/test_enchanttooltip.lua`.
 
+## The shared minimap button
+
+A player asked, the owner said build it from a mockup (2026-10-28), in all
+five addons: one minimap button for every Blackthornes addon loaded, whose
+click opens a small menu (the house frame, "BLACKTHORNES" on the plate, a
+dark glass row for each addon with its icon, name and what it does). A
+row's left-click opens the addon, right-click its settings; Farmer's
+middle-click brings back its panels and Equipment's Shift-click toggles
+the upgrade quest. `UI/SharedMinimap.lua` is the same file in all five (a
+fix to it belongs in all five), and so is `tools/test_sharedminimap.lua`.
+There is no shared core addon: every copy signs up in
+`_G.BlackthornesMinimap`, each addon joins with its own button
+(`SharedMinimap:Join`), and the copy with the highest `FILE_VERSION` draws
+the shared button and menu. It is on by default (the owner, 2026-10-28):
+"Combine Addon Buttons:" in each addon's Settings, ticked unless unticked;
+unticked, every addon keeps its own button. Only our own buttons are hidden
+or shown, never the game's. Saved in every loaded addon's account save,
+account wide, never rename them: `minimapButton` ("shared" or "each", nil
+reads as shared), `minimapButtonAt` (the newest answer wins) and
+`minimapSharedAngle`. Never call it "One for All" (another addon's name).
+Every addon's own button also takes left-click to open and right-click for
+settings. Not yet seen in game.
+
 ## Off, Shift or Always on tooltips
 
 A player asked (2026-10-18, the owner said yes): each tooltip line

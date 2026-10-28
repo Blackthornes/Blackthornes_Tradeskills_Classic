@@ -1494,6 +1494,14 @@ local function Build(outer)
     ReloadUnder(styleRow, widgets.windowStyle, widgets.styleReload)
     widgets.styleReload:Hide()
 
+    -- A player asked (2026-10-28): one minimap button for every Blackthornes
+    -- addon loaded. Ticked unless unticked; see UI/SharedMinimap.lua.
+    local combineRow = CreateRow(pages.look, 1, L["Combine Addon Buttons:"])
+    widgets.combineButtons = Widgets.CreateCheckbox(combineRow, L["On"], function(checked)
+        if ns.SharedMinimap then ns.SharedMinimap.SetCombined(checked) end
+    end, true)
+    widgets.combineButtons:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     local effectsRow = CreateRow(pages.look, 1, L["Effects:"])
 
     widgets.effects = Widgets.CreateDropdown(effectsRow, {
@@ -2370,6 +2378,7 @@ local function Refresh()
         widgets.windowStyle:SetValue(Look.Wanted(), true)
         widgets.styleReload:SetShown(Look.Wanted() ~= Look.Style())
     end
+    widgets.combineButtons:SetChecked(not ns.SharedMinimap or ns.SharedMinimap.Combined())
 
     -- The three sizes, and the one dragged to when it is none of them.
     local scale = UI.GetWindowScale and UI:GetWindowScale() or 1
