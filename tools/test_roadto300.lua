@@ -290,6 +290,48 @@ check("then the bank", after and after.needs[1].bank, 2)
 check("saved is what was used", small.saved, 45 * 20)
 check("a road past its last recipe says where it stops", small.stuck, 80)
 
+print("\nwhat your other characters hold")
+local covered = Road:Plan({
+  line = 164, skill = 10, max = 75, level = 15,
+  candidates = { { record = plain, known = true,
+    price = { cost = 20, reagents = { { itemID = BAR, quantity = 1, unit = 20 } } } } },
+  owned = { [BAR] = { 10, 5, 100 } },
+})
+local first, second
+for _, step in ipairs(covered.steps) do
+  if not step.done and step.kind == "craft" then
+    if not first then first = step elseif not second then second = step end
+  end
+end
+check("bags, bank, then the other characters", first and first.needs[1].alts, 15)
+check("nothing to buy on the first step", first and first.needs[1].buy, 0)
+texts = Road.Texts(first, "Blacksmithing", 15, 164)
+check("names what the others hold", texts.lines[1],
+  "Needs 30 Copper Bar. You have 10. Your banker has 5. Your other characters have 15.")
+check("says the step is covered", texts.lines[2], "You have enough for this step.")
+check("a step still short is not covered", Road.Covered(beltStep), false)
+
+local savedDb, savedChars, savedQueue = ns.db, ns.Characters, ns.Queue
+ns.db = { characters = {
+  me = { inventory = { [BAR] = 99 } },
+  alt = { inventory = { [BAR] = 3 }, bank = { [BAR] = 4 }, mail = { [BAR] = 5 } },
+  old = { inventory = { [BAR] = 50 } },
+  other = { inventory = { [BAR] = 70 }, linkedFrom = "x" },
+  horde = { inventory = { [BAR] = 80 } },
+} }
+ns.Characters = {
+  IsPlaying = function(_, key) return key == "me" end,
+  Same = function(_, a, b) return (a == "old" and b == "alt") or (a == "alt" and b == "old") end,
+}
+ns.Queue = { CanMail = function(_, _, to) return to ~= "horde" end }
+local alts = Road.AltsHold(BAR)
+check("alts: bags, bank and mail, each character once, never the other side or account",
+  alts == 12 or alts == 50, true)
+settings.countMailAsStock = false
+check("mail left out when it does not count", Road.AltsHold(BAR) == 7 or Road.AltsHold(BAR) == 50, true)
+settings.countMailAsStock = nil
+ns.db, ns.Characters, ns.Queue = savedDb, savedChars, savedQueue
+
 print("\nkept by key")
 check("the same plan again", Road:Get(professions[1]), plan)
 ns.Inventory.changes = 2
