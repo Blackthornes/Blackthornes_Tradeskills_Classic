@@ -1688,8 +1688,8 @@ your last scan" and "Scan done. Your Sell list is ready." Effects Subtle
 counts without the shine, Off shows the number at once. `UI/SaleTotal.lua`
 takes the lines from `PostPanel:Refresh` and the scan's progress from
 `UI:RefreshAuctionStatus`; its OnUpdate runs only while something moves.
-"Sale Total:" on the Auction house page (`saleTotal`, off unless ticked,
-never rename it). Tested in `tools/test_saletotal.lua`. Not yet seen in
+"Sale Total:" on the Auction house page (`saleTotal`, on unless unticked
+for new saves, a value already saved is kept; never rename it). Tested in `tools/test_saletotal.lua`. Not yet seen in
 game.
 
 ## Fast listing
