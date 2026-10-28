@@ -84,6 +84,8 @@ ns.Prices = {
         local entry = prices[itemID]
         return entry and entry[key] or nil
     end,
+    GetTable = function() return prices end,
+    LowestListed = function(record) return record.rivalMin end,
 }
 
 ns.Inventory = {
@@ -201,6 +203,19 @@ check("but not for a price typed by hand", Posting:GetPriceFloor(SWORD, true), 5
 check("the vendor floor still holds by hand", Posting:RefusesEarly(SWORD, 400, true), true)
 check("a dump at 20s goes through by hand", Posting:RefusesEarly(SWORD, 2000, true), false)
 check("the same 20s is refused when not typed", Posting:RefusesEarly(SWORD, 2000), true)
+
+-- A scan that only saw far dearer listings keeps market high; others listing
+-- near the price in a recent scan lower the floor to a fifth of theirs.
+prices[SWORD].rivalMin, prices[SWORD].seen = 5500, time() - 300
+check("a recent cheap listing lowers the floor", Posting:GetPriceFloor(SWORD), 1100)
+check("so 55s goes through", Posting:RefusesEarly(SWORD, 5500), false)
+check("a 1c slip is still refused", Posting:RefusesEarly(SWORD, 1), true)
+prices[SWORD].seen = time() - 3 * 86400
+check("an old scan's listing does not count", Posting:GetPriceFloor(SWORD), 10000)
+prices[SWORD].rivalMin = 90000
+prices[SWORD].seen = time() - 300
+check("a dearer listing never raises it", Posting:GetPriceFloor(SWORD), 10000)
+Reset()
 
 do
     local line = LineFor(CLOTH)
