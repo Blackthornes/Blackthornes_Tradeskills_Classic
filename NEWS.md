@@ -23,6 +23,11 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.6.0
+
+- The Road to 300 now counts what your other characters carry.
+- One minimap button now opens all your Blackthornes add-ons.
+
 ## 0.5.0
 
 - The Profit tab now has a Shuffles view.

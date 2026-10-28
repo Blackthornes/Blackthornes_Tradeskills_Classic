@@ -29,7 +29,7 @@ end
 -- section changes this line too, and tools/check_release.py refuses a tag it
 -- does not match. Played straight from the repository there is no packager
 -- to fill in the TOC's version, so this is the one shown.
-ns.RELEASED_VERSION = "0.5.0"
+ns.RELEASED_VERSION = "0.6.0"
 
 -- The TOC carries @project-version@, which the release packager rewrites to
 -- the tag it is building, "v0.2.0" say. Running straight from the repository
