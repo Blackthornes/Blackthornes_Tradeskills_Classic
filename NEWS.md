@@ -23,6 +23,15 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.5.0
+
+- The Profit tab now has a Shuffles view.
+- The auction house now shows a Sale Total counter.
+- You can set the highest price you will sell for.
+
+Fixes and changes:
+- Various bug fixes.
+
 ## 0.4.0
 
 - The Road to 300 and Learn Next now send you to the closest trainer.

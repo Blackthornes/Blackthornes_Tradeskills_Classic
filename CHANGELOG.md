@@ -4,6 +4,13 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.5.0
+
+- The Profit tab now has a Shuffles view.
+- The auction house now shows a Sale Total counter.
+- You can set the highest price you will sell for.
+- Various bug fixes.
+
 ## 0.4.0
 
 - The Road to 300 and Learn Next now send you to the closest trainer.
