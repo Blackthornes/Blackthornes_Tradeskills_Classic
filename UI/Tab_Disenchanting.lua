@@ -1186,6 +1186,15 @@ local function ShowNothingPicked()
 end
 
 --- The count line and the picked row, for the bags list.
+--- The count line under the list, whole: a long one wraps upward and the
+--- list's foot rises to make room.
+local function SetCount(text)
+    local extra = Theme.FitWhole(widgets.countLabel, text, { "tiny" })
+    if widgets.listParent then
+        widgets.list:SetPoint("BOTTOMRIGHT", widgets.listParent, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 24 + extra)
+    end
+end
+
 local function RefreshBags(rows)
     local beats, bought = 0, 0
     for _, row in ipairs(rows) do
@@ -1201,7 +1210,7 @@ local function RefreshBags(rows)
         text = text .. L.Format("  ·  %d disenchanted this session, worth %s", count,
             Util.FormatMoney(worth, { noColor = true, short = true }))
     end
-    widgets.countLabel:SetText(text)
+    SetCount(text)
 
     local before = state.selected
     local fresh
@@ -1258,7 +1267,7 @@ local function RefreshMaterial(rows)
     if price and price > 0 then
         text = text .. L.Format("  ·  Sells for %s", Util.FormatMoney(price, { noColor = true, short = true }))
     end
-    widgets.countLabel:SetText(text)
+    SetCount(text)
 
     local fresh
     for _, row in ipairs(rows) do
@@ -1294,12 +1303,13 @@ local function Refresh()
         end
     end
 
+    local count
     if deals > 0 then
         local money = Util.FormatMoney(total, { noColor = true, short = true })
-        widgets.countLabel:SetText(deals == 1 and L.Format("%d deal, about %s if you buy them all", deals, money)
-            or L.Format("%d deals, about %s if you buy them all", deals, money))
+        count = deals == 1 and L.Format("%d deal, about %s if you buy them all", deals, money)
+            or L.Format("%d deals, about %s if you buy them all", deals, money)
     else
-        widgets.countLabel:SetText(#rows == 1 and L.Format("%d item", #rows) or L.Format("%d items", #rows))
+        count = #rows == 1 and L.Format("%d item", #rows) or L.Format("%d items", #rows)
     end
 
     -- Items not read yet wait for the auction house to close, so reading
@@ -1308,9 +1318,9 @@ local function Refresh()
         local waiting = ns.Scanner and ns.Scanner.isAuctionHouseOpen
             and L["they're checked once the auction house is closed"]
             or L["reading them now"]
-        widgets.countLabel:SetText(L.Format("%s  ·  %d more listed items not checked yet, %s",
-            widgets.countLabel:GetText() or "", state.pending, waiting))
+        count = L.Format("%s  ·  %d more listed items not checked yet, %s", count, state.pending, waiting)
     end
+    SetCount(count)
 
     local fresh
     if state.selected then
@@ -1556,11 +1566,11 @@ local function Build(container)
     hint:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 8)
     widgets.hint = hint
 
-    -- The count line grows a long "not checked yet" note while items load,
-    -- and ran under this hint. It stops short of it now and ends in "...".
+    -- The count line grows a long "not checked yet" note while items load.
+    -- It stops short of the hint and wraps upward, the list making room.
     countLabel:SetPoint("RIGHT", hint, "LEFT", -12, 0)
     countLabel:SetJustifyH("LEFT")
-    countLabel:SetWordWrap(false)
+    widgets.listParent = container
 
     local detail = BuildDetail(container)
     detail:SetPoint("TOPRIGHT", toolbar, "BOTTOMRIGHT", 0, -8)

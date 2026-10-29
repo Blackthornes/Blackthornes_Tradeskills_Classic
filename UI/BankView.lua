@@ -17,6 +17,8 @@ local BankView = {}
 ns.BankView = BankView
 
 local ROW_HEIGHT = 24
+-- A character's name on the detail pane: its own size, then smaller ones.
+local NAME_SIZES = { "normal", "small", "tiny" }
 local DETAIL_WIDTH = 300
 -- Seven fit the panel now that it starts below the option bar, as on
 -- every tab; "and N more" covers the rest.
@@ -199,7 +201,6 @@ local function BuildDetail(parent)
         line.name = Theme.CreateLabel(line, "normal", "text")
         line.name:SetPoint("TOPLEFT", 0, -2)
         line.name:SetPoint("TOPRIGHT", -110, -2)
-        line.name:SetWordWrap(false)
 
         line.value = Theme.CreateLabel(line, "normal", "text", "RIGHT")
         line.value:SetPoint("TOPRIGHT", 0, -2)
@@ -208,7 +209,6 @@ local function BuildDetail(parent)
         line.sub = Theme.CreateLabel(line, "tiny", "dim")
         line.sub:SetPoint("TOPLEFT", 0, -18)
         line.sub:SetPoint("TOPRIGHT", 0, -18)
-        line.sub:SetWordWrap(false)
 
         line.bar = Theme.CreateBar(line, DETAIL_WIDTH - 24, 2)
         line.bar:SetPoint("BOTTOMLEFT", line, "BOTTOMLEFT", 0, 0)
@@ -303,7 +303,8 @@ local function ShowOverview(detail, overview)
             break
         end
 
-        line.name:SetText(row.name)
+        -- A whole name, a size smaller when long, never cut.
+        Theme.FitWhole(line.name, row.name, NAME_SIZES)
         line.name:SetTextColor(Theme.Unpack(row.isCurrent and "accent" or "text"))
 
         if row.bankAt then
@@ -311,12 +312,12 @@ local function ShowOverview(detail, overview)
 
             local age = row.isCurrent and ns.Inventory and ns.Inventory.bankOpen
                 and L["open now"] or L.Format("read %s", Util.FormatAgeAgo(time() - row.bankAt))
-            line.sub:SetText(L.Format("%s items  ·  %s", Util.Comma(row.count), age))
+            Theme.FitWhole(line.sub, L.Format("%s items  ·  %s", Util.Comma(row.count), age), { "tiny" })
             line.sub:SetTextColor(Theme.Unpack("dim"))
             line.bar:Set(best > 0 and row.worth / best or 0, row.isCurrent and "accent" or "profit")
         else
             line.value:SetText("")
-            line.sub:SetText(L["Bank not opened yet"])
+            Theme.FitWhole(line.sub, L["Bank not opened yet"], { "tiny" })
             line.sub:SetTextColor(Theme.Unpack("warn"))
             line.bar:Set(nil)
         end
@@ -349,10 +350,10 @@ local function ShowItem(detail, entry)
 
         local held = holder.bank + holder.bags
 
-        line.name:SetText(names[holder.key] or "?")
+        Theme.FitWhole(line.name, names[holder.key] or "?", NAME_SIZES)
         line.name:SetTextColor(Theme.Unpack(NameColor(holder.key)))
         line.value:SetText(Util.Comma(held))
-        line.sub:SetText(WhereText(holder.bank, holder.bags))
+        Theme.FitWhole(line.sub, WhereText(holder.bank, holder.bags), { "tiny" })
         line.sub:SetTextColor(Theme.Unpack("dim"))
         line.bar:Set(entry.total > 0 and held / entry.total or 0,
             holder.key == current.key and "accent" or "profit")

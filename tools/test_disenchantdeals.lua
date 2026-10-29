@@ -411,6 +411,8 @@ C_Timer = { After = function() end }
 GameTooltip = Stub()
 
 ns.Theme = {
+    FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
+    SetRowLine = function(label, text) label:SetText(text) end,
     SetRowName = function(label, text) label:SetText(text) end,
     SetItemNameColor = function() return false end,
     CreateLabel = function() return Label() end,

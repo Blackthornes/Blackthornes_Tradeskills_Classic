@@ -58,6 +58,8 @@ C_Item = { GetItemInfo = function(itemID)
 end }
 
 ns.Theme = {
+    FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
+    SetRowLine = function(label, text) label:SetText(text) end,
     SetRowName = function(label, text) label:SetText(text) end,
     FONT = "font",
     sizes = { tiny = 10, small = 11, normal = 12, large = 14 },

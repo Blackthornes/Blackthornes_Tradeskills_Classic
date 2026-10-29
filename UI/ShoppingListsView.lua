@@ -269,7 +269,7 @@ local function CreateRow(row)
     row.sub = Theme.CreateLabel(row, "tiny", "muted")
     row.sub:SetPoint("TOPLEFT", 40, -17)
     row.sub:SetPoint("RIGHT", row.want, "LEFT", -6, 0)
-    row.sub:SetWordWrap(false)
+    row.needLabels = { row.sub }
 
     -- The tools under an open list.
     row.tools = {}
@@ -400,9 +400,9 @@ local function UpdateRow(row, entry)
     else
         price = L["no price"]
     end
-    -- The price goes before anything is cut.
-    if Theme.FitText then
-        Theme.FitText(row.sub, { have .. "  ·  " .. price, have })
+    -- Whole: a long line wraps and the row grows to hold it.
+    if Theme.SetRowLine then
+        Theme.SetRowLine(row.sub, have .. "  ·  " .. price, 17)
     else
         row.sub:SetText(have .. "  ·  " .. price)
     end
@@ -499,7 +499,7 @@ function View:UpdateFoot()
     if not box then return end
     local mode = self.mode
     box:SetShown(mode ~= nil)
-    box.hint:SetText(mode and HINTS[mode] or "")
+    Theme.FitWhole(box.hint, mode and HINTS[mode] or "", { "small", "tiny" })
     box.hint:SetShown(mode ~= nil and (box.edit:GetText() or "") == "")
     self.save:SetShown(mode ~= nil and mode ~= "copy")
     self.save:SetText(mode == "add" and L["Add"] or L["Save"])
@@ -746,11 +746,10 @@ local function BuildSuggest(body, box)
             row.name = Theme.CreateLabel(row, "small", "text")
             row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
             row.name:SetPoint("RIGHT", -6, 0)
-            row.name:SetWordWrap(false)
         end,
         updateRow = function(row, entry)
             Theme.SetItemIcon(row.icon, entry.id)
-            row.name:SetText(entry.name)
+            Theme.SetRowName(row.name, entry.name)
             local r, g, b = Util.GetItemQualityColor(entry.id)
             if r then row.name:SetTextColor(r, g, b) else row.name:SetTextColor(Theme.Unpack("text")) end
         end,
@@ -836,7 +835,6 @@ function View:Build(body, frame, topAnchor, opts)
     local hint = Theme.CreateLabel(box, "small", "dim")
     hint:SetPoint("LEFT", 6, 0)
     hint:SetPoint("RIGHT", -6, 0)
-    hint:SetWordWrap(false)
     box.edit, box.hint = edit, hint
     edit:SetScript("OnTextChanged", function(self, userInput)
         hint:SetShown(View.mode ~= nil and (self:GetText() or "") == "")

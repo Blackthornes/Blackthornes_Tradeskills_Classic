@@ -199,6 +199,8 @@ ns.Util = {
 local panels = {}
 local function Label(parent) return Frame("FontString", parent) end
 ns.Theme = {
+    FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
+    SetRowLine = function(label, text) label:SetText(text) end,
     SetRowName = function(label, text) label:SetText(text) end,
     SetItemNameColor = function() return false end,
     FONT = "font", sizes = { tiny = 10, small = 11 },

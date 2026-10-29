@@ -88,9 +88,10 @@ local function CreateRow(row)
     row.name:SetPoint("TOPLEFT", 10, -4)
     row.name:SetWordWrap(false)
 
+    -- Under the name, whole: a long chain wraps and the row grows.
     row.chain = Theme.CreateLabel(row, "tiny", "muted")
-    row.chain:SetPoint("TOPLEFT", 10, -18)
-    row.chain:SetWordWrap(false)
+    row.chain:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -2)
+    row.needLabels = { row.chain }
 
     row.cells = {}
     for _, column in ipairs(COLUMNS) do
@@ -111,7 +112,12 @@ local function UpdateRow(row, way)
     for _, itemID in ipairs(way.chain) do
         if not ns.Shuffle.ItemName(itemID) then state.waiting = true end
     end
-    row.chain:SetText(chain)
+    local nameHeight = rawget(row.name, "rowNeed")
+    if not nameHeight then
+        local ok, height = pcall(row.name.GetStringHeight, row.name)
+        nameHeight = (ok and type(height) == "number" and height > 0) and height or 13
+    end
+    Theme.SetRowLine(row.chain, chain, 4 + nameHeight + 2)
 
     local cells = row.cells
     cells.steps:SetText(tostring(#way.steps))
@@ -160,14 +166,15 @@ local function StepLine(detail)
     line.text:SetPoint("RIGHT", line.how, "LEFT", -6, 0)
     line.text:SetWordWrap(true)
 
+    line.change = Theme.CreateLabel(line, "tiny", "muted", "RIGHT")
+    line.change:SetPoint("TOPRIGHT", line, "TOPRIGHT", -8, -21)
+    line.change:SetWordWrap(false)
+
+    -- Whole, stopping short of the change beside it: it wraps when long.
     line.worth = Theme.CreateLabel(line, "tiny", "muted")
     line.worth:SetPoint("TOPLEFT", line.text, "BOTTOMLEFT", 0, -3)
-    line.worth:SetWordWrap(false)
-
-    line.change = Theme.CreateLabel(line, "tiny", "muted", "RIGHT")
-    line.change:SetPoint("TOPRIGHT", line, "TOPRIGHT", -8, 0)
-    line.change:SetPoint("TOP", line.worth, "TOP", 0, 0)
-    line.change:SetWordWrap(false)
+    line.worth:SetPoint("RIGHT", line.change, "LEFT", -6, 0)
+    line.worth:SetWordWrap(true)
 
     line.best = Theme.CreateLabel(line, "tiny", "profit")
     line.best:SetPoint("TOPLEFT", line.worth, "BOTTOMLEFT", 0, -2)
@@ -195,6 +202,8 @@ local function FillStep(line, index, step)
     local worth = ns.Util.FormatMoney(step.worth or 0, { short = true })
     line.worth:SetText(("%s  %s"):format(L["Worth"], worth))
     line.worth:SetTextColor(Theme.Unpack((step.worth or 0) < 0 and "loss" or "muted"))
+    -- Level with the worth, under however many lines the step takes.
+    line.change:SetPoint("TOPRIGHT", line, "TOPRIGHT", -8, -(5 + Height(line.text, 13) + 3))
     if index > 1 then
         line.change:SetText(ShuffleView.Signed(step.change))
         line.change:SetTextColor(Theme.ProfitColor(step.change))
