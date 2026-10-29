@@ -155,8 +155,16 @@ loads them, and every reader asks for them first.
   it in when the Sell list draws (`PostPanel:UpdateListAll`, next frame)
   and as the mouse goes over List Next or a row's List, so a press lists
   at once; it leaves a fight, the cursor, an item put in by hand and a
-  Yes/No box for another item alone. Tested in
-  `tools/test_legacypost.lua`.
+  Yes/No box for another item alone. Since 2026-10-29 (the owner: posting
+  felt clunky, hovering swapped stacks) a stack already in the slot is
+  never swapped by a hover or a redraw, only by a click on another row,
+  and the slot emptying after a listing (`NEW_AUCTION_UPDATE`) puts the
+  next stack in at once. While a listing goes in and the next stack
+  settles (`Posting:Settling`, at most `SETTLE_WAIT` seconds), List Next
+  and the rows' List buttons go grey (`PostPanel.Grey`, from
+  `PostPanel:UpdateWaitLabels`) and a press or wheel notch does nothing,
+  so the first one once ready lists (`AuctionWheel:List`). Tested in
+  `tools/test_legacypost.lua` and `tools/test_auctionwheel.lua`.
 - The AH buttons search on Era (2026-10-27, the owner: the AH search
   button did nothing, "the auction house stayed busy" in chat):
   `UI:SearchAuctionHouse` hands a "legacy" client to `LegacyScan:Browse`,

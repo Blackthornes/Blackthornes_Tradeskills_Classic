@@ -52,7 +52,13 @@ end
 
 --- Wheel up: the next stack on Sell, as List Next.
 function AuctionWheel:List()
-    if not self:Wanted() or not self:Ready() then return false end
+    if not self:Wanted() then return false end
+    -- Era: while the last listing goes in, a notch does nothing, so rolling
+    -- the wheel lists the next one as soon as it is ready.
+    local Posting = ns.Posting
+    if Posting and Posting.Settling and Posting:Settling() then return false end
+    if Posting and Posting.CheckingAll and Posting:CheckingAll() then return false end
+    if not self:Ready() then return false end
     local panel = ns.PostPanel
     -- Another view showing: Sell's lines read fresh rather than as last drawn.
     if panel.view ~= nil and panel.view ~= "sell" then panel.shownLines = nil end

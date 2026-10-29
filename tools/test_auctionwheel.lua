@@ -8,6 +8,8 @@
 --   4. A flick (notches close together) does one thing, not several.
 --   5. In a fight the bindings wait for the fight to end.
 --   6. A press and its release do one thing.
+--   7. Era: while the last listing goes in, notches do nothing, and the
+--      first notch once it is ready lists.
 
 local GLOBALS = { "CreateFrame", "UIParent", "GetTime", "InCombatLockdown",
     "SetOverrideBindingClick", "ClearOverrideBindings" }
@@ -97,6 +99,22 @@ for _ = 1, 5 do
     clock = clock + 0.05
 end
 assert(listed == 3, "a flick lists one stack, got " .. listed)
+
+-- 7. Notches while the last listing goes in do nothing; the first once it
+-- is ready lists, with no wait of its own after the ones held back.
+local settling = true
+ns.Posting = { Settling = function() return settling end }
+clock = clock + 1
+for _ = 1, 5 do
+    named[Wheel.LIST_BUTTON].scripts.OnClick(nil, "LeftButton", true)
+    clock = clock + 0.1
+end
+assert(listed == 3, "nothing lists while the last listing goes in")
+settling = false
+named[Wheel.LIST_BUTTON].scripts.OnClick(nil, "LeftButton", true)
+assert(listed == 4, "the first notch once ready lists")
+ns.Posting = nil
+listed = 3
 
 -- On another view, Sell's lines are read fresh.
 clock = clock + 1
