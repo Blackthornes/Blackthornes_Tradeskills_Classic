@@ -332,3 +332,15 @@ open that item's plan on Buy (`UI:SearchOrPlan`, `PostPanel:OpenBuyPlan`)
 instead of a Browse search, and the search buttons' hover is "Searches the
 auction house." (`PostPanel.SearchTip`). Tested in
 `tools/test_buyplannext.lua`. A catch-up keeps it.
+### Cancel in the drawer's Auctions view
+
+Classic only (the owner said try it, 2026-10-29): Era has no
+`C_AuctionHouse.CancelAuction`, so Cancel and Cancel next use the game's
+own `CancelAuction(index)`. Era gives no auction ID, so each auction is kept
+by item, count, buyout and which of those it is (`Auctions.LegacyKey`), and
+the list is read again right before each cancel (`Auctions.LegacyIndexOf`).
+If the game turns a cancel down (an error, `ADDON_ACTION_BLOCKED`, or two
+that never went), the Cancel buttons and their note go for the session
+(`MyAuctions:CanEverCancel`, `legacyBlocked`). Check Places is never shown
+on Era (`CanEverCheckPlaces`). The undercut list stays. Tested in
+`tools/test_eracancel.lua`. A catch-up keeps it.

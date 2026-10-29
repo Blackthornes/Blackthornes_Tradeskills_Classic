@@ -658,6 +658,10 @@ function Auctions:ReadOwned(opts)
     -- Auctions marked sold, so a cancel that lost the race to a buyer says so.
     local sold = {}
     local readAt = time()
+    -- Era gives no auction ID: each of your auctions there is kept by what
+    -- it is (item, count, buyout) and which of those it is, in list order,
+    -- so a cancel can find it again by reading the list once more.
+    local eraSeen = {}
 
     for index = 1, count do
         local infoOk, info = pcall(GetInfo, index)
@@ -737,6 +741,20 @@ function Auctions:ReadOwned(opts)
                         -- The exact key, random suffix and all, so Check
                         -- Places searches this very item (MyAuctions).
                         itemKey = type(info.itemKey) == "table" and info.itemKey or nil,
+                    }
+                elseif info.legacy then
+                    local tuple = Auctions.LegacyTuple(itemID, quantity, info.buyoutAmount)
+                    eraSeen[tuple] = (eraSeen[tuple] or 0) + 1
+                    live[#live + 1] = {
+                        auctionID = Auctions.LegacyKey(tuple, eraSeen[tuple]),
+                        legacy = true,
+                        itemID = itemID,
+                        link = info.itemLink,
+                        quantity = quantity,
+                        unit = listing.unit,
+                        buyout = info.buyoutAmount,
+                        band = listing.band,
+                        hasBid = info.hasBid or false,
                     }
                 end
             end
@@ -823,8 +841,33 @@ end
 --- One of your auctions on Era, in the shape GetOwnedAuctionInfo gives.
 --- Era gives no auction ID and the stack's buyout; a sold one waits for
 --- its money in the list, so it is marked sold rather than active.
+function Auctions.LegacyTuple(itemID, quantity, buyout)
+    return ("%s:%s:%s"):format(tostring(itemID), tostring(quantity or 1), tostring(buyout or 0))
+end
+
+function Auctions.LegacyKey(tuple, nth)
+    return ("era:%s:%d"):format(tuple, nth)
+end
+
+--- Where an Era auction kept by LegacyKey sits in the list now, read fresh,
+--- or nil when it is gone or sold.
+function Auctions.LegacyIndexOf(key)
+    if type(key) ~= "string" or type(_G.GetNumAuctionItems) ~= "function" then return nil end
+    local ok, count = pcall(GetNumAuctionItems, "owner")
+    if not ok or not count then return nil end
+    local seen = {}
+    for index = 1, count do
+        local infoOk, info = pcall(Auctions.LegacyOwnedInfo, index)
+        if infoOk and info and info.status == nil then
+            local tuple = Auctions.LegacyTuple(info.itemKey.itemID, info.quantity, info.buyoutAmount)
+            seen[tuple] = (seen[tuple] or 0) + 1
+            if Auctions.LegacyKey(tuple, seen[tuple]) == key then return index end
+        end
+    end
+end
+
 function Auctions.LegacyOwnedInfo(index)
-    local _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, saleStatus, itemID =
+    local _, _, count, _, _, _, _, _, _, buyout, bidAmount, _, _, _, _, saleStatus, itemID =
         GetAuctionItemInfo("owner", index)
     if not itemID then return nil end
 
@@ -840,6 +883,8 @@ function Auctions.LegacyOwnedInfo(index)
         buyoutAmount = tonumber(buyout) or 0,
         status = (saleStatus == 1) and (STATUS_ACTIVE + 1) or nil,
         itemLink = link,
+        hasBid = (tonumber(bidAmount) or 0) > 0,
+        legacy = true,
     }
 end
 
