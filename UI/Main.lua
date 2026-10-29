@@ -1954,6 +1954,17 @@ end
 -- quantity is how many the queue still needs, from the shopping lists: picking
 -- the item in Blizzard's results then fills its quantity box with that
 -- (UI/BuyQuantity.lua). Other searches leave it out and fill nothing.
+--- A material's AH button: on Era with the drawer up, its buy plan on the
+--- Buy view; otherwise the usual search.
+function UI:SearchOrPlan(itemID, quantity)
+    if ns.Scanner.isAuctionHouseOpen and not ns.Scanner.isScanning
+        and ns.PostPanel and ns.PostPanel.OpenBuyPlan
+        and ns.PostPanel:OpenBuyPlan(itemID, quantity) then
+        return true
+    end
+    return self:SearchAuctionHouse(itemID, quantity)
+end
+
 function UI:SearchAuctionHouse(itemID, quantity)
     if not ns.Scanner.isAuctionHouseOpen then
         ns.Print(L["open the auction house first"])

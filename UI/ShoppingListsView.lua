@@ -235,10 +235,11 @@ local function CreateRow(row)
     row.itemSearch = Widgets.CreateButton(row, L["Search"], function()
         local data = row.data
         if data and data.kind == "item" and Lists().CanSearch(data.line) then
-            ns.UI:SearchAuctionHouse(data.itemID, data.line.need)
+            ns.UI:SearchOrPlan(data.itemID, data.line.need)
         end
     end, { width = 50, height = 18,
-        tooltip = L["Searches the auction house. Pick it and how many you need fills in."] })
+        tooltip = ns.PostPanel and ns.PostPanel.SearchTip(L["Searches the auction house. Pick it and how many you need fills in."])
+            or L["Searches the auction house. Pick it and how many you need fills in."] })
     row.itemSearch:SetPoint("RIGHT", row.remove, "LEFT", -4, 0)
 
     row.want = Widgets.CreateNumberBox(row, { width = 46, height = 18, min = 1, max = Lists().MAX_WANT,

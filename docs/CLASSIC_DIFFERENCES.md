@@ -321,3 +321,14 @@ last, and moves to the other when that one closes (`CraftPanel:WindowShown`,
 `WindowClosed`, `eraOpen`, `eraLast`; `FindTradeSkillFrame` answers only an
 open window on Era). Tested in `tools/test_enchantpane.lua`. A catch-up
 keeps it.
+
+### Buy plans one after another
+
+Classic only (the owner said build it, 2026-10-29): once Era's buy plan
+is done, its gold button reads "Next: NAME" and opens the next Buy line
+still to buy (`PostPanel:NextBuyLine`, `LegacyBuyView.nextLine`). With the
+drawer up, the AH buttons on the Queue panel, the Gather tab and the Lists
+open that item's plan on Buy (`UI:SearchOrPlan`, `PostPanel:OpenBuyPlan`)
+instead of a Browse search, and the search buttons' hover is "Searches the
+auction house." (`PostPanel.SearchTip`). Tested in
+`tools/test_buyplannext.lua`. A catch-up keeps it.
