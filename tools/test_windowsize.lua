@@ -176,7 +176,7 @@ UI:Build()
 local window = UI.window
 check("opens at 80%", window:GetScale(), 0.8)
 -- A player asked to see at a glance which version he runs (2026-10-09).
-check("the header shows the version", UI.versionLabel ~= nil and versionAsked > 0, true)
+check("no version line in the header", UI.versionLabel, nil)
 settings.windowScale = 1.5
 check("150% on a 1280x720 screen: as big as fits", UI:GetWindowScale() < 1.5, true)
 check("and the whole window fits", (1120 + 30) * UI:GetWindowScale() <= SCREEN_W, true)

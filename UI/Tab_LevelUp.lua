@@ -73,21 +73,8 @@ end
 
 local widgets = {}
 
--- The row hint, as much of it as fits beside the count on its left.
-local HINT_TEXTS = {
-    L["Right-click a row to queue one, Shift-click to search the auction house"],
-    L["Right-click to queue, Shift-click to search"],
-    L["Right-click a row to queue one"],
-}
-
-local function FitHint()
-    local hint, count, list = widgets.hint, widgets.countLabel, widgets.list
-    if not (hint and count and list and Theme.TextWidth and Theme.FitText) then return end
-    local listWidth = list:GetWidth()
-    local used = Theme.TextWidth(count) or 0
-    local room = type(listWidth) == "number" and listWidth > 0 and (listWidth - used - 24) or nil
-    Theme.FitText(hint, HINT_TEXTS, room)
-end
+-- What a click does is on each row's hover, not under the list (the owner,
+-- 2026-10-29: label and value only).
 
 -- Defined with the detail panel, used by the controls built inside it.
 local UpdateCraftButton
@@ -323,13 +310,7 @@ local function CreateRow(row)
     row.heading = Theme.CreateLabel(row, "tiny", "accent")
     row.heading:SetPoint("LEFT", 8, 0)
     row.heading:SetText(L["LEARN NEXT"])
-    row.headingNote = Theme.CreateLabel(row, "tiny", "muted")
-    row.headingNote:SetPoint("LEFT", row.heading, "RIGHT", 12, 0)
-    row.headingNote:SetPoint("RIGHT", row, "RIGHT", -8, 0)
-    row.headingNote:SetWordWrap(true)
-    row.headingNote:SetText(L["recipes you don't know yet that raise your skill now, cheapest way up first"])
     row.heading:Hide()
-    row.headingNote:Hide()
 
     PlaceRow(row)
 end
@@ -337,7 +318,6 @@ end
 --- The LEARN NEXT heading row: everything else on it hidden.
 local function ShowHeadingRow(row, heading)
     row.heading:SetShown(heading)
-    row.headingNote:SetShown(heading)
     row.icon:SetShown(not heading)
     row.name:SetShown(not heading)
     if heading then
@@ -518,7 +498,14 @@ local function LearnLines(entry)
 end
 
 local function ShowRowTooltip(row, entry)
-    if entry.heading then return end
+    if entry.heading then
+        -- What the heading means lives on its hover, not beside it.
+        GameTooltip:SetOwner(row, "ANCHOR_LEFT")
+        GameTooltip:SetText(L["LEARN NEXT"], Theme.Unpack("accent"))
+        GameTooltip:AddLine(L["recipes you don't know yet that raise your skill now, cheapest way up first"], 1, 1, 1, true)
+        GameTooltip:Show()
+        return
+    end
     ns.Widgets.ShowItemTooltip(row, "ANCHOR_LEFT", entry.outputItemID, entry.name or L["craft"])
     GameTooltip:AddLine(" ")
 
@@ -1274,7 +1261,6 @@ local function Refresh()
     if #rows > 0 and unread == #rows then
         widgets.countLabel:SetText(L["Open this profession once so the skill up colours can be read."])
     end
-    FitHint()
 
     -- Keep the detail panel in step with the fresh numbers.
     if state.selected and state.selected.learnNext then
@@ -1507,10 +1493,6 @@ local function Build(container)
     countLabel:SetPoint("BOTTOMLEFT", 8, 8)
     widgets.countLabel = countLabel
 
-    local hint = Theme.CreateLabel(container, "tiny", "dim", "RIGHT")
-    hint:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 8)
-    hint:SetText(HINT_TEXTS[1])
-    widgets.hint = hint
 
     local detail = BuildDetail(container)
     detail:SetPoint("TOPRIGHT", container, "TOPRIGHT", -8, -40)

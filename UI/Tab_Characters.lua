@@ -924,6 +924,17 @@ local function BuildCharacters(view)
     }, function() RefreshCharacters() end)
     if widgets.sorter then widgets.sorter:SetText({ "name", "zone" }) end
 
+    -- How to sort is on the headings' hover, not under the list (the owner,
+    -- 2026-10-29: label and value only).
+    for _, button in pairs(widgets.sorter and widgets.sorter.buttons or {}) do
+        button:HookScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(L["Click a heading to sort"], 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        button:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
     -- Right-click the headings to choose the columns.
     ns.Columns:Attach(headings, "characters", widgets.sorter)
     ns.Columns:OnChange("characters", function()
@@ -973,10 +984,6 @@ local function BuildCharacters(view)
     local summary = Theme.CreateLabel(view, "small", "text")
     summary:SetPoint("BOTTOMLEFT", 8, 10)
     widgets.summary = summary
-
-    local hint = Theme.CreateLabel(view, "tiny", "dim", "RIGHT")
-    hint:SetPoint("BOTTOMRIGHT", -8, 10)
-    hint:SetText(L["Click a heading to sort"])
 end
 
 local function Build(container)

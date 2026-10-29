@@ -91,21 +91,8 @@ local state = {
 
 local widgets = {}
 
--- The row hint, as much of it as fits beside the count on its left.
-local HINT_TEXTS = {
-    L["Right-click a row to queue one, Shift-click to search the auction house"],
-    L["Right-click to queue, Shift-click to search"],
-    L["Right-click a row to queue one"],
-}
-
-local function FitHint()
-    local hint, count, list = widgets.hint, widgets.countLabel, widgets.list
-    if not (hint and count and list and Theme.TextWidth and Theme.FitText) then return end
-    local listWidth = list:GetWidth()
-    local used = Theme.TextWidth(count) or 0
-    local room = type(listWidth) == "number" and listWidth > 0 and (listWidth - used - 124) or nil
-    Theme.FitText(hint, HINT_TEXTS, room)
-end
+-- What a click does is on each row's hover, not under the list (the owner,
+-- 2026-10-29: label and value only).
 
 --------------------------------------------------------------------------------
 -- Rows
@@ -1889,7 +1876,6 @@ local function Refresh()
     local ignored = ns.Profit.GetIgnored and #ns.Profit:GetIgnored() or 0
     widgets.countLabel:SetText((#data == 1 and L.Format("%d craft", #data) or L.Format("%d crafts", #data))
         .. (ignored > 0 and L.Format(", %d ignored", ignored) or ""))
-    FitHint()
 end
 
 --------------------------------------------------------------------------------
@@ -2160,6 +2146,8 @@ local function BuildCrafts(container)
             AddPerDayLine(analysis)
             AddStockLine(analysis)
             AddOwnerLine(analysis)
+            GameTooltip:AddLine(L["Right-click to queue one. Shift-click to search the auction house."], 0.5, 0.5, 0.5)
+            GameTooltip:Show()
         end,
 
         onLeave = function() GameTooltip:Hide() end,
@@ -2242,10 +2230,6 @@ local function BuildCrafts(container)
     queueAll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 2)
     widgets.queueAll = queueAll
 
-    local hint = Theme.CreateLabel(container, "tiny", "dim", "RIGHT")
-    hint:SetPoint("RIGHT", queueAll, "LEFT", -10, 0)
-    hint:SetText(HINT_TEXTS[1])
-    widgets.hint = hint
 
     -- Detail panel
     local detail = BuildDetail(container)

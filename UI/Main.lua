@@ -222,13 +222,8 @@ function UI:BuildHeader()
     status:SetPoint("LEFT", header, "LEFT", 58, -6)
     self.statusLabel = status
 
-    -- The installed version, small and faint under that line, so a player
-    -- can see at a glance which one they run. The header is on every tab,
-    -- Settings included.
-    local version = Theme.CreateLabel(header, "tiny", "dim")
-    version:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 58, 4)
-    version:SetText(ns.VersionLabel())
-    self.versionLabel = version
+    -- No version line under it (the owner, 2026-10-29: label and value
+    -- only). The version is on the About page.
 
     -- Something for the scan button to sit beside, where the close button
     -- used to be: the gem is on the window's corner now.
@@ -265,6 +260,9 @@ function UI:BuildHeader()
     self.progressBar = progress
 end
 
+-- How long the reason a click could not scan stays under the button.
+local SCAN_HINT_SHOWS = 8
+
 --- Start or cancel a scan, explaining itself when it cannot.
 function UI:TriggerScan()
     -- A scan still waiting its turn can be called off too.
@@ -279,6 +277,9 @@ function UI:TriggerScan()
     if not allowed then
         if self.scanHint then
             self.scanHint:SetText(reason or L["cannot scan right now"])
+            -- Said under the button only for a while after the click; the
+            -- rest of the time the reason is on the button's hover.
+            self.scanHintUntil = GetTime() + SCAN_HINT_SHOWS
         end
         ns.Print(reason or L["cannot scan right now"])
         return
@@ -411,7 +412,8 @@ function UI:UpdateHeader()
             and L["Scan the whole auction house in one go"]
             or reason
 
-        self.scanHint:SetText(allowed and "" or (reason or ""))
+        local clicked = self.scanHintUntil and GetTime() < self.scanHintUntil
+        self.scanHint:SetText((not allowed and clicked) and (reason or "") or "")
     end
 end
 

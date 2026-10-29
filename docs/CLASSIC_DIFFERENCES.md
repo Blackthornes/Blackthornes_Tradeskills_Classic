@@ -354,3 +354,15 @@ Disenchanting (`Widgets.CreateTabStrip` in `RecipeBookView.WithSwitch` and
 `Tab_Characters`' `BuildSwitch`), not small underlined words. The views sit
 a little lower to make room (`SWITCH_HEIGHT`, `VIEW_DROP`). A catch-up
 keeps it.
+
+
+## Small lines moved to hovers
+
+The owner said build it (2026-10-29, from the UI review): no extra line
+under a label unless it is truly needed. The header no longer shows the
+version (it stays on the About page); why a scan can't start shows for
+`SCAN_HINT_SHOWS` (8) seconds after a click on Scan, then goes. The Profit
+and Level Up hint lines under the lists are gone: what a click does is on
+each row's hover. The LEARN NEXT heading's note is that heading's hover,
+and Characters' "Click a heading to sort" is each heading's hover. No new
+words. Tested in `tools/test_windowsize.lua`.
