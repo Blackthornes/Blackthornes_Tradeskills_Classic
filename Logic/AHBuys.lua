@@ -175,6 +175,10 @@ function AHBuys:GetUnread(itemID)
 end
 
 local function Changed()
+    -- The auction house drawer's Buy list keeps its lines a couple of
+    -- seconds, and bought items go to the mail, so nothing in the bags
+    -- moves to redraw it: tell it, or the count waits for the next click.
+    if ns.PostPanel and ns.PostPanel.OnPurchase then pcall(ns.PostPanel.OnPurchase, ns.PostPanel) end
     if ns.UI then
         if ns.UI.OnInventoryUpdated then
             pcall(ns.UI.OnInventoryUpdated, ns.UI)
