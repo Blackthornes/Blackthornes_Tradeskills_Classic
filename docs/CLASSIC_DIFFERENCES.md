@@ -344,3 +344,13 @@ that never went), the Cancel buttons and their note go for the session
 (`MyAuctions:CanEverCancel`, `legacyBlocked`). Check Places is never shown
 on Era (`CanEverCheckPlaces`). The undercut list stays. Tested in
 `tools/test_eracancel.lua`. A catch-up keeps it.
+
+
+### Tabs over Profit, Level Up and Characters
+
+Classic only (the owner said build it, 2026-10-29): the views on Profit,
+Level Up and Characters switch with the same tab strip as Sales and
+Disenchanting (`Widgets.CreateTabStrip` in `RecipeBookView.WithSwitch` and
+`Tab_Characters`' `BuildSwitch`), not small underlined words. The views sit
+a little lower to make room (`SWITCH_HEIGHT`, `VIEW_DROP`). A catch-up
+keeps it.
