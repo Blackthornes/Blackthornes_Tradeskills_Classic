@@ -953,6 +953,22 @@ wide, on unless unticked, never rename it) hands TomTom the place
 instead. Never rename `wayArrowPlace`, `wayArrowX` or `wayArrowY`. Tested
 in `tools/test_learnnext.lua`. Not yet seen in game.
 
+Our own map marker (a German player found nothing at the Crossroads; the
+owner said do all six fixes, 2026-10-29, in every addon): Forever turns
+the game's map pin down, so Show the way (`LearnNext:ShowTheWay`,
+`VendorPins:ShowTheWay`) always lays our own gold marker on the place
+(`Waypoints:Mark`, `UI/SpotMarker.lua`, the same file in Pets,
+Tradeskills, Butler and Farmer; Equipment's `MapPins:Spotlight` is the
+same look, a fix to one belongs in all): a gold ring with the name under
+it, two waves for `WAVE_FOR` seconds then a breathing glow (Effects
+Subtle a still glow, Off still). With the game's pin it goes with the
+pin; without one it goes when you stand within `WayArrow.ARRIVED` of it.
+"Can't pin" is said only when no marker could be laid either.
+`Waypoints.ZONE_MAPS` has Forever's own zones (Mount Hyjal, Zephras
+Isle, Riverglades, Shen'dralas), the same in Equipment and Pets. Tested
+in `tools/test_spotmarker.lua`, `tools/test_learnnext.lua` and
+`tools/test_vendorpins.lua`. Not yet seen in game.
+
 Arrow Size (the owner, 2026-10-26, in every addon with an arrow): "Arrow
 Size:" under "Guide Me:" picks 50%, 65% or 100% for the whole dial,
 plate and words (`ArrowUI.SIZES`, `Scale`, `Size`, `SetSize`;

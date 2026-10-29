@@ -395,6 +395,8 @@ function VendorPins:ShowTheWay(vendor)
     if not (waypoints and vendor) then return false, "nospot" end
     local place = { mapID = vendor.mapID, x = vendor.x, y = vendor.y }
     local who, what, zone = vendor.name or L["them"], WhatFor(vendor), VendorPins.ZoneName(vendor)
+    -- Our own marker always goes on the map (the game's pin often won't).
+    local marked = waypoints.Mark and waypoints:Mark(place, who) or false
 
     -- The arrow first (Logic/WayArrow.lua), as Show the way on the Level Up
     -- tab: TomTom's arrow takes over from it when "Use TomTom:" is ticked.
@@ -412,7 +414,12 @@ function VendorPins:ShowTheWay(vendor)
 
     local ok, why
     if waypoints:HasTomTom() then ok, why = waypoints:TomTom(place, vendor.name) end
-    if not ok then ok, why = waypoints:Pin(place) end
+    if not ok then
+        ok, why = waypoints:Pin(place)
+        -- With the game's pin on, the marker goes when the pin does.
+        if ok and marked then waypoints:Mark(place, who, true) end
+    end
+    if not ok and marked then ok, why = true, nil end
 
     if ok then
         self.pinned = vendor.npcID

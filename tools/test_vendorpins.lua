@@ -250,6 +250,17 @@ ok = VP:ShowTheWay({ name = "Lucan Cordell", mapID = 1429, x = 50, y = 50 })
 check("not called pinned", ok, false)
 check("says why", printed[#printed],
   "Can't pin Lucan Cordell (Lucan Cordell): this client cannot put a pin on the map. They are in Elwynn Forest.")
+
+-- Our own marker (UI/SpotMarker.lua) shows anyway (a German player found
+-- nothing at the Crossroads, 2026-10-29), so the click is not wasted.
+local marked
+ns.SpotMarker = { Show = function(_, place, opts) marked = { place = place, opts = opts } return true end }
+ok = VP:ShowTheWay({ name = "Lucan Cordell", mapID = 1429, x = 50, y = 50 })
+check("our marker shows it", ok, true)
+check("the marker on its map", marked and marked.place.map, 1429)
+check("named for the vendor", marked and marked.opts.name, "Lucan Cordell")
+check("and chat says it pinned", printed[#printed], "Pinned Lucan Cordell (Lucan Cordell) on your map, Elwynn Forest 50, 50.")
+ns.SpotMarker = nil
 C_Map.HasUserWaypoint, C_Map.CanSetUserWaypointOnMap, C_Map.GetMapRectOnMap = nil, nil, nil
 C_Map.GetMapInfo = function() return nil end
 

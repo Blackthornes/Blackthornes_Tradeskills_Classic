@@ -62,6 +62,9 @@ Waypoints.ZONE_MAPS = {
     ["Silithus"] = 1451, ["Winterspring"] = 1452, ["Stormwind City"] = 1453,
     ["Orgrimmar"] = 1454, ["Ironforge"] = 1455, ["Thunder Bluff"] = 1456,
     ["Darnassus"] = 1457, ["Undercity"] = 1458, ["Alterac Valley"] = 1459,
+    -- Forever's own zones, by the Forever client's game tables (2026-10-29).
+    ["Mount Hyjal"] = 2482, ["Zephras Isle"] = 2521, ["Riverglades"] = 2548,
+    ["Shen'dralas"] = 2652,
 }
 
 --- Is the client English? Nil from GetLocale counts as English, so nothing
@@ -174,6 +177,22 @@ function Waypoints:Pin(place)
         return false, "noclient"
     end
     return true
+end
+
+--- Lay our own gold marker on a place { zone or mapID, x, y } (UI/SpotMarker.lua).
+--- Forever turns the game's own pin down (a German player found nothing at
+--- the Crossroads, 2026-10-29), so the marker is what shows on the map; the
+--- game's pin, when it takes one, is a bonus. Without one the marker goes
+--- when you stand on it, by the arrow (Logic/WayArrow.lua).
+-- @return true when a marker was laid
+function Waypoints:Mark(place, name, gamePin)
+    local marker = ns.SpotMarker
+    if not (marker and marker.Show and type(place) == "table" and place.x and place.y) then return false end
+    local mapID = Number(place.mapID) or self:MapFor(place.zone)
+    if not mapID then return false end
+    local ok, laid = pcall(marker.Show, marker, { map = mapID, x = place.x, y = place.y },
+        { name = name, gamePin = gamePin, arrow = ns.WayArrow })
+    return ok and laid == true
 end
 
 --- A map the game takes a pin on, and the spot (0-1) on it. Some maps (a
