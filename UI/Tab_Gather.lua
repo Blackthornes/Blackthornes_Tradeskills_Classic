@@ -19,6 +19,10 @@ local Util = ns.Util
 
 local UI = ns.UI
 
+-- What the footer's hover reads, on ns for the tests.
+local GatherTab = {}
+ns.GatherTab = GatherTab
+
 local ROW_HEIGHT = 24
 
 -- Right to left. Money sits to the right, so its coins line up; the rest is
@@ -79,12 +83,6 @@ local function BuildList()
             local aCost, bCost = a.estimatedCost or 0, b.estimatedCost or 0
             if aCost ~= bCost then return aCost > bCost end
 
-        elseif state.sortBy == "name" then
-            -- By the name inside the link: the link itself opens with a
-            -- colour code, which sorted by rarity instead.
-            local aName = (a.label or ""):match("%[(.-)%]") or a.label or ""
-            local bName = (b.label or ""):match("%[(.-)%]") or b.label or ""
-            if aName ~= bName then return aName < bName end
         end
 
         -- A last tie-break, so equal rows (every "no data" one at 0) keep
@@ -311,42 +309,52 @@ local function Refresh()
     -- building it a second time.
     local summary = ns.Queue:GetGatherSummary(all)
 
-    widgets.progress:SetText(L.Format("%d of %d materials still needed",
-        summary.outstanding, summary.outstanding + summary.satisfied))
+    state.summary = summary
 
-    -- Split by destination, because that is how you actually do the errand.
-    widgets.vendorTotal:SetText(summary.vendor.count > 0
-        and L.Format(summary.vendor.count == 1 and L["Vendor  %s   (%d item)"] or L["Vendor  %s   (%d items)"],
-            Util.FormatMoney(summary.vendor.cost, { short = true }),
-            summary.vendor.count)
-        or L["Vendor  --"])
+    local short = { short = true }
+    widgets.vendorTotal:SetText(L["Vendor:"] .. " "
+        .. (summary.vendor.count > 0 and Util.FormatMoney(summary.vendor.cost, short) or "--"))
+    widgets.auctionTotal:SetText(L["Auction House:"] .. " "
+        .. (summary.auction.count > 0 and Util.FormatMoney(summary.auction.cost, short) or "--"))
+    widgets.grandTotal:SetText(L["Total:"] .. " " .. Util.FormatMoney(summary.total, short))
+    -- Unknown prices make the total an understatement: the mark says so.
+    widgets.unknownMark:SetShown(summary.unknown.count > 0)
+end
 
-    widgets.auctionTotal:SetText(summary.auction.count > 0
-        and L.Format(summary.auction.count == 1 and L["Auction  %s   (%d item)"] or L["Auction  %s   (%d items)"],
-            Util.FormatMoney(summary.auction.cost, { short = true }),
-            summary.auction.count)
-        or L["Auction  --"])
-
-    widgets.grandTotal:SetText(L.Format("Total  %s",
-        Util.FormatMoney(summary.total, { short = true })))
-
-    if summary.saving > 0 then
-        widgets.savingLabel:SetText(L.Format("Buying from the cheaper source saves %s",
-            Util.FormatMoney(summary.saving, { short = true })))
-    else
-        widgets.savingLabel:SetText("")
+--- The total's hover: the lines the footer used to carry.
+function GatherTab.TotalLines(summary)
+    local lines = {}
+    if not summary then return lines end
+    lines[#lines + 1] = { L.Format("%d of %d materials still needed",
+        summary.outstanding, summary.outstanding + summary.satisfied), "text" }
+    if summary.vendor.count > 0 then
+        lines[#lines + 1] = { L.Format(summary.vendor.count == 1 and L["Vendor  %s   (%d item)"] or L["Vendor  %s   (%d items)"],
+            Util.FormatMoney(summary.vendor.cost, { short = true }), summary.vendor.count), "muted" }
     end
+    if summary.auction.count > 0 then
+        lines[#lines + 1] = { L.Format(summary.auction.count == 1 and L["Auction  %s   (%d item)"] or L["Auction  %s   (%d items)"],
+            Util.FormatMoney(summary.auction.cost, { short = true }), summary.auction.count), "muted" }
+    end
+    if summary.saving > 0 then
+        lines[#lines + 1] = { L.Format("Buying from the cheaper source saves %s",
+            Util.FormatMoney(summary.saving, { short = true })), "profit" }
+    end
+    if summary.unknown.count > 0 then
+        lines[#lines + 1] = { L.Format(summary.unknown.count == 1
+            and L["%d material with no price data, so the real total is higher"]
+            or L["%d materials with no price data, so the real total is higher"], summary.unknown.count), "warn" }
+    end
+    return lines
+end
 
-    -- Unknown prices make the total an understatement, so say so.
-    widgets.unknownLabel:SetText(summary.unknown.count > 0
-        and L.Format(summary.unknown.count == 1 and L["%d material with no price data, so the real total is higher"]
-            or L["%d materials with no price data, so the real total is higher"],
-            summary.unknown.count)
-        or "")
-
-    -- Vendor prices ship with the addon now (Data/VendorPrices.lua), so there
-    -- is no longer a "visit a vendor first" note to show.
-    widgets.vendorNote:SetText("")
+function GatherTab.ShowTotalTooltip(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    GameTooltip:SetText(widgets.grandTotal:GetText() or L["Total:"], Theme.Unpack("accent"))
+    for _, line in ipairs(GatherTab.TotalLines(state.summary)) do
+        local r, g, b = Theme.Unpack(line[2])
+        GameTooltip:AddLine(line[1], r, g, b, true)
+    end
+    GameTooltip:Show()
 end
 
 --------------------------------------------------------------------------------
@@ -365,18 +373,14 @@ local function Build(container)
     toolbar:SetPoint("TOPRIGHT", -8, -8)
     toolbar:SetHeight(24)
 
-    -- The menu first, then the tick box, as on every tab. It stays: it
-    -- groups the list by where to buy, which a heading cannot.
-    local sort = Widgets.CreateDropdown(toolbar, {
-        { text = L["Group: Where to buy"], value = "source" },
-        { text = L["Sort: Cost"], value = "cost" },
-        { text = L["Sort: Name"], value = "name" },
-    }, function(value)
-        state.sortBy = value
+    -- Grouping by where to buy, which a heading cannot do. Sorting is the
+    -- headings' alone (the owner's UI review, 2026-10-29); unticked, the
+    -- list goes by cost until a heading is clicked.
+    local sort = Widgets.CreateCheckbox(toolbar, L["Group: Where to buy"], function(checked)
+        state.sortBy = checked and "source" or "cost"
         Refresh()
-    end, { width = 150 })
+    end, state.sortBy == "source")
     sort:SetPoint("LEFT", 0, 0)
-    sort:SetValue("source")
 
     local hideSatisfied = Widgets.CreateCheckbox(toolbar, L["Hide what I have"], function(checked)
         state.hideSatisfied = checked
@@ -457,7 +461,7 @@ local function Build(container)
         onLeave = function() GameTooltip:Hide() end,
     })
     list:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -4)
-    list:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -8, 86)
+    list:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -8, 38)
     widgets.list = list
 
     local emptyLabel = Theme.CreateLabel(container, "small", "dim", "CENTER")
@@ -466,33 +470,34 @@ local function Build(container)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
 
-    -- Footer
+    -- Footer: label and value only, on one line. What sits behind the total
+    -- (how many still needed, what the cheaper source saves, materials with
+    -- no price) is on its hover; an amber mark beside it while any lack one.
     local footerDivider = Theme.CreateDivider(container)
-    footerDivider:SetPoint("BOTTOMLEFT", 8, 78)
-    footerDivider:SetPoint("BOTTOMRIGHT", -8, 78)
+    footerDivider:SetPoint("BOTTOMLEFT", 8, 30)
+    footerDivider:SetPoint("BOTTOMRIGHT", -8, 30)
 
-    widgets.progress = Theme.CreateLabel(container, "small", "text")
-    widgets.progress:SetPoint("BOTTOMLEFT", 10, 58)
-
-    widgets.vendorTotal = Theme.CreateLabel(container, "small", "accent")
-    widgets.vendorTotal:SetPoint("BOTTOMLEFT", 10, 38)
+    widgets.vendorTotal = Theme.CreateLabel(container, "small", "text")
+    widgets.vendorTotal:SetPoint("BOTTOMLEFT", 10, 10)
 
     widgets.auctionTotal = Theme.CreateLabel(container, "small", "text")
-    widgets.auctionTotal:SetPoint("BOTTOMLEFT", 220, 38)
+    widgets.auctionTotal:SetPoint("LEFT", widgets.vendorTotal, "RIGHT", 24, 0)
 
     -- In gold, like the other headline figures: it is the answer here.
     widgets.grandTotal = Theme.CreateLabel(container, "small", "accent")
-    widgets.grandTotal:SetPoint("BOTTOMLEFT", 430, 38)
+    widgets.grandTotal:SetPoint("LEFT", widgets.auctionTotal, "RIGHT", 24, 0)
 
-    widgets.savingLabel = Theme.CreateLabel(container, "tiny", "profit")
-    widgets.savingLabel:SetPoint("BOTTOMLEFT", 10, 22)
+    widgets.unknownMark = Theme.CreateLabel(container, "small", "warn")
+    widgets.unknownMark:SetPoint("LEFT", widgets.grandTotal, "RIGHT", 2, 0)
+    widgets.unknownMark:SetText("*")
 
-    widgets.unknownLabel = Theme.CreateLabel(container, "tiny", "warn")
-    widgets.unknownLabel:SetPoint("BOTTOMLEFT", 10, 8)
-
-    widgets.vendorNote = Theme.CreateLabel(container, "tiny", "dim")
-    widgets.vendorNote:SetPoint("BOTTOMLEFT", 430, 22)
-    widgets.vendorNote:SetPoint("BOTTOMRIGHT", -10, 22)
+    local totalHover = CreateFrame("Frame", nil, container)
+    totalHover:SetPoint("TOPLEFT", widgets.grandTotal, "TOPLEFT", -4, 4)
+    totalHover:SetPoint("BOTTOMRIGHT", widgets.unknownMark, "BOTTOMRIGHT", 4, -4)
+    totalHover:EnableMouse(true)
+    totalHover:SetScript("OnEnter", function(self) GatherTab.ShowTotalTooltip(self) end)
+    totalHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    widgets.totalHover = totalHover
 
     -- A name drawn before the client had its item gets its rarity colour when
     -- the item arrives: the rows on screen again, once for a burst, only

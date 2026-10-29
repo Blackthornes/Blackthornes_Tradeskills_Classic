@@ -390,3 +390,16 @@ Up tab's whole book of recipes to learn was called "Learn Next", the same
 as the tick box that adds a LEARN NEXT section under Next Point. The view
 is now "Recipes to Learn", as on Profit; the tick box, its section and
 `levelUpLearnNext` keep their names.
+
+## The Gather tab's footer on one line
+
+The owner approved the words (2026-10-29, from the UI review): the footer
+under the Gather list was six lines. It is one now, label and value only:
+"Vendor:", "Auction House:" and "Total:". How many are still needed, what
+the cheaper source saves and the materials with no price are on the
+total's hover (`GatherTab.TotalLines`), with an amber mark beside the
+total while any lack a price. The list gets the room back. The menu's
+"Sort: Cost" and "Sort: Name" are gone, since the headings sort; grouping
+by where to buy is a tick box, ticked at first, and unticked the list goes
+by cost. Nothing is saved for either. Tested in
+`tools/test_gatherfooter.lua`.
