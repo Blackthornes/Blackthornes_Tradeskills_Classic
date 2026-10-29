@@ -3099,7 +3099,7 @@ L["about %s to go"] = "还差大约 %s"
 -- Road to 300 and the Welcome card
 L["Next Point"] = "下一点"
 L["Road to 300"] = "300 之路"
-L["Learn Next"] = "下一个要学的"
+L["Recipes to Learn"] = "要学的配方"
 L["Queue Step"] = "加入此步"
 L["Show the Way"] = "指路"
 L["To 300:"] = "到 300："

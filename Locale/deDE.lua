@@ -3101,7 +3101,7 @@ L["about %s to go"] = "noch etwa %s"
 -- Road to 300 and the Welcome card
 L["Next Point"] = "Nächster Punkt"
 L["Road to 300"] = "Weg bis 300"
-L["Learn Next"] = "Als Nächstes lernen"
+L["Recipes to Learn"] = "Rezepte zum Lernen"
 L["Queue Step"] = "Schritt einreihen"
 L["Show the Way"] = "Weg zeigen"
 L["To 300:"] = "Bis 300:"
