@@ -397,7 +397,6 @@ function MailReport:Build()
     who:SetPoint("RIGHT", -24, 0)
     -- A full two-part name with its time ran back under the title.
     who:SetPoint("LEFT", title, "RIGHT", 8, 0)
-    who:SetWordWrap(false)
     frame.who = who
 
     local shine = header:CreateTexture(nil, "OVERLAY")
@@ -662,7 +661,8 @@ function MailReport:Show(haul, opts)
 
     StopAll("report")
 
-    frame.who:SetText(haul.sample and L["sample"] or WhoWhen(haul))
+    -- Whole: a size smaller, then on two lines, never cut.
+    Theme.FitWhole(frame.who, haul.sample and L["sample"] or WhoWhen(haul), { "small", "tiny" })
     frame.sources:SetText(MailReport.Sources(haul))
     frame.amount:SetText(Util.FormatMoney(0))
 

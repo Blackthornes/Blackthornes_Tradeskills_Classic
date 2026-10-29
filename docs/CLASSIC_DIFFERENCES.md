@@ -366,3 +366,19 @@ and Level Up hint lines under the lists are gone: what a click does is on
 each row's hover. The LEARN NEXT heading's note is that heading's hover,
 and Characters' "Click a heading to sort" is each heading's hover. No new
 words. Tested in `tools/test_windowsize.lua`.
+
+
+## No more "..."
+
+The owner said build it (2026-10-29, from the UI review): a line that ran
+long ended in "...". Now it is put on whole (`Theme.FitWhole`: its own
+size, then a smaller one, then wrapped), and what holds it grows to fit.
+The Disenchanting count line wraps upward and the list's foot rises
+(`SetCount`). Your Time's ways and materials grow
+(`YourTimeView.FitMaterial`). A Shuffles row's chain and a Lists row's
+line under the name wrap and the row grows (`Theme.SetRowLine`, listed in
+`row.needLabels`, which the scroll list reads beside the name). A step's
+worth on Shuffles wraps short of its change. The Bank view's names and
+lines, the mail report's name and time and the Lists box's hint shrink or
+wrap. Nothing is cut and no words changed. Tested in
+`tools/test_fitwhole.lua`.

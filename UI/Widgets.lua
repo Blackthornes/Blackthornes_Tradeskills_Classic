@@ -2192,6 +2192,9 @@ function Widgets.CreateScrollList(parent, opts)
         if type(label) ~= "table" then return nil end
         local need = rawget(label, "rowNeed")
         if type(need) ~= "number" then return nil end
+        -- A hidden line takes no room.
+        local okShown, shown = pcall(label.IsShown, label)
+        if okShown and shown == false then return nil end
         -- A label whose text has since been changed some other way (a cell
         -- blanked when its column is off) no longer needs the room.
         local ok, text = pcall(label.GetText, label)
@@ -2209,6 +2212,11 @@ function Widgets.CreateScrollList(parent, opts)
         local cells = rawget(row, "cells")
         if type(cells) == "table" then
             for _, cell in pairs(cells) do Take(cell) end
+        end
+        -- Lines under the name that wrap (Theme.SetRowLine).
+        local more = rawget(row, "needLabels")
+        if type(more) == "table" then
+            for _, label in ipairs(more) do Take(label) end
         end
         return math.ceil(need)
     end

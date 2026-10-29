@@ -45,6 +45,8 @@ C_Item = { GetItemInfo = function() return "item" end }
 
 ns.Theme = {
   SetRowName = function(label, text) label:SetText(text) end,
+  SetRowLine = function(label, text) label:SetText(text) end,
+  FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
   SetItemNameColor = function() return false end,
   CreateLabel = function() return Label() end,
   CreateItemIcon = function() return Stub() end,

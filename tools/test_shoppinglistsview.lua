@@ -54,6 +54,8 @@ ns.Util = {
     FormatMoney = function(c) return tostring(c) end,
 }
 ns.Theme = {
+    FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
+    SetRowLine = function(label, text) label:SetText(text) end,
     FONT = "font", sizes = { small = 11, tiny = 10 },
     CreateLabel = function() return Stub() end,
     CreatePanel = function() return Stub() end,

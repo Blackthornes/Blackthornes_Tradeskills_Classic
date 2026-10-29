@@ -294,6 +294,51 @@ function Theme.SetRowName(label, text, size)
     label.rowNeed, label.rowNeedText = need, text
 end
 
+--- Put text on a label whole, never cut to "...": in the first of `sizes`
+--- (label size keys, the label's own first) it fits on one line in, else
+--- wrapped in the last. The label is laid out by both its ends, so its
+--- width is the room. Returns how much taller than one line it now stands,
+--- for the frame holding it to grow by, 0 when it fits on one line or
+--- cannot be measured, and how tall one line of it is.
+function Theme.FitWhole(label, text, sizes)
+    sizes = sizes or { "small", "tiny" }
+    pcall(label.SetWordWrap, label, false)
+    local ok, room = pcall(label.GetWidth, label)
+    local measurable = ok and type(room) == "number" and room > 0
+    local size = Theme.sizes.small
+    for _, key in ipairs(sizes) do
+        size = Theme.sizes[key] or Theme.sizes.small
+        pcall(label.SetFont, label, FONT, size, "")
+        label:SetText(text)
+        if not measurable then return 0, size + 2 end
+        local width = Theme.TextWidth(label)
+        if width == nil or width <= room then return 0, size + 2 end
+    end
+
+    pcall(label.SetWordWrap, label, true)
+    label:SetText(text)
+    -- How tall it stands: what the game says, and never less than a line
+    -- for each time its width goes into the room.
+    local lineHeight = size + 2
+    local width = Theme.TextWidth(label) or room
+    local need = math.max(2, math.ceil(width / room)) * lineHeight
+    local okHeight, height = pcall(label.GetStringHeight, label)
+    if okHeight and type(height) == "number" and height > need then need = height end
+    return math.ceil(need - lineHeight), lineHeight
+end
+
+--- A second line on a list row, whole: wrapped when it is too long, and the
+--- scroll list grows that row to hold it (`rowNeed` is how far down the row
+--- it reaches, from `top`, its distance from the row's top). The row lists
+--- it in `row.needLabels`.
+function Theme.SetRowLine(label, text, top, sizes)
+    label.rowNeed, label.rowNeedText = nil, nil
+    local extra, lineHeight = Theme.FitWhole(label, text, sizes or { "tiny" })
+    if extra > 0 then
+        label.rowNeed, label.rowNeedText = math.ceil(top + lineHeight + extra), text
+    end
+end
+
 --- Colour a label holding an item's name in that item's rarity, as the game
 --- draws it, else in `fallback` (a colour key, "text" when nil). Returns true
 --- when it took the rarity, false while the client does not have the item

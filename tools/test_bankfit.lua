@@ -105,6 +105,8 @@ local handlers = {}
 ns.RegisterEvent = function(_, event, fn) handlers[event] = fn; return true end
 
 ns.Theme = {
+    FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
+    SetRowLine = function(label, text) label:SetText(text) end,
     FONT = "font",
     sizes = SIZES,
     Unpack = function(key) return key end,

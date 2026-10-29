@@ -46,6 +46,8 @@ time = function() return 1000 end
 
 ns.Theme = {
   SetRowName = function(label, text) label:SetText(text) end,
+  SetRowLine = function(label, text) label:SetText(text) end,
+  FitWhole = function(label, text) label:SetText(text); return 0, 13 end,
   CreateLabel = function() return Label() end,
   CreatePanel = function() return Frame() end,
   AccentStripe = function() end,

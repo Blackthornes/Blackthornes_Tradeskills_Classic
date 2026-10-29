@@ -207,13 +207,13 @@ local function Way(detail, anchor)
     way.edge:SetWidth(2)
     way.edge:SetColorTexture(Theme.Unpack("accentHi"))
 
-    way.label = Theme.CreateLabel(way, "small", "text")
-    way.label:SetPoint("TOPLEFT", 8, -5)
-    way.label:SetWordWrap(false)
-
     way.value = Theme.CreateLabel(way, "small", "text", "RIGHT")
     way.value:SetPoint("TOPRIGHT", -8, -5)
     way.value:SetWordWrap(false)
+
+    way.label = Theme.CreateLabel(way, "small", "text")
+    way.label:SetPoint("TOPLEFT", 8, -5)
+    way.label:SetPoint("RIGHT", way.value, "LEFT", -6, 0)
 
     way.bar = Bar(way)
     way.bar:SetPoint("TOPLEFT", 8, -21)
@@ -222,7 +222,6 @@ local function Way(detail, anchor)
     way.note = Theme.CreateLabel(way, "tiny", "muted")
     way.note:SetPoint("TOPLEFT", 8, -30)
     way.note:SetPoint("RIGHT", way, "RIGHT", -8, 0)
-    way.note:SetWordWrap(false)
 
     return way
 end
@@ -236,7 +235,6 @@ local function MaterialLine(detail, anchor, gap)
     line.label = Theme.CreateLabel(line, "small", "text")
     line.label:SetPoint("TOPLEFT", 0, 0)
     line.label:SetPoint("RIGHT", line, "RIGHT", -70, 0)
-    line.label:SetWordWrap(false)
 
     line.value = Theme.CreateLabel(line, "small", "text", "RIGHT")
     line.value:SetPoint("TOPRIGHT", 0, 0)
@@ -246,9 +244,16 @@ local function MaterialLine(detail, anchor, gap)
     line.how = Theme.CreateLabel(line, "tiny", "muted")
     line.how:SetPoint("TOPLEFT", 0, -14)
     line.how:SetPoint("RIGHT", line, "RIGHT", 0, 0)
-    line.how:SetWordWrap(false)
 
     return line
+end
+
+--- A material's two lines, whole: either wraps and the line grows to hold it.
+function YourTimeView.FitMaterial(line, label, how)
+    local labelExtra = Theme.FitWhole(line.label, label, { "small", "tiny" })
+    local howExtra = Theme.FitWhole(line.how, how or "", { "tiny" })
+    line.how:SetPoint("TOPLEFT", 0, -14 - labelExtra)
+    line:SetHeight(28 + labelExtra + howExtra)
 end
 
 local function BuildDetail(parent)
@@ -351,7 +356,7 @@ local function ShowEntry(detail, entry)
         local best = entry.best == way.key
         frame.back:SetColorTexture(Theme.Unpack(best and "glassActive" or (index % 2 == 0 and "glassAlt" or "glass")))
         frame.edge:SetShown(best)
-        frame.label:SetText(way.label)
+        local labelExtra = Theme.FitWhole(frame.label, way.label, { "small", "tiny" })
         if way.value == nil then
             frame.value:SetText("--")
             frame.value:SetTextColor(Theme.Unpack("dim"))
@@ -360,7 +365,13 @@ local function ShowEntry(detail, entry)
             frame.value:SetTextColor(Theme.Unpack(best and "profit" or (way.value < 0 and "loss" or "text")))
         end
         local missing = entry.missing and Util.ColoredItemName(entry.missing.itemID)
-        frame.note:SetText(way.note or (missing and L.Format("Farm some %s and this fills in.", missing)) or "")
+        local noteExtra = Theme.FitWhole(frame.note,
+            way.note or (missing and L.Format("Farm some %s and this fills in.", missing)) or "", { "tiny" })
+        -- A wrapped label or note makes the line taller, never cut.
+        frame.bar:SetPoint("TOPLEFT", 8, -21 - labelExtra)
+        frame.bar:SetPoint("TOPRIGHT", -8, -21 - labelExtra)
+        frame.note:SetPoint("TOPLEFT", 8, -30 - labelExtra)
+        frame:SetHeight(42 + labelExtra + noteExtra)
         SetBar(frame.bar, way.farm, way.craft, longest)
         frame.bar:SetShown(way.value ~= nil)
         frame:Show()
@@ -371,24 +382,23 @@ local function ShowEntry(detail, entry)
     for index, line in ipairs(detail.materials) do
         local mat = mats[index]
         if mat and index == MATERIAL_LINES and #mats > MATERIAL_LINES then
-            line.label:SetText(L.Format("and %d more", #mats - MATERIAL_LINES + 1))
+            YourTimeView.FitMaterial(line, L.Format("and %d more", #mats - MATERIAL_LINES + 1), "")
             line.value:SetText("")
-            line.how:SetText("")
             line:Show()
         elseif mat then
             local name = Util.ColoredItemName(mat.itemID)
             local count = math.floor(mat.count * 10 + 0.5) / 10
             count = count == math.floor(count) and ("%d"):format(count) or ("%.1f"):format(count)
-            line.label:SetText(("%sx %s"):format(count, name))
+            local label = ("%sx %s"):format(count, name)
             if mat.bought then
                 line.value:SetText(Money(mat.bought))
                 line.value:SetTextColor(Theme.Unpack("muted"))
-                line.how:SetText(L["Bought from a vendor"])
+                YourTimeView.FitMaterial(line, label, L["Bought from a vendor"])
                 line.how:SetTextColor(Theme.Unpack("muted"))
             else
                 line.value:SetText(mat.seconds and Duration(mat.seconds) or "--")
                 line.value:SetTextColor(Theme.Unpack(mat.seconds and "text" or "dim"))
-                line.how:SetText(YourTimeView.PaceText(mat))
+                YourTimeView.FitMaterial(line, label, YourTimeView.PaceText(mat))
                 line.how:SetTextColor(Theme.Unpack(mat.pace and "muted" or "dim"))
             end
             line:Show()
