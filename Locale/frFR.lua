@@ -2696,12 +2696,6 @@ L["List All checks every price at once, then each click lists one with no Yes or
 L["Ask Before Listing:"] = "Demander avant de vendre :"
 L["Shows a Yes or No box with the prices before each listing."] = "Affiche une fenêtre avec les prix et Oui ou Non avant chaque mise en vente."
 L["Mouse Wheel:"] = "Molette de la souris :"
-L["Sale Total:"] = "Total des ventes :"
-L["Counts up what your Sell list could sell for after each scan."] = "Compte ce que ta liste de vente pourrait rapporter après chaque scan."
-L["%d priced, %d to go"] = "%d avec un prix, encore %d"
-L["Up %s since your last scan"] = "%s de plus depuis ton dernier scan"
-L["Down %s since your last scan"] = "%s de moins depuis ton dernier scan"
-L["Scan done. Your Sell list is ready."] = "Scan fini. Ta liste de vente est prête."
 L["At the auction house, wheel up lists the next stack and wheel down cancels the next undercut auction."] = "À l'hôtel des ventes, la molette vers le haut met en vente la pile suivante, et vers le bas annule la prochaine enchère passée en dessous."
 L["Open With AH and Vendors:"] = "Ouvrir avec l'HV et les marchands :"
 L["Opens this window with the auction house or a vendor."] = "Ouvre cette fenêtre avec l'hôtel des ventes ou un marchand."
@@ -3334,6 +3328,17 @@ L["Wait: keep it in your bags until the price comes back up."] = "Attendre : le 
 L["What to do when others sell it for less than your price."] = "Que faire quand d'autres le vendent moins cher que ton prix."
 L["When Cheaper"] = "Si moins cher"
 L["When Cheaper:"] = "Si moins cher :"
+
+-- SaleTotal
+L["Sale Total"] = "Total de vente"
+L["Sale Total:"] = "Total de vente :"
+L["Held Back:"] = "Mis de côté :"
+L["%d (not counted)"] = "%d (non compté)"
+L["all listed"] = "tout est en vente"
+L["of %s"] = "sur %s"
+L["Listed:"] = "Mis en vente :"
+L["Still to List:"] = "Reste à vendre :"
+L["What the items you listed this visit should bring in, after the auction house cut. It starts again at 0 each time you open the auction house."] = "Ce que les objets mis en vente pendant cette visite devraient rapporter, après la part de l'hôtel des ventes. Ça repart de 0 chaque fois que tu ouvres l'hôtel des ventes."
 
 -- The shared Blackthornes minimap button (2026-10-28)
 L["Click a name to open it. Right-click for its settings."] = "Clique sur un nom pour l'ouvrir. Clic droit pour ses réglages."

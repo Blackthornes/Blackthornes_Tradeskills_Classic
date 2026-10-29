@@ -2697,12 +2697,6 @@ L["List All checks every price at once, then each click lists one with no Yes or
 L["Ask Before Listing:"] = "Preguntar antes de publicar:"
 L["Shows a Yes or No box with the prices before each listing."] = "Muestra una ventana con los precios y Sí o No antes de cada publicación."
 L["Mouse Wheel:"] = "Rueda del ratón:"
-L["Sale Total:"] = "Total de venta:"
-L["Counts up what your Sell list could sell for after each scan."] = "Cuenta lo que tu lista de venta podría ganar después de cada escaneo."
-L["%d priced, %d to go"] = "%d con precio, faltan %d"
-L["Up %s since your last scan"] = "%s más desde tu último escaneo"
-L["Down %s since your last scan"] = "%s menos desde tu último escaneo"
-L["Scan done. Your Sell list is ready."] = "Escaneo listo. Tu lista de venta está lista."
 L["At the auction house, wheel up lists the next stack and wheel down cancels the next undercut auction."] = "En la casa de subastas, la rueda hacia arriba publica el siguiente montón y hacia abajo cancela la siguiente subasta rebajada."
 L["Open With AH and Vendors:"] = "Abrir con CS y vendedores:"
 L["Opens this window with the auction house or a vendor."] = "Abre esta ventana con la casa de subastas o un vendedor."
@@ -3335,6 +3329,17 @@ L["Wait: keep it in your bags until the price comes back up."] = "Esperar: guár
 L["What to do when others sell it for less than your price."] = "Qué hacer cuando otros lo venden más barato que tu precio."
 L["When Cheaper"] = "Si es más barato"
 L["When Cheaper:"] = "Si es más barato:"
+
+-- SaleTotal
+L["Sale Total"] = "Total de venta"
+L["Sale Total:"] = "Total de venta:"
+L["Held Back:"] = "Reservado:"
+L["%d (not counted)"] = "%d (sin contar)"
+L["all listed"] = "todo publicado"
+L["of %s"] = "de %s"
+L["Listed:"] = "Publicado:"
+L["Still to List:"] = "Por publicar:"
+L["What the items you listed this visit should bring in, after the auction house cut. It starts again at 0 each time you open the auction house."] = "Lo que deberían darte los objetos que publicaste en esta visita, después de la parte de la casa de subastas. Vuelve a empezar en 0 cada vez que abres la casa de subastas."
 
 -- The shared Blackthornes minimap button (2026-10-28)
 L["Click a name to open it. Right-click for its settings."] = "Haz clic en un nombre para abrirlo. Clic derecho para sus ajustes."

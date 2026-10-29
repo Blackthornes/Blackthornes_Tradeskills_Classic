@@ -2694,12 +2694,6 @@ L["List All checks every price at once, then each click lists one with no Yes or
 L["Ask Before Listing:"] = "上架前询问："
 L["Shows a Yes or No box with the prices before each listing."] = "每次上架前显示价格，并让你点“是”或“否”。"
 L["Mouse Wheel:"] = "鼠标滚轮："
-L["Sale Total:"] = "出售总值："
-L["Counts up what your Sell list could sell for after each scan."] = "每次扫描后，累计你的出售列表能卖多少钱。"
-L["%d priced, %d to go"] = "已定价 %d，还剩 %d"
-L["Up %s since your last scan"] = "比上次扫描多了 %s"
-L["Down %s since your last scan"] = "比上次扫描少了 %s"
-L["Scan done. Your Sell list is ready."] = "扫描完成。你的出售列表已准备好。"
 L["At the auction house, wheel up lists the next stack and wheel down cancels the next undercut auction."] = "在拍卖行，滚轮向上上架下一堆，滚轮向下取消下一个被压价的拍卖。"
 L["Open With AH and Vendors:"] = "随拍卖行和商人打开："
 L["Opens this window with the auction house or a vendor."] = "打开拍卖行或商人时也打开这个窗口。"
@@ -3332,6 +3326,17 @@ L["Wait: keep it in your bags until the price comes back up."] = "等待：留�
 L["What to do when others sell it for less than your price."] = "别人卖得比你的价格便宜时怎么做。"
 L["When Cheaper"] = "更便宜时"
 L["When Cheaper:"] = "更便宜时："
+
+-- SaleTotal
+L["Sale Total"] = "出售总额"
+L["Sale Total:"] = "出售总额："
+L["Held Back:"] = "保留："
+L["%d (not counted)"] = "%d（不计入）"
+L["all listed"] = "全部已上架"
+L["of %s"] = "共 %s"
+L["Listed:"] = "已上架："
+L["Still to List:"] = "待上架："
+L["What the items you listed this visit should bring in, after the auction house cut. It starts again at 0 each time you open the auction house."] = "你这次上架的物品扣除拍卖行的抽成后应该能卖多少钱。每次打开拍卖行都会从0重新开始。"
 
 -- The shared Blackthornes minimap button (2026-10-28)
 L["Click a name to open it. Right-click for its settings."] = "点击名称即可打开。右键点击打开它的设置。"

@@ -441,9 +441,6 @@ function UI:OnScanComplete(result)
 
     if result then
         self:CelebrateScan(result)
-        -- Sale Total counts the Sell list up again (UI/SaleTotal.lua).
-        if ns.SaleTotal then ns.SaleTotal:ScanFinished() end
-
         -- Other addons that asked to hear about it (Prices:WatchScans).
         if ns.Prices and ns.Prices.ScanFinished then ns.Prices:ScanFinished(result) end
 
@@ -1050,7 +1047,6 @@ function UI:RefreshAuctionStatus()
     if not (bar and bar.status) then return end
 
     local scan = ns.Scanner and ns.Scanner.GetScanStatus and ns.Scanner:GetScanStatus()
-    if ns.SaleTotal then ns.SaleTotal:Scanning(scan and scan.fraction, scan ~= nil) end
 
     if scan then
         bar.doneUntil = nil
@@ -1233,6 +1229,15 @@ local function FitBarText(bar, buttons)
     if bar.title then bar.title:SetWidth(room) end
 end
 
+--- Fit the header's text to the buttons and the Sale Total counter
+--- (UI/SaleTotal.lua), which sits left of them and grows with its number.
+function UI:FitAuctionText()
+    local bar = self.auctionBar
+    if not bar then return end
+    local counter = ns.SaleTotal and ns.SaleTotal:Width() or 0
+    FitBarText(bar, (bar.buttonsWidth or 0) + counter)
+end
+
 --- A Post button beside the Scan button on the auction house window.
 --
 -- Left-click lists the most valuable stack; posting needs a hardware event
@@ -1246,7 +1251,9 @@ function UI:AttachPostButton()
 
     if not UI.POST_CRAFTED_BUTTON then
         if button then button:Hide() end
-        FitBarText(bar, scanWidth + gap)
+        bar.buttonsWidth = scanWidth + gap
+        if ns.SaleTotal then ns.SaleTotal:Attach(bar, self.auctionButton) end
+        self:FitAuctionText()
         return
     end
 
@@ -1294,8 +1301,10 @@ function UI:AttachPostButton()
 
     button:Show()
 
-    FitBarText(bar, (self.auctionButton and scanWidth + AUCTION_BAR_GAP or 0)
-        + button:GetWidth() + gap)
+    bar.buttonsWidth = (self.auctionButton and scanWidth + AUCTION_BAR_GAP or 0)
+        + button:GetWidth() + gap
+    if ns.SaleTotal then ns.SaleTotal:Attach(bar, button) end
+    self:FitAuctionText()
 
     self:UpdatePostButton()
 end

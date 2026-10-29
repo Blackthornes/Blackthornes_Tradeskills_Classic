@@ -2696,12 +2696,6 @@ L["List All checks every price at once, then each click lists one with no Yes or
 L["Ask Before Listing:"] = "Vor dem Einstellen fragen:"
 L["Shows a Yes or No box with the prices before each listing."] = "Zeigt vor jedem Einstellen ein Fenster mit den Preisen und Ja oder Nein."
 L["Mouse Wheel:"] = "Mausrad:"
-L["Sale Total:"] = "Verkaufswert:"
-L["Counts up what your Sell list could sell for after each scan."] = "Zählt nach jedem Scan hoch, was deine Verkaufsliste einbringen könnte."
-L["%d priced, %d to go"] = "%d mit Preis, noch %d"
-L["Up %s since your last scan"] = "%s mehr seit deinem letzten Scan"
-L["Down %s since your last scan"] = "%s weniger seit deinem letzten Scan"
-L["Scan done. Your Sell list is ready."] = "Scan fertig. Deine Verkaufsliste ist bereit."
 L["At the auction house, wheel up lists the next stack and wheel down cancels the next undercut auction."] = "Im Auktionshaus stellt Mausrad hoch den nächsten Stapel ein, und Mausrad runter bricht die nächste unterbotene Auktion ab."
 L["Open With AH and Vendors:"] = "Mit AH und Händlern öffnen:"
 L["Opens this window with the auction house or a vendor."] = "Öffnet dieses Fenster mit dem Auktionshaus oder einem Händler."
@@ -3334,6 +3328,17 @@ L["Wait: keep it in your bags until the price comes back up."] = "Warten: Es ble
 L["What to do when others sell it for less than your price."] = "Was passiert, wenn andere es billiger verkaufen als dein Preis."
 L["When Cheaper"] = "Wenn billiger"
 L["When Cheaper:"] = "Wenn billiger:"
+
+-- SaleTotal
+L["Sale Total"] = "Verkaufswert"
+L["Sale Total:"] = "Verkaufswert:"
+L["Held Back:"] = "Zurückgehalten:"
+L["%d (not counted)"] = "%d (nicht gezählt)"
+L["all listed"] = "alles eingestellt"
+L["of %s"] = "von %s"
+L["Listed:"] = "Eingestellt:"
+L["Still to List:"] = "Noch einzustellen:"
+L["What the items you listed this visit should bring in, after the auction house cut. It starts again at 0 each time you open the auction house."] = "Was die Gegenstände, die du bei diesem Besuch eingestellt hast, einbringen sollten, nach dem Anteil des Auktionshauses. Es beginnt jedes Mal wieder bei 0, wenn du das Auktionshaus öffnest."
 
 -- The shared Blackthornes minimap button (2026-10-28)
 L["Click a name to open it. Right-click for its settings."] = "Klick auf einen Namen, um ihn zu öffnen. Rechtsklick für seine Einstellungen."

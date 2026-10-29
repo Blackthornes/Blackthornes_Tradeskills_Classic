@@ -3,7 +3,7 @@
 Where this Classic Era copy stands against Forever Tradeskills
 (`Blackthornes/Blackthornes_Tradeskills`). Forever is only ever read from here.
 
-Last Forever commit copied over: `57fb2bc` (Forever main, 2026-10-28).
+Last Forever commit copied over: `7e928b9` (Forever main, 2026-10-29).
 The first copy was made from `94517cf` (Forever main, the merge of its
 PR #964, 2026-10-24). This copy was made from it with its history on
 2026-10-24.
@@ -53,6 +53,12 @@ Copied over since, one at a time:
   Butler, Tradeskills and Pets Classic).
 - `dea75f5` (Butler's) the way there card's rows grow when a step wraps
   (2026-10-29, `UI/TravelCard.lua` only).
+- `7e928b9` Sale Total counts up in the drawer header as you list
+  (2026-10-29, Forever PR #1027). `UI/SaleTotal.lua` and its test taken
+  whole; Classic's own plaque from PR #50 goes, with its scan calls in
+  `UI/Main.lua` and its words. The Settings row stays where Classic had it.
+  The Sell list's title and summary leave the gold out while it shows, as
+  Forever's had since its band.
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.

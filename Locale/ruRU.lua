@@ -2698,12 +2698,6 @@ L["List All checks every price at once, then each click lists one with no Yes or
 L["Ask Before Listing:"] = "Спрашивать перед выставлением:"
 L["Shows a Yes or No box with the prices before each listing."] = "Показывает окно с ценами и «Да» или «Нет» перед каждым выставлением."
 L["Mouse Wheel:"] = "Колесо мыши:"
-L["Sale Total:"] = "Сумма продаж:"
-L["Counts up what your Sell list could sell for after each scan."] = "После каждого сканирования считает, сколько может принести твой список продаж."
-L["%d priced, %d to go"] = "С ценой: %d, осталось: %d"
-L["Up %s since your last scan"] = "На %s больше с прошлого сканирования"
-L["Down %s since your last scan"] = "На %s меньше с прошлого сканирования"
-L["Scan done. Your Sell list is ready."] = "Сканирование готово. Твой список продаж готов."
 L["At the auction house, wheel up lists the next stack and wheel down cancels the next undercut auction."] = "На аукционе колесо вверх выставляет следующую стопку, а колесо вниз снимает следующий перебитый аукцион."
 L["Open With AH and Vendors:"] = "Открывать с аукционом и торговцами:"
 L["Opens this window with the auction house or a vendor."] = "Открывает это окно вместе с аукционом или торговцем."
@@ -3336,6 +3330,17 @@ L["Wait: keep it in your bags until the price comes back up."] = "Ждать: д
 L["What to do when others sell it for less than your price."] = "Что делать, когда другие продают дешевле твоей цены."
 L["When Cheaper"] = "Если дешевле"
 L["When Cheaper:"] = "Если дешевле:"
+
+-- SaleTotal
+L["Sale Total"] = "Сумма продажи"
+L["Sale Total:"] = "Сумма продажи:"
+L["Held Back:"] = "Отложено:"
+L["%d (not counted)"] = "%d (не считается)"
+L["all listed"] = "всё выставлено"
+L["of %s"] = "из %s"
+L["Listed:"] = "Выставлено:"
+L["Still to List:"] = "Ещё выставить:"
+L["What the items you listed this visit should bring in, after the auction house cut. It starts again at 0 each time you open the auction house."] = "Сколько должны принести предметы, выставленные за этот визит, за вычетом доли аукциона. Счёт начинается с 0 каждый раз, когда ты открываешь аукцион."
 
 -- The shared Blackthornes minimap button (2026-10-28)
 L["Click a name to open it. Right-click for its settings."] = "Нажми на название, чтобы открыть. Правый клик открывает его настройки."
