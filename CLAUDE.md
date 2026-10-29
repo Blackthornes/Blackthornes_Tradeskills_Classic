@@ -1196,6 +1196,18 @@ a hover (`StatsUI.MarketLines`) with sells a day, up for sale now, time to
 sell what's up and your own listings, all from `stats.market`
 (`ItemStats` `Market`). Tested in `tools/test_itemstats.lua`.
 
+## Disenchant results on tooltips
+
+A player asked, the owner said build it (2026-10-29), Classic only: on a
+character that knows Disenchant (`Disenchanter:Knows`), an item's tooltip
+lists under "Disenchant value" each thing it can break into, its count and
+its chance, most likely first (`ItemTooltip:AddDisenchantResults`, from
+`Disenchant:GetOutcomes`: the built-in table, or your own results once
+there are enough). "Disenchant Results on Tooltips:" on the Look page, Off,
+Shift or Always, Shift unless picked (`tooltipDisenchantResults`, on;
+`tooltipDisenchantShift`, true; Shift key "disenchant"; never rename
+them). Tested in `tools/test_disenchantresults.lua`. Not yet seen in game.
+
 ## Enchant costs on tooltips
 
 A player asked (2026-10-14, the owner agreeing) for an enchant's material

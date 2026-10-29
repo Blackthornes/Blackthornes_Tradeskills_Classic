@@ -112,11 +112,12 @@ ItemTooltip.SHIFT_SETTINGS = {
     recipe  = "tooltipRecipeShift",
     enchant = "tooltipEnchantShift",
     crate   = "tooltipCrateShift",
+    disenchant = "tooltipDisenchantShift",
 }
 
 local TooltipShift = ns.TooltipShift
 if TooltipShift then
-    TooltipShift.KEYS = { "value", "sales", "trend", "recipe", "enchant", "crate" }
+    TooltipShift.KEYS = { "value", "sales", "trend", "recipe", "enchant", "crate", "disenchant" }
 
     function TooltipShift.Read(key)
         local name = ItemTooltip.SHIFT_SETTINGS[key]
@@ -361,6 +362,7 @@ function ItemTooltip:LinesFor(itemID, count, link)
 
         local disenchant = self:DisenchantLine(itemID)
         if disenchant then lines[#lines + 1] = disenchant end
+        self:AddDisenchantResults(lines, itemID)
 
         self:AddCraftedLines(lines, itemID)
         self:AddRecipeLines(lines, itemID)
@@ -415,6 +417,7 @@ function ItemTooltip:LinesFor(itemID, count, link)
 
     local disenchant = self:DisenchantLine(itemID)
     if disenchant then lines[#lines + 1] = disenchant end
+    self:AddDisenchantResults(lines, itemID)
 
     self:AddCraftedLines(lines, itemID)
     self:AddRecipeLines(lines, itemID)
@@ -737,6 +740,36 @@ function ItemTooltip:DisenchantLine(itemID)
     if partial then text = L.Format("%s or more", text) end
 
     return { L["Disenchant value"], text }
+end
+
+--- What the item can break into and the chance of each, under its
+--- disenchant value, for a character that knows Disenchant (a player asked,
+--- 2026-10-29). The chances are the ones the Disenchanting tab shows: the
+--- built-in table, or your own results once there are enough.
+--- "Disenchant Results on Tooltips:" on the Look page
+--- (`tooltipDisenchantResults`, on unless picked Off, never rename it).
+function ItemTooltip:AddDisenchantResults(lines, itemID)
+    if ns.Config and ns.Config:Get("tooltipDisenchantResults") == false then return end
+    if not (ns.Disenchant and ns.Disenchanter and ns.Disenchanter.Knows) then return end
+    if ns.Disenchanter:Knows() ~= true then return end
+
+    local ok, outcomes = pcall(ns.Disenchant.GetOutcomes, ns.Disenchant, itemID)
+    if not ok or type(outcomes) ~= "table" or #outcomes == 0 then return end
+
+    if not ItemTooltip.Shows("disenchant") then
+        lines.held = true
+        return
+    end
+
+    for _, outcome in ipairs(outcomes) do
+        local name = ns.Disenchant:MaterialName(outcome.itemID) or Util.GetItemLabel(outcome.itemID)
+        name = Util.ColorItemName(outcome.itemID, name) or name
+        local low, high = outcome.min, outcome.max
+        if low and high and high > 1 then
+            name = low == high and ("%s x%d"):format(name, low) or ("%s x%d-%d"):format(name, low, high)
+        end
+        lines[#lines + 1] = { INDENT .. name, ("%s%%"):format(Util.Round((outcome.chance or 0) * 100, 1)) }
+    end
 end
 
 --- The cheapest listing the last scan saw, beside the smoothed value
