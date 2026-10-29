@@ -1730,6 +1730,10 @@ function PostPanel:Refresh()
 
     if not self.frame or not self.frame:IsShown() then return end
 
+    -- The Sale Total counter sits in the header, left of Scan
+    -- (UI/SaleTotal.lua), folded or not, while it is on.
+    local banding = ns.SaleTotal ~= nil and ns.SaleTotal:SetShown(true) or false
+
     -- Cheap, and it catches the main window being dragged, which has no event.
     self:Reflow()
 
@@ -1858,8 +1862,6 @@ function PostPanel:Refresh()
     local lines, hidden, toVendor = self:ShownLines()
     self.shownLines = lines
     self:UpdateListAll(lines)
-    -- The plaque on top of the drawer counts the same total (UI/SaleTotal.lua).
-    if ns.SaleTotal then ns.SaleTotal:Update(lines) end
 
     self.list:SetData(lines)
     self.empty:SetShown(#lines == 0)
@@ -1876,6 +1878,7 @@ function PostPanel:Refresh()
             or L["Nothing in your bags with a known price.\n\nScan the auction house to find out what things sell for."])
         self:SetSummary("")
         self:SetTitle(L["Ready to sell"])
+        if banding then ns.SaleTotal:Update(lines, 0) end
         return
     end
 
@@ -1893,18 +1896,28 @@ function PostPanel:Refresh()
     -- there to see with the drawer folded away; folded, the count too.
     local worth = ("|c%s%s|r"):format(ns.COLORS.accent,
         Util.FormatMoney(total, { noColor = true, short = true }))
-    if self:IsCollapsed() then
+    -- With the Sale Total counter on, the header has the numbers, so the
+    -- title and the summary leave the worth out, folded or not.
+    if banding then
+        self:SetTitle(self:IsCollapsed() and L.Format("Ready to sell (%d)", #lines) or L["Ready to sell"])
+    elseif self:IsCollapsed() then
         self:SetTitle(L.Format("Ready to sell (%d) · %s", #lines, worth),
             L.Format("Ready to sell (%d)", #lines))
     else
         self:SetTitle(L.Format("Ready to sell · %s", worth), L["Ready to sell"])
     end
+    if banding then ns.SaleTotal:Update(lines, keptBack) end
 
     local about = ("|c%s%s|r"):format(ns.COLORS.accent,
         Util.FormatMoney(total, { noColor = true, short = true }))
-    self:SetSummary((#lines == 1
-            and L.Format("%d item, about %s", #lines, about)
-            or L.Format("%d items, about %s", #lines, about))
+    local count
+    if banding then
+        count = #lines == 1 and L.Format("%d item", #lines) or L.Format("%d items", #lines)
+    else
+        count = #lines == 1 and L.Format("%d item, about %s", #lines, about)
+            or L.Format("%d items, about %s", #lines, about)
+    end
+    self:SetSummary(count
         .. (hidden > 0 and ("  ·  " .. L.Format("%d hidden", hidden))
             or losses > 0 and ("  ·  |c%s%s|r"):format(ns.COLORS.loss, L.Format("%d at a loss", losses)) or "")
         .. (keptBack > 0 and ("  ·  " .. L.Format("%d kept for your other addons", keptBack)) or "")

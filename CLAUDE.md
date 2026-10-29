@@ -1719,20 +1719,23 @@ Not yet seen in game.
 ## Sale Total
 
 A player asked, the owner said build it (2026-10-28, from a mockup whose
-words he approved): a gold plaque on top of the auction house drawer with
-what the Sell list could sell for, the same total as the drawer's title.
-After each scan with prices (`UI:OnScanComplete` calls
-`SaleTotal:ScanFinished`) it counts up from nothing an item at a time over
-`SaleTotal.PLAY` seconds ("14 priced, 23 to go"), a "+3g 20s" floating
-off each; an item adding `BIG` of the total shines and sparks; the end
-glows green, plays a coin sound (with the scan sounds) and says "Up X since
-your last scan" and "Scan done. Your Sell list is ready." Effects Subtle
-counts without the shine, Off shows the number at once. `UI/SaleTotal.lua`
-takes the lines from `PostPanel:Refresh` and the scan's progress from
-`UI:RefreshAuctionStatus`; its OnUpdate runs only while something moves.
-"Sale Total:" on the Auction house page (`saleTotal`, on unless unticked
-for new saves, a value already saved is kept; never rename it). Tested in `tools/test_saletotal.lua`. Not yet seen in
-game.
+words he approved), then (2026-10-29, Forever's PR #1027 brought over)
+had it count up as you list: a counter in the auction house drawer's
+header, left of Scan, shown folded or not. It starts at 0 each time the
+auction house opens (`AUCTION_HOUSE_SHOW`, `SaleTotal:NewVisit`) and grows
+with each listing that goes up by what it should bring in after the cut
+(`Posting:ResolvePending` calls `SaleTotal:NoteListed` once Era's own
+auction list shows the stack, `Profit:NetFromListing`). "Sale Total:",
+the number, and under it "of X" (listed plus what is still on the Sell
+list, `SaleTotal:Update` from `PostPanel:Refresh`) or "all listed". The
+hover has Listed:, Still to List: and Held Back:. Coins fly from the row,
+a green "+45g" rises and round numbers pop a chip; Effects Subtle only
+rolls the number, Off shows it at once. With it on, the Sell list's title
+and summary leave the gold out. It is measured to fit and the header's
+words give way (`UI:FitAuctionText`). "Sale Total:" on the Auction house
+page (`saleTotal`, on unless unticked for new saves, a value already saved
+is kept; never rename it; `saleTotalBest` and `saleTotalLast` stay in the
+save, unread). Tested in `tools/test_saletotal.lua`. Not yet seen in game.
 
 ## Fast listing
 

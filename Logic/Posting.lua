@@ -3035,6 +3035,10 @@ function Posting:ResolvePending(posted, appeared, target)
     if went and ns.SellOut then
         pcall(ns.SellOut.NotePosted, ns.SellOut, pending.itemID, went, Posting:DurationFor(pending.itemID))
     end
+    if went and ns.SaleTotal then
+        -- The drawer's Sale Total counts up by what this listing should bring in.
+        pcall(ns.SaleTotal.NoteListed, ns.SaleTotal, pending.itemID, went, pending.unitPrice)
+    end
     if went and ns.StatsLog then
         -- A commodity goes up as one auction, however many units it holds.
         pcall(ns.StatsLog.NotePosted, ns.StatsLog, pending.itemID, pending.isCommodity and 1 or went)
