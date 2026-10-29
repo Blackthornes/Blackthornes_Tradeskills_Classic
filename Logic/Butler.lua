@@ -1534,6 +1534,13 @@ function Butler:Craft(recipeID)
         end
         local shows = crafting.isTradeSkillOpen
             and (not (opener and opener.WindowShowsRecipe) or opener:WindowShowsRecipe(recipeID))
+        -- An Era enchant is made only by the secure button on our own
+        -- Craft buttons, so it opens the Queue tab instead.
+        local secure = ns.SecureCraft
+        if shows and secure and secure:Needed(recipeID) then
+            if queue:ShowQueue() then return true, "opened" end
+            return false, L["open your profession first"]
+        end
         if shows then
             if crafting:Start(recipeID, entry.quantity) then return true, "crafting" end
             return false, L["the game didn't start it"]

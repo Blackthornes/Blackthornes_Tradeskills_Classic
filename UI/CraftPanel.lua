@@ -727,6 +727,13 @@ local function CreateRow(row)
     end, { width = CRAFT_WIDTH, height = 15, primary = true })
     row.craft:SetPoint("RIGHT", row.remove, "LEFT", -CRAFT_GAP, 0)
     row.craft:Hide()
+    -- An Era enchant is made by a secure button laid over this one.
+    if ns.SecureCraft then
+        ns.SecureCraft:Attach(row.craft, function()
+            local _, entry = row.data and ns.Queue:Find(row.data.recipeID)
+            if entry then return entry.recipeID, entry.quantity end
+        end)
+    end
 end
 
 --- How much of this you already have, as a phrase, or nil for none.
@@ -1131,6 +1138,12 @@ function CraftPanel:Build()
     end, { width = PANEL_WIDTH - 28, height = 24, primary = true })
     craft:SetPoint("BOTTOMLEFT", 14, 40)
     self.craftButton = craft
+    if ns.SecureCraft then
+        ns.SecureCraft:Attach(craft, function()
+            local entry = CraftPanel:GetNextReadyHere()
+            if entry then return entry.recipeID, entry.quantity end
+        end)
+    end
 
     -- The Keep in stock limit (Settings) hides crafts you already hold enough
     -- of and caps what + will queue. Ticking this lifts both, for this pane
@@ -1775,6 +1788,11 @@ local function CreateQueuedRow(row)
         if row.data then CraftPanel:CraftEntry(row.data) end
     end, { width = CRAFT_WIDTH, height = 15, primary = true })
     row.craft:SetPoint("RIGHT", row.remove, "LEFT", -4, 0)
+    if ns.SecureCraft then
+        ns.SecureCraft:Attach(row.craft, function()
+            if row.data then return row.data.recipeID, row.data.quantity end
+        end)
+    end
 
     -- On a sub-craft kept after buying its item turned cheaper, at the end
     -- of the line that says so.

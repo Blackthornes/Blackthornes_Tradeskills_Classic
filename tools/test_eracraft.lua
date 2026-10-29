@@ -3,7 +3,9 @@
 -- Era has no C_TradeSkillUI.CraftRecipe: a craft is made by its place in the
 -- open window, DoTradeSkill(index, count), and Enchanting's own window makes
 -- one a click with DoCraft(index). Clicking Craft on Era used to raise
--- "attempt to call a nil value".
+-- "attempt to call a nil value". DoCraft is the game's own: from addon code
+-- it is blocked, so an enchant is only picked here and UI/SecureCraft.lua's
+-- secure button presses the window's Create button.
 
 local checks = 0
 local function check(label, condition)
@@ -38,6 +40,11 @@ GetCraftInfo = function(i) return craftLines[i][1], craftLines[i][2], craftLines
 local made = {}
 DoTradeSkill = function(index, count) made[#made + 1] = { "trade", index, count } end
 DoCraft = function(index) made[#made + 1] = { "craft", index } end
+local selected = 0
+GetCraftSelectionIndex = function() return selected end
+SelectCraft = function(index) selected = index end
+local setSelections = 0
+CraftFrame_SetSelection = function(index) setSelections = setSelections + 1; SelectCraft(index) end
 local stopped = false
 StopTradeSkillRepeat = function() stopped = true end
 local repeatLeft = 1
@@ -141,11 +148,37 @@ check("says so", printed[1] == "cannot craft that")
 print("\nEnchanting's own window")
 Fire("CRAFT_SHOW")
 check("its enchant", Era:OpenRecipeIDs()[7418])
-made = {}
-check("started", Crafting:Start(7418, 5) == true)
-check("DoCraft, one a click", made[1] and made[1][1] == "craft" and made[1][2] == 1)
+made, printed = {}, {}
+check("not from a plain click", Crafting:Start(7418, 5) == false)
+check("DoCraft never called from addon code", #made == 0)
+check("nothing picked", selected == 0)
+check("says so", printed[1] == "cannot craft that")
+check("started from the secure button", Crafting:Start(7418, 5, true) == true)
+check("DoCraft still never called", #made == 0)
+check("the enchant picked in the window", selected == 1 and setSelections == 1)
 check("counted as one", Crafting.active.requested == 1)
 Crafting:Stop()
+check("picked again only when it moved", Crafting:Start(7418, 1, true) == true and setSelections == 1)
+Crafting:Stop()
+
+print("\nthe secure button")
+assert(loadfile(lfs_cwd .. "/UI/SecureCraft.lua"))("Blackthornes_TS", ns)
+local Secure = ns.SecureCraft
+local createShown = true
+CraftCreateButton = { IsVisible = function() return createShown end }
+check("an enchant needs it", Secure:Needed(7418))
+check("a trade craft does not", not Secure:Needed(9070))
+createShown = false
+check("not without the Create button", not Secure:Needed(7418))
+createShown = true
+Secure.anchor = { disabled = false }
+Secure.resolve = function() return 7418, 4 end
+check("a click starts it", Secure:OnClicked() == true)
+check("busy now", Crafting:IsBusy())
+check("a second click stops it", Secure:OnClicked() == false and not Crafting:IsBusy())
+Secure.anchor.disabled = true
+check("a dead button presses nothing", Secure:OnClicked() == false and not Crafting:IsBusy())
+Secure.anchor, Secure.resolve = nil, nil
 
 print("\nclosing one of two windows")
 Fire("TRADE_SKILL_CLOSE")

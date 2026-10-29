@@ -136,6 +136,7 @@ UI\BuyQuantity.lua
 UI\AuctionsView.lua
 UI\CraftPanel.lua
 UI\ProfessionOpener.lua
+UI\SecureCraft.lua
 UI\Disenchanter.lua
 UI\SellMarked.lua
 UI\CastBarOnTop.lua

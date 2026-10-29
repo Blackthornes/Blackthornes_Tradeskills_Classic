@@ -775,6 +775,12 @@ local function BuildDetail(parent)
     end, { width = 110, primary = true, height = 24 })
     craftButton:SetPoint("BOTTOMLEFT", quantityBox, "BOTTOMRIGHT", 6, 0)
     detail.craftButton = craftButton
+    -- An Era enchant is made by a secure button laid over this one.
+    if ns.SecureCraft then
+        ns.SecureCraft:Attach(craftButton, function()
+            if state.selected then return state.selected.recipeID, Wanted() end
+        end)
+    end
 
     local addButton = Widgets.CreateButton(detail, L["Queue"], function()
         if not state.selected then return end
