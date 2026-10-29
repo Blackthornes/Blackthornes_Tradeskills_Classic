@@ -1716,7 +1716,7 @@ valuable first of what Sell shows). Beside it on Sell, a Duration box (2, 8 or 2
 hours, opening upward) sets the same `postDuration` as the Post tab's. Tested in `tools/test_postdrawer.lua`.
 Not yet seen in game.
 
-## Sale Total
+## Potential Sale Total
 
 A player asked, the owner said build it (2026-10-28, from a mockup whose
 words he approved), then (2026-10-29, Forever's PR #1027 brought over)
@@ -1725,15 +1725,16 @@ header, left of Scan, shown folded or not. It starts at 0 each time the
 auction house opens (`AUCTION_HOUSE_SHOW`, `SaleTotal:NewVisit`) and grows
 with each listing that goes up by what it should bring in after the cut
 (`Posting:ResolvePending` calls `SaleTotal:NoteListed` once Era's own
-auction list shows the stack, `Profit:NetFromListing`). "Sale Total:",
-the number, and under it "of X" (listed plus what is still on the Sell
-list, `SaleTotal:Update` from `PostPanel:Refresh`) or "all listed". The
-hover has Listed:, Still to List: and Held Back:. Coins fly from the row,
+auction list shows the stack, `Profit:NetFromListing`). It shows
+"Potential Sale Total:" and the number, nothing under them (the owner,
+2026-10-29: label and value only). The hover has Listed:, Still to List:
+(what is still on the Sell list, `SaleTotal:Update` from
+`PostPanel:Refresh`) and Held Back:. Coins fly from the row,
 a green "+45g" rises and round numbers pop a chip; Effects Subtle only
 rolls the number, Off shows it at once. With it on, the Sell list's title
 and summary leave the gold out. It is measured to fit and the header's
-words give way (`UI:FitAuctionText`). "Sale Total:" on the Auction house
-page (`saleTotal`, on unless unticked for new saves, a value already saved
+words give way (`UI:FitAuctionText`). "Potential Sale Total:" on the
+Auction house page (`saleTotal`, on unless unticked for new saves, a value already saved
 is kept; never rename it; `saleTotalBest` and `saleTotalLast` stay in the
 save, unread). Tested in `tools/test_saletotal.lua`. Not yet seen in game.
 
@@ -2172,6 +2173,11 @@ voice. Farmer's play cheers keep their "!" (drop-quality cheers, goal
 marks, streaks, "Up to #N!", "Goal done: X!"), and `About.NOTE` is the
 owner's own wording. This rule is in every addon's notes; keep them the
 same.
+
+**Label and value only** (the owner, 2026-10-29): no extra descriptive
+line under a label, a name or a number unless it is truly needed. Show
+the label and the value only; anything more goes on the hover. This rule
+is in every addon's notes; keep them the same.
 
 ## The owner's standing rules (both addons)
 

@@ -1730,7 +1730,7 @@ function PostPanel:Refresh()
 
     if not self.frame or not self.frame:IsShown() then return end
 
-    -- The Sale Total counter sits in the header, left of Scan
+    -- The Potential Sale Total counter sits in the header, left of Scan
     -- (UI/SaleTotal.lua), folded or not, while it is on.
     local banding = ns.SaleTotal ~= nil and ns.SaleTotal:SetShown(true) or false
 
@@ -1896,7 +1896,7 @@ function PostPanel:Refresh()
     -- there to see with the drawer folded away; folded, the count too.
     local worth = ("|c%s%s|r"):format(ns.COLORS.accent,
         Util.FormatMoney(total, { noColor = true, short = true }))
-    -- With the Sale Total counter on, the header has the numbers, so the
+    -- With the Potential Sale Total counter on, the header has the numbers, so the
     -- title and the summary leave the worth out, folded or not.
     if banding then
         self:SetTitle(self:IsCollapsed() and L.Format("Ready to sell (%d)", #lines) or L["Ready to sell"])
