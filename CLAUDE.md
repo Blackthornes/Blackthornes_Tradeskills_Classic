@@ -983,7 +983,7 @@ size keeps the arrow where it was. No hover. Tested in
 
 The owner said build it (2026-10-20, from a mockup whose words he
 approved): the Level Up tab's switch reads Next Point (the tab's own
-list), Road to 300 and Learn Next (the recipes to learn;
+list), Road to 300 and Recipes to Learn (Learn Next until 2026-10-29;
 `RecipeBookView.WithSwitch` takes `learnText`). `Logic/RoadPlan.lua` lays
 out the whole way to 300 for one profession: from the skill now, each
 stretch takes the recipe cheapest a point, known or taught by a trainer
