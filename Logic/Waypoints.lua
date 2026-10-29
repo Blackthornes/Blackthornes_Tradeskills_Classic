@@ -62,9 +62,6 @@ Waypoints.ZONE_MAPS = {
     ["Silithus"] = 1451, ["Winterspring"] = 1452, ["Stormwind City"] = 1453,
     ["Orgrimmar"] = 1454, ["Ironforge"] = 1455, ["Thunder Bluff"] = 1456,
     ["Darnassus"] = 1457, ["Undercity"] = 1458, ["Alterac Valley"] = 1459,
-    -- Forever's own zones, by the Forever client's game tables (2026-10-29).
-    ["Mount Hyjal"] = 2482, ["Zephras Isle"] = 2521, ["Riverglades"] = 2548,
-    ["Shen'dralas"] = 2652,
 }
 
 --- Is the client English? Nil from GetLocale counts as English, so nothing

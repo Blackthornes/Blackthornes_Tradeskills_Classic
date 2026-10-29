@@ -399,9 +399,8 @@ check("at the spot", marked and ("%s,%s"):format(marked.place.x, marked.place.y)
 check("named for the trainer", marked and marked.opts.name, "Journey Jen")
 check("with no game pin to go with", marked and marked.opts.gamePin, nil)
 check("chat says it pinned", printed[#printed], "Pinned Journey Jen (Trained Boots) on your map, Elwynn Forest 40, 45.")
-check("Forever's own zones have a map ID", ns.Waypoints.ZONE_MAPS["Zephras Isle"] == 2521
-  and ns.Waypoints.ZONE_MAPS["Mount Hyjal"] == 2482 and ns.Waypoints.ZONE_MAPS["Riverglades"] == 2548
-  and ns.Waypoints.ZONE_MAPS["Shen'dralas"] == 2652, true)
+-- Era has none of Forever's own zones, so they stay out of ZONE_MAPS.
+check("no Forever-only zones on Era", ns.Waypoints.ZONE_MAPS["Zephras Isle"], nil)
 ns.SpotMarker, C_Map = nil, nil
 ns.Waypoints.found = nil
 
