@@ -40,6 +40,10 @@ Copied over since, one at a time:
 - `b974d36` One minimap button for every Blackthornes addon (2026-10-28,
   Forever PR #1015, cherry-picked as it is; `UI/SharedMinimap.lua` and its test
   are the same in all five Classic repos).
+- `9d90d31` Shared minimap button shows the Blackthornes thorn B (2026-10-29,
+  taken as it is: `UI/SharedMinimap.lua` at FILE_VERSION 2,
+  `Media/Frame/MinimapBadge.tga` and `tools/make_minimap_art.py`, the same
+  in all five Classic repos).
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.

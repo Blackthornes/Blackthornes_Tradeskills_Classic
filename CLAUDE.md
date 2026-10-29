@@ -1217,7 +1217,10 @@ account wide, never rename them: `minimapButton` ("shared" or "each", nil
 reads as shared), `minimapButtonAt` (the newest answer wins) and
 `minimapSharedAngle`. Never call it "One for All" (another addon's name).
 Every addon's own button also takes left-click to open and right-click for
-settings. Not yet seen in game.
+settings. Its face is the Blackthornes sign, a gold B in a ring of thorns on
+a dark round face (the owner picked it over the anvil, 2026-10-28):
+`Media/Frame/MinimapBadge.tga`, drawn by `tools/make_minimap_art.py` (the
+same tool in all five; rerun it, never edit the TGA). Not yet seen in game.
 
 ## Off, Shift or Always on tooltips
 
