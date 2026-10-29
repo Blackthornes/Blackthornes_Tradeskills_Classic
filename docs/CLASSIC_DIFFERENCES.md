@@ -291,3 +291,14 @@ out the line under the number (2026-10-29). Only the label and the number
 show; what is still on the Sell list is on the hover. A catch-up that
 brings Forever's "Sale Total:" or its "of X" / "all listed" line back
 leaves them out.
+
+### Disenchant results on tooltips
+
+Classic only (a player asked, the owner said build it, 2026-10-29): on a
+character that knows Disenchant, an item's tooltip lists each thing it can
+break into, its count and its chance, under "Disenchant value"
+(`ItemTooltip:AddDisenchantResults`, from `Disenchant:GetOutcomes`, the
+same chances as the Disenchanting tab). "Disenchant Results on Tooltips:"
+on the Look page, Off, Shift or Always, Shift unless picked
+(`tooltipDisenchantResults`, `tooltipDisenchantShift`; never rename
+them). Tested in `tools/test_disenchantresults.lua`. A catch-up keeps it.

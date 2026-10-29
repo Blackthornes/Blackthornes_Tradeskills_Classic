@@ -282,6 +282,7 @@ local DEFAULTS = {
         -- cost, each one, what you're short and who knows it. See
         -- UI/EnchantTooltip.lua. Never rename it.
         tooltipEnchantCosts = true,
+        tooltipDisenchantResults = true,
 
         -- On a Waylaid Crate's tooltip (2026-10-20): what fills it, what that
         -- costs, what it pays back and a favor's price. See
@@ -296,6 +297,7 @@ local DEFAULTS = {
         tooltipTrendShift = false,
         tooltipRecipeShift = false,
         tooltipEnchantShift = false,
+        tooltipDisenchantShift = true,
         tooltipCrateShift = false,
 
         -- A green arrow on the icon of any gear that is an upgrade for the
