@@ -511,7 +511,10 @@ end
 
 -- Era has no CraftRecipe: a craft is made by its place in the open window,
 -- DoTradeSkill(index, count), or for Enchanting DoCraft(index), one at a
--- time. A place moves when a heading folds or a filter changes, so the
+-- time. DoCraft is kept for the game's own buttons: called from addon code,
+-- even on a click, the game blocks it. So an enchant is only picked in the
+-- Enchanting window here, and UI/SecureCraft.lua's secure button presses
+-- that window's Create button for the player. A place moves when a heading folds or a filter changes, so the
 -- lines are laid out again whenever the window's signature or the
 -- character's recipe count moves, and a line is checked by name again
 -- right before it is used.
@@ -574,7 +577,26 @@ function EraRecipes:OpenRecipeIDs()
     return open
 end
 
---- Make a recipe from the open window. Must run from a click.
+--- Pick a line in the Enchanting window, the way a click on it would, so
+--- its Create button makes that enchant and is lit only when it can.
+-- @return true when the window has that line picked
+function EraRecipes:SelectCraftLine(index)
+    local okNow, current = pcall(GetCraftSelectionIndex)
+    if not (okNow and current == index) then
+        local setSelection = _G.CraftFrame_SetSelection
+        if type(setSelection) == "function" then
+            pcall(setSelection, index)
+            if type(_G.CraftFrame_Update) == "function" then pcall(_G.CraftFrame_Update) end
+        else
+            pcall(SelectCraft, index)
+        end
+    end
+    local ok, picked = pcall(GetCraftSelectionIndex)
+    return ok and picked == index
+end
+
+--- Make a recipe from the open window. Must run from a click. An enchant
+--- is only picked: the secure button's press of Create makes it.
 -- @return true, or false when the window does not show it now
 function EraRecipes:Craft(recipeID, count)
     local line = self:OpenLines()[recipeID]
@@ -588,7 +610,7 @@ function EraRecipes:Craft(recipeID, count)
         DoTradeSkill(line.index, math.max(1, count or 1))
     else
         -- Enchanting makes one a click, and an enchant waits for its target.
-        DoCraft(line.index)
+        return self:SelectCraftLine(line.index)
     end
     return true
 end

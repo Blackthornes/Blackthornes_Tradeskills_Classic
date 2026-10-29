@@ -106,6 +106,15 @@ loads them, and every reader asks for them first.
   recipes by name, laid out again when the window or the recipe count
   moves) and is checked by name again right before the call. A recipe a
   folded heading or a filter hides says "cannot craft that".
+- `DoCraft` is the game's own: from addon code, even on a click, it is
+  blocked ("only available to the Blizzard UI", 2026-10-29). So an enchant
+  is only picked in the Enchanting window (`EraRecipes:SelectCraftLine`),
+  and `UI/SecureCraft.lua` lays an invisible secure button over our Craft
+  buttons (Queue tab, Level Up, the craft pane) while the mouse is on one
+  whose craft is an enchant. Its PreClick calls `Crafting:Start(id, n,
+  true)`, then its macro, `/click CraftCreateButton`, presses the window's
+  Create button. `Crafting:Start` refuses an enchant without that third
+  argument, and Butler's Craft opens the Queue tab for one.
 - `Crafting.isTradeSkillOpen` also follows Enchanting's window
   (`CRAFT_SHOW`/`CRAFT_CLOSE`), so the two can be open at once.
   `CraftPanel:GetOpenRecipeIDs` answers `EraRecipes:OpenRecipeIDs` (every

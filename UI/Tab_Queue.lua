@@ -1022,6 +1022,13 @@ local function Build(container)
         Refresh()
     end, { width = 220, height = 26, primary = true })
     widgets.craftButton:SetPoint("BOTTOMLEFT", 8, 32)
+    -- An Era enchant is made by a secure button laid over this one.
+    if ns.SecureCraft then
+        ns.SecureCraft:Attach(widgets.craftButton, function()
+            local entry = ns.Crafting:GetNextReady()
+            if entry then return entry.recipeID, entry.quantity end
+        end)
+    end
 
     widgets.craftStatus = Theme.CreateLabel(container, "small", "accent")
     widgets.craftStatus:SetPoint("LEFT", widgets.craftButton, "RIGHT", 10, 0)

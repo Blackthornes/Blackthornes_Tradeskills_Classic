@@ -565,11 +565,13 @@ end
 --------------------------------------------------------------------------------
 
 --- Begin crafting a queued entry. Must be called from a hardware event.
+-- `secureClick` is true only from UI/SecureCraft.lua's button, whose own
+-- press of the Enchanting window's Create button makes an Era enchant.
 --
 -- Blizzard requires a real click to start a craft, so one click runs one queue
 -- entry. Within an entry the client repeats the craft itself, so queueing 20 of
 -- something genuinely is a single click.
-function Crafting:Start(recipeID, count)
+function Crafting:Start(recipeID, count, secureClick)
     local ready, reason = self:GetReadiness(recipeID)
     if not ready then
         ns.Print(reason or L["cannot craft that"])
@@ -590,7 +592,15 @@ function Crafting:Start(recipeID, count)
 
     -- Era's Enchanting window makes one a click.
     local era = EraWindows()
-    if era and era:MakesOneAtATime(recipeID) then count = 1 end
+    if era and era:MakesOneAtATime(recipeID) then
+        count = 1
+        -- The game blocks DoCraft from addon code, so only the secure
+        -- button can make an enchant.
+        if not secureClick then
+            ns.Print(L["cannot craft that"])
+            return false
+        end
+    end
 
     self.active = {
         recipeID = recipeID,
