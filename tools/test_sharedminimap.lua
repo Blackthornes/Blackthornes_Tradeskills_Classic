@@ -9,7 +9,7 @@
 --   4. The newest save's answer wins.
 --   5. A row's left-click opens, right-click opens settings, middle and
 --      shift go to their own jobs, and fall back to open when not given.
---   6. The menu lays out a row for each addon.
+--   6. The menu lays out a row for each addon, sized to its longest name.
 
 local NAMES = { "CreateFrame", "UIParent", "Minimap", "GameTooltip", "C_Timer", "time",
     "BlackthornesMinimap", "UISpecialFrames", "IsShiftKeyDown", "GetCursorPosition" }
@@ -120,6 +120,9 @@ assert(menu and menu:IsShown(), "menu opens")
 assert(menu.rows[1].entry == a and menu.rows[2].entry == b, "rows in order")
 SM.ToggleMenu()
 assert(not menu:IsShown(), "a second click closes it")
+assert(SM.MenuWidth({}, nil) == 200, "never under the least width")
+assert(SM.MenuWidth({ 300 }, nil) == 300 + 10 + 24 + 10 + 10 + 12 + 4, "the longest name fits")
+assert(SM.MenuWidth({ 100 }, 180) == 250, "the plate and close gem fit")
 
 for _, name in ipairs(NAMES) do _G[name] = saved[name] end
 print("test_sharedminimap: ok")
