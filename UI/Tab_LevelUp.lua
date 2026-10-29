@@ -1590,7 +1590,7 @@ local switch = ns.RecipeBookView and ns.RecipeBookView.WithSwitch({
             refresh = function() ns.RoadView:Refresh() end,
         },
     } or nil,
-    learnText = L["Learn Next"],
+    learnText = L["Recipes to Learn"],
     learn = ns.RecipeBookView.New({ order = "skill", showSkill = true }),
     corner = function(parent)
         return ns.Upgrades and ns.Upgrades.CreateAltCheckbox and ns.Upgrades:CreateAltCheckbox(parent)

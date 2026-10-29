@@ -382,3 +382,11 @@ worth on Shuffles wraps short of its change. The Bank view's names and
 lines, the mail report's name and time and the Lists box's hint shrink or
 wrap. Nothing is cut and no words changed. Tested in
 `tools/test_fitwhole.lua`.
+
+## Recipes to Learn on Level Up
+
+The owner approved the words (2026-10-29, from the UI review): the Level
+Up tab's whole book of recipes to learn was called "Learn Next", the same
+as the tick box that adds a LEARN NEXT section under Next Point. The view
+is now "Recipes to Learn", as on Profit; the tick box, its section and
+`levelUpLearnNext` keep their names.
