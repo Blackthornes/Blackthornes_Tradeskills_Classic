@@ -311,3 +311,13 @@ same chances as the Disenchanting tab). "Disenchant Results on Tooltips:"
 on the Look page, Off, Shift or Always, Shift unless picked
 (`tooltipDisenchantResults`, `tooltipDisenchantShift`; never rename
 them). Tested in `tools/test_disenchantresults.lua`. A catch-up keeps it.
+
+### The craft pane beside Enchanting
+
+Classic only (the owner said build it, 2026-10-29): Era's Enchanting has a
+window of its own (`CraftFrame`, `CRAFT_SHOW`/`CRAFT_CLOSE`), so the craft
+pane opens beside it too. With both windows open it docks to the one opened
+last, and moves to the other when that one closes (`CraftPanel:WindowShown`,
+`WindowClosed`, `eraOpen`, `eraLast`; `FindTradeSkillFrame` answers only an
+open window on Era). Tested in `tools/test_enchantpane.lua`. A catch-up
+keeps it.
