@@ -799,6 +799,44 @@ function PostPanel:OpenShoppingLine(line)
     ns.UI:SearchAuctionHouse(line.itemID, line.shortfall)
 end
 
+--- On Era with the drawer up: open the Buy view on an item's buy plan,
+--- for the AH buttons on the Queue panel, the Gather tab and the Lists.
+-- @return true when the plan is open (or already was)
+function PostPanel:OpenBuyPlan(itemID, need)
+    local View, buy = ns.LegacyBuyView, ns.LegacyBuy
+    if not (View and View:Applies() and buy) then return false end
+    if not (self.frame and self.frame:IsShown()) then return false end
+    if not buy:IsOpenFor(itemID) and not buy:Open(itemID, need) then return false end
+    if self.view ~= "buy" then
+        self:SetView("buy")
+    else
+        self:Refresh()
+    end
+    return true
+end
+
+--- The next Buy line still to buy after an item, for the plan's Next
+--- button: list order from the one after it, then from the top. Only lines
+--- a Search would look up (not vendor materials), never the same item.
+function PostPanel:NextBuyLine(itemID)
+    local lines = self:ShoppingLines() or {}
+    local at = 0
+    for i, line in ipairs(lines) do
+        if line.itemID == itemID then at = i; break end
+    end
+    for step = 1, #lines do
+        local line = lines[(at + step - 1) % #lines + 1]
+        if line.itemID ~= itemID and self:CanSearch(line) then return line end
+    end
+end
+
+--- What the search buttons' hover says. Era's auction house fills in no
+--- count, so it only says what the button does there.
+function PostPanel.SearchTip(text)
+    if ns.LegacyScan and ns.LegacyScan:Applies() then return L["Searches the auction house."] end
+    return text
+end
+
 --- A purchase was counted, or one in the mail was taken (Logic/AHBuys.lua):
 --- the shopping list is built again, and drawn at once while it shows.
 function PostPanel:OnPurchase()
@@ -1606,7 +1644,7 @@ function PostPanel:UpdateSearchAll(lines)
     button:SetText(label)
     local width = Theme.MeasureText and Theme.MeasureText("small", label)
     button:SetWidth(math.max(110, (width or 0) + 24))
-    button.tooltipText = L["Searches the auction house for everything on this list. Pick one and how many you need fills in."]
+    button.tooltipText = PostPanel.SearchTip(L["Searches the auction house for everything on this list. Pick one and how many you need fills in."])
 end
 
 -- Clicking the row searched already, but nothing said so. Asked for: "a button
@@ -1620,7 +1658,7 @@ function PostPanel.CreateShoppingRow(row)
 
     row.search = Widgets.CreateButton(row, L["Search"], function()
         PostPanel:OpenShoppingLine(row.data)
-    end, { width = SEARCH_WIDTH, height = 18, primary = true, tooltip = L["Searches the auction house. Pick it and how many you need fills in."] })
+    end, { width = SEARCH_WIDTH, height = 18, primary = true, tooltip = PostPanel.SearchTip(L["Searches the auction house. Pick it and how many you need fills in."]) })
     row.search:SetPoint("RIGHT", row, "RIGHT", -8, 0)
 
     local inset = -(8 + SEARCH_WIDTH + 6)

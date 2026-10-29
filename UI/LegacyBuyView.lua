@@ -110,6 +110,13 @@ function LegacyBuyView:Build(body, frame, opts)
     self.note = note
 
     local button = Widgets.CreateButton(body, "", function()
+        -- The plan is done: open the next line's.
+        local nextLine = LegacyBuyView.nextLine
+        if nextLine then
+            LegacyBuyView.nextLine = nil
+            if ns.PostPanel then ns.PostPanel:OpenShoppingLine(nextLine) end
+            return
+        end
         ns.LegacyBuy:Buy()
         LegacyBuyView:Refresh()
     end, { width = 150, height = 22, primary = true })
@@ -205,8 +212,21 @@ function LegacyBuyView:Refresh()
     self.panel:Show()
 
     local stack, ready = buy:Next()
+    self.nextLine = nil
+    local label
     if stack and state.status ~= "done" then
-        local label = L.Format("Buy %d for %s", stack.count, Util.FormatMoney(stack.buyout, { icons = true }))
+        label = L.Format("Buy %d for %s", stack.count, Util.FormatMoney(stack.buyout, { icons = true }))
+    elseif state.status == "done" then
+        -- Done here: the next thing on the Buy list that still needs buying.
+        local nextLine = ns.PostPanel and ns.PostPanel.NextBuyLine and ns.PostPanel:NextBuyLine(state.itemID)
+        local name = nextLine and Util.GetItemName(nextLine.itemID)
+        if name then
+            self.nextLine = nextLine
+            label = L.Format("Next: %s", name)
+            ready = true
+        end
+    end
+    if label then
         self.button:SetText(label)
         local width = Theme.MeasureText and Theme.MeasureText("small", label)
         self.button:SetWidth(math.max(150, (width or 0) + 24))

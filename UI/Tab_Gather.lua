@@ -127,7 +127,7 @@ local function CreateRow(row)
     PlaceRow(row)
 
     row.search = Widgets.CreateButton(row, L["AH"], function()
-        if row.data then UI:SearchAuctionHouse(row.data.itemID, row.data.shortfall) end
+        if row.data then UI:SearchOrPlan(row.data.itemID, row.data.shortfall) end
     end, { width = 26, height = 16, tooltip = L["Search the auction house for this"] })
     row.search:SetPoint("RIGHT", -8, 0)
 
