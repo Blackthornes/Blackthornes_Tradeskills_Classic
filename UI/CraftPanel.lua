@@ -79,6 +79,17 @@ local COLLAPSE_KEY = "craftPaneCollapsed"
 -- global can be absent on the first open of a session.
 local TRADE_SKILL_FRAME_NAMES = { "ProfessionsFrame", "TradeSkillFrame" }
 
+-- Era's Enchanting has a window of its own, CraftFrame, beside the usual
+-- TradeSkillFrame, and the two can be open at once. The pane docks to the
+-- one opened last that is still open, and moves to the other when it closes.
+local ERA_FRAME_NAMES = { trade = "TradeSkillFrame", craft = "CraftFrame" }
+CraftPanel.eraOpen = { trade = false, craft = false }
+CraftPanel.eraLast = nil
+
+local function IsEra()
+    return ns.Crafting and ns.Crafting.EraWindows and ns.Crafting.EraWindows() ~= nil
+end
+
 -- Exposed so a test can hold the row geometry to its own promise: the text
 -- must stop clear of every control standing to its right.
 CraftPanel.TEXT_INSET = TEXT_INSET
@@ -95,15 +106,35 @@ CraftPanel.PANEL_GAP = PANEL_GAP
 --
 -- Read only, and never assigned to: taking a reference to a Blizzard frame to
 -- anchor against is fine, writing one back is what taints the UI.
-function CraftPanel:FindTradeSkillFrame()
-    for _, name in ipairs(TRADE_SKILL_FRAME_NAMES) do
-        local frame = _G[name]
+local function FrameNamed(name)
+    local frame = _G[name]
 
-        -- Guard against a global that exists but is not a frame.
-        if type(frame) == "table" and frame.GetObjectType then
-            local ok = pcall(frame.GetObjectType, frame)
-            if ok then return frame, name end
+    -- Guard against a global that exists but is not a frame.
+    if type(frame) == "table" and frame.GetObjectType then
+        local ok = pcall(frame.GetObjectType, frame)
+        if ok then return frame end
+    end
+end
+
+function CraftPanel:FindTradeSkillFrame()
+    -- Era: the window opened last, else the other one still open. With
+    -- neither open there is nothing to dock to, and a hidden window left
+    -- from earlier is not one.
+    if IsEra() then
+        local other = self.eraLast == "craft" and "trade" or "craft"
+        for _, kind in ipairs({ self.eraLast or "trade", other }) do
+            if self.eraOpen[kind] then
+                local name = ERA_FRAME_NAMES[kind]
+                local frame = FrameNamed(name)
+                if frame then return frame, name end
+            end
         end
+        return nil
+    end
+
+    for _, name in ipairs(TRADE_SKILL_FRAME_NAMES) do
+        local frame = FrameNamed(name)
+        if frame then return frame, name end
     end
 end
 
@@ -2339,23 +2370,55 @@ end
 -- Lifecycle
 --------------------------------------------------------------------------------
 
+--- A profession window opened: dock beside it.
+function CraftPanel:WindowShown(kind)
+    self.eraOpen[kind] = true
+    self.eraLast = kind
+    self:Attach()
+
+    C_Timer.After(0.5, function()
+        if CraftPanel.eraOpen[kind] and ns.Crafting and ns.Crafting.isTradeSkillOpen then
+            CraftPanel:Attach()
+        end
+    end)
+end
+
+--- A profession window closed: go with it, or move to the one still open.
+function CraftPanel:WindowClosed(kind)
+    self.eraOpen[kind] = false
+    if self.eraLast == kind then self.eraLast = nil end
+
+    if IsEra() and (self.eraOpen.trade or self.eraOpen.craft) then
+        self.eraLast = self.eraLast or (self.eraOpen.craft and "craft" or "trade")
+        self:Attach()
+        return
+    end
+
+    self:Hide()
+end
+
 function CraftPanel:OnEnable()
     -- Blizzard's profession UI is load-on-demand, so on the first open of a
     -- session the frame may not exist yet when this event arrives. Re-anchor
     -- shortly after in case it appeared late.
     ns.RegisterEvent(self, "TRADE_SKILL_SHOW", function()
-        CraftPanel:Attach()
-
-        C_Timer.After(0.5, function()
-            if ns.Crafting and ns.Crafting.isTradeSkillOpen then
-                CraftPanel:Attach()
-            end
-        end)
+        CraftPanel:WindowShown("trade")
     end)
 
     ns.RegisterEvent(self, "TRADE_SKILL_CLOSE", function()
-        CraftPanel:Hide()
+        CraftPanel:WindowClosed("trade")
     end)
+
+    -- Era's Enchanting window gets the pane too.
+    if IsEra() then
+        ns.RegisterEvent(self, "CRAFT_SHOW", function()
+            CraftPanel:WindowShown("craft")
+        end)
+
+        ns.RegisterEvent(self, "CRAFT_CLOSE", function()
+            CraftPanel:WindowClosed("craft")
+        end)
+    end
 
     -- A name drawn before the client had its item gets its rarity colour
     -- when the item arrives: the rows on screen are drawn again, once for a
