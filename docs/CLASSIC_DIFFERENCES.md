@@ -403,3 +403,15 @@ total while any lack a price. The list gets the room back. The menu's
 by where to buy is a tick box, ticked at first, and unticked the list goes
 by cost. Nothing is saved for either. Tested in
 `tools/test_gatherfooter.lua`.
+
+### Tooltips page in Settings
+
+The owner said build it (2026-10-29, from the Tradeskills UI review): every
+line Tradeskills adds to a tooltip (value in the profession window, value on
+tooltips, sales details, price trend, recipe value, enchant costs,
+disenchant results, crate costs) moved off the Look page to a page of its
+own, TOOLTIPS, after Look. The settings keep their saved keys, so nothing a
+player picked changes. The switch along the top measures the room left of
+"Find a setting" and steps its gaps and text size down to fit
+(`LayoutSwitch`, `SwitchRoom`). Tested in `tools/test_uifit.lua`. Not yet
+seen in game.

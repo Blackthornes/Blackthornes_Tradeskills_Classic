@@ -47,7 +47,9 @@ local PAGES = {
     { key = "auction", text = L["AUCTION HOUSE"],
       tip = L["Buying, posting and scanning"] },
     { key = "look", text = L["LOOK & SOUND"],
-      tip = L["Window size and effects, values on tooltips, and every sound"] },
+      tip = L["Window size and effects, and every sound"] },
+    { key = "tooltips", text = L["TOOLTIPS"],
+      tip = L["Lines added to item and recipe tooltips."] },
     { key = "sharing", text = L["SHARING"],
       tip = L["Your other account and guild prices"] },
     { key = "data", text = L["DATA"],
@@ -306,14 +308,59 @@ local function PaintSwitch()
 end
 
 --- Lay the switch out left to right, each part as wide as its name.
+-- The page names along the top, left of the search box. When they don't
+-- fit (nine pages, and German runs long), the gaps close up, then the names
+-- drop a size; a name is never cut.
+local SWITCH_GAPS = { 22, 14, 10 }
+local SWITCH_SIZES = { "small", "tiny" }
+-- The room when it can't be measured yet (before the window is drawn).
+local SWITCH_ROOM = 700
+
+local function SwitchRoom()
+    local bar, find = widgets.bar, widgets.find
+    if bar and find then
+        local okBar, left = pcall(bar.GetLeft, bar)
+        local okFind, edge = pcall(find.GetLeft, find)
+        if okBar and okFind and type(left) == "number" and type(edge) == "number" and edge > left then
+            return edge - left - COLUMN_ONE_X - 16
+        end
+    end
+    return SWITCH_ROOM
+end
+
 local function LayoutSwitch()
+    local parts = widgets.switch or {}
+    local function Widths()
+        local total = 0
+        for _, part in ipairs(parts) do
+            local width = Theme.TextWidth and Theme.TextWidth(part.label)
+            part.width = (type(width) == "number" and width or 100) + 4
+            total = total + part.width
+        end
+        return total
+    end
+
+    local room = SwitchRoom()
+    local gap = SWITCH_GAPS[1]
+    for _, size in ipairs(SWITCH_SIZES) do
+        for _, part in ipairs(parts) do
+            pcall(part.label.SetFont, part.label, Theme.FONT, Theme.sizes[size], "")
+        end
+        local total = Widths()
+        local fits = false
+        for _, tryGap in ipairs(SWITCH_GAPS) do
+            gap = tryGap
+            if total + gap * math.max(0, #parts - 1) <= room then fits = true break end
+        end
+        if fits then break end
+    end
+
     local previous
-    for _, part in ipairs(widgets.switch or {}) do
-        local width = Theme.TextWidth and Theme.TextWidth(part.label)
-        part.button:SetWidth((type(width) == "number" and width or 100) + 4)
+    for _, part in ipairs(parts) do
+        part.button:SetWidth(part.width)
         part.button:ClearAllPoints()
         if previous then
-            part.button:SetPoint("LEFT", previous, "RIGHT", 22, 0)
+            part.button:SetPoint("LEFT", previous, "RIGHT", gap, 0)
         else
             part.button:SetPoint("LEFT", widgets.bar, "LEFT", COLUMN_ONE_X, 0)
         end
@@ -433,7 +480,6 @@ local function BuildBar(outer)
 
         widgets.switch[#widgets.switch + 1] = part
     end
-    LayoutSwitch()
 
     -- The house order for an option bar: search, then tick boxes.
     widgets.describe = Widgets.CreateCheckbox(bar, L["Show Descriptions"], function(checked)
@@ -445,6 +491,11 @@ local function BuildBar(outer)
     widgets.find = Widgets.CreateSearchBox(bar, L["Find a setting"], Search)
     widgets.find:SetWidth(Widgets.SEARCH_WIDTH or 170)
     widgets.find:SetPoint("RIGHT", widgets.describe, "LEFT", -16, 0)
+
+    -- Laid out once the search box is placed, and again each time the page
+    -- shows, when the room can be measured.
+    LayoutSwitch()
+    if bar.HookScript then bar:HookScript("OnShow", LayoutSwitch) end
 end
 
 --------------------------------------------------------------------------------
@@ -1283,8 +1334,10 @@ local function Build(outer)
     end, true)
     widgets.learnFromSearches:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    CreateSection(pages.look, 1, L["SHOWN IN THE GAME"])
-    local professionValueRow = CreateRow(pages.look, 1, L["Value in Profession Window:"],
+    -- Their own page (the owner's UI review, 2026-10-29): the lines added
+    -- to tooltips are what players come to change, and Look ran long.
+    CreateSection(pages.tooltips, 1, L["SHOWN IN THE GAME"])
+    local professionValueRow = CreateRow(pages.tooltips, 1, L["Value in Profession Window:"],
         L["Shows what each recipe sells for beside its name."])
 
     widgets.professionValue = Widgets.CreateCheckbox(professionValueRow, L["On"], function(checked)
@@ -1315,31 +1368,31 @@ local function Build(outer)
         return dropdown
     end
 
-    local tooltipValueRow = CreateRow(pages.look, 1, L["Value on Tooltips:"])
+    local tooltipValueRow = CreateRow(pages.tooltips, 1, L["Value on Tooltips:"])
 
     widgets.tooltipValue = ShiftDropdown(tooltipValueRow, "value", "showValueOnItemTooltips")
 
     -- Asked 2026-10-13: the sales lines under Demand, kept for Shift.
-    local salesShiftRow = CreateRow(pages.look, 1, L["Sales Details:"],
+    local salesShiftRow = CreateRow(pages.tooltips, 1, L["Sales Details:"],
         L["The sales lines under Demand."])
 
     widgets.tooltipSalesShift = ShiftDropdown(salesShiftRow, "sales", nil)
 
     -- Asked 2026-10-14: the Prices tab's trend on the tooltip too.
-    local trendRow = CreateRow(pages.look, 1, L["Price Trend on Tooltips:"],
+    local trendRow = CreateRow(pages.tooltips, 1, L["Price Trend on Tooltips:"],
         L["How much the price moved from its 7 or 14 day average."])
 
     widgets.tooltipTrend = ShiftDropdown(trendRow, "trend", "tooltipTrend")
 
     -- Asked 2026-10-05: is a recipe worth buying, at a glance. The button
     -- is /bts recipes.
-    local recipeTipRow = CreateRow(pages.look, 1, L["Recipe Value on Tooltips:"],
+    local recipeTipRow = CreateRow(pages.tooltips, 1, L["Recipe Value on Tooltips:"],
         L["On a recipe, shows its cost, what it sells for, and how many crafts pay it back."])
 
     widgets.recipeTooltips = ShiftDropdown(recipeTipRow, "recipe", "showRecipeValueOnTooltips")
 
     -- Asked 2026-10-14: what an enchant's materials cost, on its tooltip.
-    local enchantTipRow = CreateRow(pages.look, 1, L["Enchant Costs on Tooltips:"],
+    local enchantTipRow = CreateRow(pages.tooltips, 1, L["Enchant Costs on Tooltips:"],
         L["On an enchant, shows what each material costs and who knows it."])
 
     widgets.enchantTooltips = ShiftDropdown(enchantTipRow, "enchant", "tooltipEnchantCosts", function()
@@ -1347,7 +1400,7 @@ local function Build(outer)
     end)
 
     -- Asked 2026-10-29: what gear can break into, for an enchanter.
-    local disenchantTipRow = CreateRow(pages.look, 1, L["Disenchant Results on Tooltips:"],
+    local disenchantTipRow = CreateRow(pages.tooltips, 1, L["Disenchant Results on Tooltips:"],
         L["On gear you can disenchant, shows what it can break into and the chance of each."])
 
     widgets.disenchantTooltips = ShiftDropdown(disenchantTipRow, "disenchant", "tooltipDisenchantResults")
@@ -1355,11 +1408,12 @@ local function Build(outer)
     -- Asked 2026-10-20: what a Waylaid Crate costs to fill, on its tooltip.
     -- Only where the crates exist (not on Era).
     if ns.MerchantsFavor then
-        local crateTipRow = CreateRow(pages.look, 1, L["Crate Costs:"])
+        local crateTipRow = CreateRow(pages.tooltips, 1, L["Crate Costs:"])
 
         widgets.crateTooltips = ShiftDropdown(crateTipRow, "crate", "tooltipCrateCosts")
     end
 
+    CreateSection(pages.look, 1, L["SHOWN IN THE GAME"])
     -- Its own row (a player's report, 2026-10-09): beside the tick box it
     -- started 340 pixels in and ran past the column into the next one.
     local recipeListRow = CreateRow(pages.look, 1, L["Recipes to Learn:"])

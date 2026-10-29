@@ -906,6 +906,28 @@ pricingButton.scripts.OnClick(pricingButton)
 check("a click on the switch shows its page", Holder(undercut).shown, true)
 check("and saves it", settings.settingsPage, "pricing")
 
+-- Tooltips page (2026-10-29): the tooltip lines left the Look page for a
+-- page of their own.
+local tooltipsButton, valueTick
+for _, child in ipairs(bar.children) do
+    if child.strings[1] and child.strings[1].text == "TOOLTIPS" then tooltipsButton = child end
+end
+for _, list in pairs(made) do
+    for _, control in ipairs(list) do
+        local parent = control.GetParent and control:GetParent()
+        local label = parent and rawget(parent, "strings") and parent.strings[1]
+        if not valueTick and label and label.text == "Value on Tooltips:" then valueTick = control end
+    end
+end
+check("the value line has a control there", valueTick ~= nil, true)
+check("Settings has a Tooltips page", tooltipsButton ~= nil, true)
+if tooltipsButton and valueTick then
+    tooltipsButton.scripts.OnClick(tooltipsButton)
+    check("the tooltip rows sit on it", Holder(valueTick).shown, true)
+    check("and it is saved", settings.settingsPage, "tooltips")
+    pricingButton.scripts.OnClick(pricingButton)
+end
+
 --- The control on the row whose label says `text`, if Settings offers one.
 local function Offered(text)
     for _, kind in ipairs({ "CreateCheckbox", "CreateNumberBox" }) do
