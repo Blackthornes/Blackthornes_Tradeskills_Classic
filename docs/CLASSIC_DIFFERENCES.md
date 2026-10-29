@@ -268,3 +268,10 @@ loads them, and every reader asks for them first.
   names a skill line by ID, so `EraRecipes:LineName` gives the client's own
   word (the spell the profession teaches, else the skill list), then the
   book's English name.
+
+### No Forever zones in the map list
+
+Forever added its own zones (Mount Hyjal, Zephras Isle, Riverglades,
+Shen'dralas) to `Waypoints.ZONE_MAPS` with its marker fix (2026-10-29).
+Era has none of them, so Classic's list stays as it was. A catch-up that
+adds them again leaves them out.

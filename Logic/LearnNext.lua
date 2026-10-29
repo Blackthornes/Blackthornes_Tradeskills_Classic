@@ -410,6 +410,8 @@ function LearnNext:ShowTheWay(row)
 
     local ok, why
     local Waypoints = ns.Waypoints
+    -- Our own marker always goes on the map (the game's pin often won't).
+    local marked = Waypoints and Waypoints:Mark(place, who) or false
 
     -- The arrow (Logic/WayArrow.lua), the same as the other addons': it
     -- leads the way step by step with "Guide Me:" ticked, and hands off to
@@ -443,9 +445,14 @@ function LearnNext:ShowTheWay(row)
     if Waypoints and Waypoints:HasTomTom() then
         ok, why = Waypoints:TomTom(place, ("%s (%s)"):format(who, what))
     end
+    local pinned
     if not ok and Waypoints then
         ok, why = Waypoints:Pin(place)
+        pinned = ok
     end
+    -- With the game's pin on, the marker goes when the pin does.
+    if pinned and marked then Waypoints:Mark(place, who, true) end
+    if not ok and marked then ok = true end
 
     if ok then
         ns.Print(L.Format("Pinned %s (%s) on your map, %s %s, %s.", who, what,

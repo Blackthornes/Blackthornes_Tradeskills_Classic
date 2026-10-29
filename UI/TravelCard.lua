@@ -36,6 +36,24 @@ local FOOT = 44
 -- are on.
 TravelCard.MAX_ROWS = 6
 
+--- How tall a wrapped label stands at a width, never less than its lines
+--- by measure (German runs about 30% longer, so a step's words can take
+--- two lines); kept here so the file stays the same in every addon.
+function TravelCard.Tall(label, size, width)
+    local text = label and label.GetText and label:GetText()
+    if type(text) ~= "string" or text == "" then return 0 end
+    local line = ((Theme.sizes and tonumber(Theme.sizes[size])) or 12) + 2
+    local ok, wide = pcall(label.GetStringWidth, label)
+    wide = ok and tonumber(wide) or 0
+    local lines = 1
+    if width and width > 0 then lines = math.max(1, math.ceil(wide / width)) end
+    local _, breaks = text:gsub("\n", "")
+    local tall = (lines + breaks) * line
+    local got, real = pcall(label.GetStringHeight, label)
+    real = got and tonumber(real) or 0
+    return math.ceil(math.max(tall, real))
+end
+
 function TravelCard:Build()
     if self.frame then return self.frame end
 
@@ -203,6 +221,7 @@ function TravelCard:Update(state)
     if key ~= self.drawnKey then
         self.drawnKey = key
         local rows = TravelCard.Rows(plan)
+        local y = TOP
         for index, row in ipairs(self.rows) do
             local data = rows[index]
             if data then
@@ -215,13 +234,25 @@ function TravelCard:Update(state)
                 row.title:SetTextColor(Theme.Unpack(data.now and "accentHi" or "text"))
                 row.status:SetTextColor(Theme.Unpack(data.done and "good" or data.now and "accentHi" or "muted"))
                 row:SetAlpha(data.done and 0.6 or 1)
+                -- A step whose words wrap makes its row taller and moves
+                -- the rows under it down, never over them.
+                local inner = WIDTH - PADDING * 2
+                local statusWide = tonumber(select(2, pcall(row.status.GetStringWidth, row.status))) or 0
+                local tall = 6 + TravelCard.Tall(row.title, "normal", inner - 10 - 8 - statusWide - 6)
+                    + 2 + TravelCard.Tall(row.sub, "small", inner - 10 - 8) + 4
+                local height = math.max(ROW, tall)
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", PADDING, -y)
+                row:SetPoint("TOPRIGHT", -PADDING, -y)
+                row:SetHeight(height)
+                y = y + height
                 row:Show()
             else
                 row:Hide()
             end
         end
         self.time:SetText(TravelCard.TimeText(plan))
-        frame:SetHeight(TOP + #rows * ROW + FOOT)
+        frame:SetHeight(y + FOOT)
     end
     frame:Show()
 end

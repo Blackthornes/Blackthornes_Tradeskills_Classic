@@ -176,6 +176,22 @@ function Waypoints:Pin(place)
     return true
 end
 
+--- Lay our own gold marker on a place { zone or mapID, x, y } (UI/SpotMarker.lua).
+--- Forever turns the game's own pin down (a German player found nothing at
+--- the Crossroads, 2026-10-29), so the marker is what shows on the map; the
+--- game's pin, when it takes one, is a bonus. Without one the marker goes
+--- when you stand on it, by the arrow (Logic/WayArrow.lua).
+-- @return true when a marker was laid
+function Waypoints:Mark(place, name, gamePin)
+    local marker = ns.SpotMarker
+    if not (marker and marker.Show and type(place) == "table" and place.x and place.y) then return false end
+    local mapID = Number(place.mapID) or self:MapFor(place.zone)
+    if not mapID then return false end
+    local ok, laid = pcall(marker.Show, marker, { map = mapID, x = place.x, y = place.y },
+        { name = name, gamePin = gamePin, arrow = ns.WayArrow })
+    return ok and laid == true
+end
+
 --- A map the game takes a pin on, and the spot (0-1) on it. Some maps (a
 --- city or a building on some clients) take none: then the map around it,
 --- with the spot moved over by where the one map sits on the other.

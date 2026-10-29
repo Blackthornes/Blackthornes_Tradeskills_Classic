@@ -493,10 +493,17 @@ function Travel:Rides(stops, side)
     end
 
     local paths = DATA.paths or {}
+    local lengths = DATA.lengths or {}
     for index = 1, #paths - 1, 2 do
         local from, to = "f" .. paths[index], "f" .. paths[index + 1]
         if stops[from] and stops[to] then
-            local cost = Distance(stops[from], stops[to]) * Travel.FLIGHT_DETOUR / Travel.FLIGHT_SPEED
+            -- How far the flight really goes, from the tables; a guess from
+            -- the straight line only when they have no points for it.
+            local yards = lengths[(index + 1) / 2]
+            if not yards or yards <= 0 then
+                yards = Distance(stops[from], stops[to]) * Travel.FLIGHT_DETOUR
+            end
+            local cost = yards / Travel.FLIGHT_SPEED
             Add(from, to, "fly", cost)
         end
     end

@@ -378,6 +378,32 @@ check("and says why", printed[#printed],
   "Can't pin Journey Jen (Trained Boots): this client cannot put a pin on the map. They are in Elwynn Forest.")
 check("probe line", ns.Waypoints:ProbeText():find("map pin NO", 1, true) ~= nil, true)
 
+print("\nthe game takes no pin: our own marker")
+-- Forever turns the game's pin down (a German player found nothing at the
+-- Crossroads, 2026-10-29): our gold marker (UI/SpotMarker.lua) goes on the
+-- map anyway, and Show the way says it pinned.
+local marked
+ns.SpotMarker = { Show = function(_, place, opts) marked = { place = place, opts = opts } return true end }
+C_Map = {
+  GetBestMapForUnit = function() return 1429 end,
+  GetMapInfo = function(id)
+    if id == 1429 then return { name = "Elwynn Forest", parentMapID = 13 } end
+    if id == 13 then return { name = "Eastern Kingdoms", parentMapID = 0 } end
+  end,
+  GetMapChildrenInfo = function() return { { name = "Wetlands", mapID = 1437 }, { name = "Elwynn Forest", mapID = 1429 } } end,
+}
+ns.Waypoints.found = nil
+check("shown with no game pin", LN:ShowTheWay(boots), true)
+check("the marker on the zone's map", marked and marked.place.map, 1429)
+check("at the spot", marked and ("%s,%s"):format(marked.place.x, marked.place.y), "40,45")
+check("named for the trainer", marked and marked.opts.name, "Journey Jen")
+check("with no game pin to go with", marked and marked.opts.gamePin, nil)
+check("chat says it pinned", printed[#printed], "Pinned Journey Jen (Trained Boots) on your map, Elwynn Forest 40, 45.")
+-- Era has none of Forever's own zones, so they stay out of ZONE_MAPS.
+check("no Forever-only zones on Era", ns.Waypoints.ZONE_MAPS["Zephras Isle"], nil)
+ns.SpotMarker, C_Map = nil, nil
+ns.Waypoints.found = nil
+
 print("\nqueue materials")
 local buys = {}
 ns.Queue = { EnsureBuy = function(_, itemID, count, forItem, forRecipe)
