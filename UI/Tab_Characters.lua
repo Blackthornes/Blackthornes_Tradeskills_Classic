@@ -40,6 +40,9 @@ local widgets = {}
 
 -- The tab has two views: the characters themselves, and every character's
 -- bank in one list (UI/BankView.lua).
+-- How far the views sit below the top, for the tab strip over them.
+local VIEW_DROP = 10
+
 local VIEWS = {
     { key = "characters", text = L["CHARACTERS"] },
     { key = "bank",       text = L["BANK"] },
@@ -773,71 +776,22 @@ local function ShowView(key)
         view:SetShown(viewKey == state.view)
     end
 
-    for _, button in ipairs(widgets.switch) do
-        local active = button.key == state.view
-        button.label:SetTextColor(Theme.Unpack(active and "accent" or "muted"))
-        button.underline:SetShown(active)
-    end
+    if widgets.switch and widgets.switch.Select then widgets.switch:Select(state.view) end
 
     Refresh()
 end
 
 ns.CharactersTab = { ShowView = ShowView }
 
---- CHARACTERS | BANK, drawn as the tab's heading: the view showing is lit
---- gold and underlined, the other waits in grey.
+--- CHARACTERS | BANK, as tabs along the top like Sales and Disenchanting
+--- (the owner said build it, 2026-10-29).
 local function BuildSwitch(container)
-    local buttons = {}
-    local previous
-
-    for _, definition in ipairs(VIEWS) do
-        local button = CreateFrame("Button", nil, container)
-        button:SetHeight(18)
-        button:SetFrameLevel(container:GetFrameLevel() + 5)
-
-        button.label = Theme.CreateLabel(button, "tiny", "muted")
-        button.label:SetPoint("LEFT", 0, 0)
-        button.label:SetText(definition.text)
-        button:SetWidth(button.label:GetStringWidth() + 4)
-
-        button.underline = button:CreateTexture(nil, "OVERLAY")
-        button.underline:SetPoint("BOTTOMLEFT", 0, 1)
-        button.underline:SetPoint("BOTTOMRIGHT", -4, 1)
-        button.underline:SetHeight(1)
-        button.underline:SetColorTexture(Theme.Unpack("accent"))
-        button.underline:Hide()
-
-        button.key = definition.key
-
-        if previous then
-            button:SetPoint("LEFT", previous, "RIGHT", 14, 0)
-        else
-            button:SetPoint("TOPLEFT", 8, -5)
-        end
-
-        button:SetScript("OnClick", function(self) ShowView(self.key) end)
-        button:SetScript("OnEnter", function(self)
-            if self.key ~= state.view then
-                self.label:SetTextColor(Theme.Unpack("text"))
-            end
-        end)
-        button:SetScript("OnLeave", function(self)
-            if self.key ~= state.view then
-                self.label:SetTextColor(Theme.Unpack("muted"))
-            end
-        end)
-
-        buttons[#buttons + 1] = button
-        previous = button
-    end
-
-    local rule = container:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(Theme.Unpack("border"))
-    rule:SetHeight(1)
-    rule:SetPoint("LEFT", previous, "RIGHT", 6, 0)
-    rule:SetPoint("RIGHT", container, "RIGHT", -8, 0)
-
-    return buttons
+    local tabs = {}
+    for index, definition in ipairs(VIEWS) do tabs[index] = { key = definition.key, text = definition.text } end
+    local strip = Widgets.CreateTabStrip(container, tabs, function(key) ShowView(key) end, { width = 1060 })
+    strip:SetPoint("TOPLEFT", 8, -2)
+    strip:SetFrameLevel(container:GetFrameLevel() + 5)
+    return strip
 end
 
 --- Realm: This Realm, All Realms, then each realm by name. First on the
@@ -1029,8 +983,10 @@ local function Build(container)
     local views = {}
 
     for _, definition in ipairs(VIEWS) do
+        -- A little lower than the views were, under the taller tabs.
         local view = CreateFrame("Frame", nil, container)
-        view:SetAllPoints(container)
+        view:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -VIEW_DROP)
+        view:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
         view:Hide()
         views[definition.key] = view
     end

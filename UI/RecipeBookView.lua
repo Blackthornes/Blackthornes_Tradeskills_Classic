@@ -678,7 +678,12 @@ RecipeBookView._widgets = main._widgets
 --------------------------------------------------------------------------------
 
 -- The switch's height; both views start below it.
-local SWITCH_HEIGHT = 22
+-- The tab strip over the views: its top, and how far down the views start.
+local SWITCH_TOP = 2
+local SWITCH_HEIGHT = 32
+-- How wide the strip may grow, and what a tick box at its right end takes.
+local SWITCH_ROOM = 1060
+local CORNER_ROOM = 240
 
 --- A tab's own view and Recipes to learn behind a switch at its top, drawn
 --- like the Characters tab's: the view showing is lit gold and underlined,
@@ -728,15 +733,14 @@ function RecipeBookView.WithSwitch(spec)
             view:SetShown(viewKey == tab.view)
         end
 
-        for _, part in ipairs(parts) do
-            local active = part.key == tab.view
-            part.label:SetTextColor(Theme.Unpack(active and "accent" or "muted"))
-            if part.underline then part.underline:SetShown(active) end
-        end
+        if parts and parts.Select then parts:Select(tab.view) end
 
         RefreshView()
     end
 
+    -- The views are tabs along the top, as on Sales and Disenchanting (the
+    -- owner said build it, 2026-10-29): small underlined words hid which
+    -- one was showing.
     local function BuildSwitch(container)
         local definitions = {
             { key = spec.mainKey, text = spec.mainText, tip = spec.mainTip },
@@ -753,84 +757,44 @@ function RecipeBookView.WithSwitch(spec)
                 definitions[#definitions + 1] = { key = extra.key, text = extra.text, tip = extra.tip }
             end
         end
-        local built, previous = {}, nil
 
-        for _, definition in ipairs(definitions) do
-            local button = CreateFrame("Button", nil, container)
-            button:SetHeight(18)
-            local level = container:GetFrameLevel()
-            button:SetFrameLevel((type(level) == "number" and level or 1) + 5)
-
-            -- Kept beside the button rather than on it.
-            local part = { key = definition.key }
-
-            part.label = Theme.CreateLabel(button, "tiny", "muted")
-            part.label:SetPoint("LEFT", 0, 0)
-            part.label:SetText(definition.text)
-            local width = Theme.TextWidth and Theme.TextWidth(part.label)
-            button:SetWidth((type(width) == "number" and width or 100) + 4)
-
-            local underline = button:CreateTexture(nil, "OVERLAY")
-            if underline then
-                underline:SetPoint("BOTTOMLEFT", 0, 1)
-                underline:SetPoint("BOTTOMRIGHT", -4, 1)
-                underline:SetHeight(1)
-                underline:SetColorTexture(Theme.Unpack("accent"))
-                underline:Hide()
-                part.underline = underline
-            end
-
-            if previous then
-                button:SetPoint("LEFT", previous, "RIGHT", 14, 0)
-            else
-                button:SetPoint("TOPLEFT", 8, -4)
-            end
-
-            button:SetScript("OnClick", function() tab.ShowView(part.key) end)
-            button:SetScript("OnEnter", function(self)
-                if part.key ~= tab.view then
-                    part.label:SetTextColor(Theme.Unpack("text"))
-                end
-                -- A view with no tip shows none (Road to 300, 2026-10-20).
-                if definition.tip then
-                    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-                    GameTooltip:SetText(definition.tip, 1, 1, 1)
-                    GameTooltip:Show()
-                end
-            end)
-            button:SetScript("OnLeave", function()
-                if part.key ~= tab.view then
-                    part.label:SetTextColor(Theme.Unpack("muted"))
-                end
-                GameTooltip:Hide()
-            end)
-
-            built[#built + 1] = part
-            previous = button
+        local tabs = {}
+        for index, definition in ipairs(definitions) do
+            tabs[index] = { key = definition.key, text = definition.text }
         end
 
-        -- A tick box at the right end of the switch, for every view
-        -- (Show Equipment Upgrades, 2026-10-17); the rule stops short of it.
+        -- Room for the tick box at the right end, when there is one.
         local corner = spec.corner and spec.corner(container)
-        if corner then
-            corner:SetPoint("RIGHT", container, "TOPRIGHT", -8, -13)
-            local level = container:GetFrameLevel()
-            corner:SetFrameLevel((type(level) == "number" and level or 1) + 5)
-        end
+        local room = SWITCH_ROOM - ((corner and corner:IsShown()) and CORNER_ROOM or 0)
 
-        local rule = container:CreateTexture(nil, "ARTWORK")
-        if rule then
-            rule:SetColorTexture(Theme.Unpack("border"))
-            rule:SetHeight(1)
-            rule:SetPoint("LEFT", previous, "RIGHT", 6, 0)
-            if corner and corner:IsShown() then
-                rule:SetPoint("RIGHT", corner, "LEFT", -10, 0)
-            else
-                rule:SetPoint("RIGHT", container, "RIGHT", -8, 0)
+        local strip = Widgets.CreateTabStrip(container, tabs, function(key) tab.ShowView(key) end,
+            { width = room })
+        strip:SetPoint("TOPLEFT", 8, -SWITCH_TOP)
+        local level = container:GetFrameLevel()
+        strip:SetFrameLevel((type(level) == "number" and level or 1) + 5)
+
+        -- Each tab keeps its hover; a view with no tip shows none (Road to
+        -- 300, 2026-10-20).
+        for index, button in ipairs(strip.tabs or {}) do
+            local tip = definitions[index].tip
+            if tip and button.HookScript then
+                button:HookScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+                    GameTooltip:SetText(tip, 1, 1, 1)
+                    GameTooltip:Show()
+                end)
+                button:HookScript("OnLeave", function() GameTooltip:Hide() end)
             end
         end
 
-        return built
+        -- A tick box at the right end of the strip, for every view (Show
+        -- Equipment Upgrades, 2026-10-17).
+        if corner then
+            corner:SetPoint("RIGHT", container, "TOPRIGHT", -8, -(SWITCH_TOP + 14))
+            corner:SetFrameLevel((type(level) == "number" and level or 1) + 6)
+        end
+
+        return strip
     end
 
     function tab.Build(container)

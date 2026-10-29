@@ -56,7 +56,7 @@ ns.Theme = {
   Unpack = function() return 1, 1, 1, 1 end,
 }
 
-local list, dropdown
+local list, dropdown, strip
 ns.Widgets = {
   CreateSearchBox = function() return Stub() end,
   CreateCheckbox = function() return Stub() end,
@@ -70,6 +70,11 @@ ns.Widgets = {
     return list
   end,
   ShowItemOnly = function() end,
+  CreateTabStrip = function(_, tabs, onSelect)
+    strip = Stub({ tabs = {}, defs = tabs, onSelect = onSelect,
+      Select = function(self, key) self.selected = key end })
+    return strip
+  end,
 }
 
 ns.Util = {
@@ -250,10 +255,16 @@ tab.Build(Frame())
 check("the tab's own view is built", built ~= nil, true)
 check("and shown first", tab.view, "recipes")
 check("and drawn", refreshed, 1)
+check("the views are tabs", strip and #strip.defs, 2)
+check("the tab showing is lit", strip.selected, "recipes")
+strip.onSelect("learn")
+check("a tab click shows its view", tab.view, "learn")
+check("and lights that tab", strip.selected, "learn")
+tab.ShowView("recipes")
 tab.ShowView("learn")
 check("the switch moves to Recipes to learn", tab.view, "learn")
 tab.Refresh()
-check("which redraws the list, not the tab's view", refreshed, 1)
+check("which redraws the list, not the tab's view", refreshed, 2)
 tab.ShowView("nonsense")
 check("an unknown view falls back to the tab's own", tab.view, "recipes")
 

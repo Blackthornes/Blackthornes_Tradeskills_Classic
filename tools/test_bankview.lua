@@ -88,6 +88,7 @@ ns.Widgets = {
     CreateDropdown = function(_, _, onSelect) return Stub({ onSelect = onSelect }) end,
     CreateCheckbox = function(_, _, onToggle) return Stub({ onToggle = onToggle }) end,
     CreateButton = function() return Stub() end,
+    CreateTabStrip = function(_, _, onSelect) return Stub({ onSelect = onSelect }) end,
     ShowItemTooltip = function() return true end,
     CreateScrollList = function(_, opts)
         local list = Stub({ opts = opts, data = {} })
