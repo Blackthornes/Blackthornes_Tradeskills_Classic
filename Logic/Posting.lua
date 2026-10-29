@@ -1949,6 +1949,24 @@ end
 -- Price floor
 --------------------------------------------------------------------------------
 
+-- How old a scan's cheapest listing may be and still stand in for market
+-- value in the price floor.
+Posting.FLOOR_LISTED_FRESH = 24 * 3600
+
+--- The cheapest listing (a lone low one left out) from a scan no older than
+--- FLOOR_LISTED_FRESH, or nil.
+function Posting.ListedRecently(itemID)
+    local prices = ns.Prices
+    if not (prices and prices.GetTable and prices.LowestListed) then return nil end
+    local ok, all = pcall(prices.GetTable, prices)
+    local record = ok and type(all) == "table" and all[itemID]
+    if type(record) ~= "table" or type(record.seen) ~= "number" then return nil end
+    if time() - record.seen > Posting.FLOOR_LISTED_FRESH then return nil end
+    local lowest = prices.LowestListed(record)
+    if type(lowest) ~= "number" or lowest <= 0 then return nil end
+    return lowest
+end
+
 --- The lowest price worth listing at, below which something has gone wrong.
 --
 -- Exists because a bad price is silent and expensive: a scroll worth a silver
@@ -1974,6 +1992,12 @@ function Posting:GetPriceFloor(itemID, byHand)
     -- A fifth of market value. Wide enough for a real undercut war, narrow
     -- enough to catch an order of magnitude going missing.
     local market = not byHand and ns.Prices:GetValue(itemID, "market")
+    -- Market value moves slowly, so a scan that only saw a few far dearer
+    -- listings keeps it high for days. Others listing near this price in a
+    -- recent scan says the price is real (the owner, 2026-10-28: a cloak
+    -- selling for 55s was refused against a market of 14g).
+    local listed = market and Posting.ListedRecently(itemID)
+    if listed and listed < market then market = listed end
     if market and market > 0 then
         local fraction = math.floor(market * 0.2)
         if fraction > floor then
