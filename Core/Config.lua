@@ -122,7 +122,7 @@ local DEFAULTS = {
         -- down cancels the next undercut auction (2026-10-16). Off unless
         -- ticked; never rename it.
         mouseWheelListing = false,
-        -- The Sale Total in the drawer's header, counting up as you list
+        -- The Potential Sale Total in the drawer's header, counting up as you list
         -- (UI/SaleTotal.lua; 2026-10-28, counts up since 2026-10-29). On
         -- unless unticked; a value already saved is kept. Never rename it,
         -- nor saleTotalBest and saleTotalLast, left in the save unread.

@@ -961,9 +961,9 @@ local function Build(outer)
     end, false)
     widgets.mouseWheel:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    -- Sale Total (the owner said build it from a mockup, 2026-10-28): the
-    -- counter in the drawer's header (UI/SaleTotal.lua).
-    local saleTotalRow = CreateRow(pages.auction, 1, L["Sale Total:"],
+    -- Potential Sale Total (the owner said build it from a mockup,
+    -- 2026-10-28): the counter in the drawer's header (UI/SaleTotal.lua).
+    local saleTotalRow = CreateRow(pages.auction, 1, L["Potential Sale Total:"],
         L["What the items you listed this visit should bring in, after the auction house cut. It starts again at 0 each time you open the auction house."])
 
     widgets.saleTotal = Widgets.CreateCheckbox(saleTotalRow, L["On"], function(checked)

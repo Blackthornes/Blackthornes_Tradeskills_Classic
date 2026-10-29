@@ -1229,7 +1229,7 @@ local function FitBarText(bar, buttons)
     if bar.title then bar.title:SetWidth(room) end
 end
 
---- Fit the header's text to the buttons and the Sale Total counter
+--- Fit the header's text to the buttons and the Potential Sale Total counter
 --- (UI/SaleTotal.lua), which sits left of them and grows with its number.
 function UI:FitAuctionText()
     local bar = self.auctionBar

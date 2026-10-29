@@ -275,3 +275,11 @@ Forever added its own zones (Mount Hyjal, Zephras Isle, Riverglades,
 Shen'dralas) to `Waypoints.ZONE_MAPS` with its marker fix (2026-10-29).
 Era has none of them, so Classic's list stays as it was. A catch-up that
 adds them again leaves them out.
+
+### Potential Sale Total
+
+The owner renamed the drawer's counter "Potential Sale Total:" and took
+out the line under the number (2026-10-29). Only the label and the number
+show; what is still on the Sell list is on the hover. A catch-up that
+brings Forever's "Sale Total:" or its "of X" / "all listed" line back
+leaves them out.

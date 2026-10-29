@@ -1,4 +1,4 @@
--- The Sale Total in the drawer's header, counting up as you list
+-- The Potential Sale Total in the drawer's header, counting up as you list
 -- (2026-10-28, counting up since 2026-10-29).
 --
 -- What must hold:
@@ -6,8 +6,8 @@
 --      rest.
 --   2. Milestones fall on round numbers: 10g under 100g, then the power of
 --      ten below the total.
---   3. The line under the number: "of" listed plus left, "all listed" once
---      the list is empty, nothing before anything is listed.
+--   3. Only the label and the number: "Potential Sale Total:" and no line
+--      under the number.
 --   4. On by default; off when unticked.
 --   5. A visit starts at 0, each listing counts up by its net and comes off
 --      what is left, and nothing is written to the save.
@@ -89,10 +89,6 @@ check(ST.Crossed(95 * G, 104 * G) == 100 * G, "passing 100g is a milestone")
 check(ST.Crossed(101 * G, 150 * G) == nil, "no round number passed, no milestone")
 check(ST.Crossed(150 * G, 100 * G) == nil, "going down is never a milestone")
 
--- 3. The line under the number.
-check(ST.UnderText(0, 0) == "", "nothing listed and nothing left says nothing")
-check(ST.UnderText(10 * G, 0) == "all listed", "an empty list after listing says all listed")
-check(ST.UnderText(10 * G, 30 * G) == "of 40g", "of is listed plus left")
 check(ST.MoneyText(0) == "0g", "nothing shows as 0g")
 
 -- 4. The switch.
@@ -106,6 +102,9 @@ local bar = Stub()
 ST:Attach(bar, Stub())
 check(ST.counter and ST.counter:IsShown(), "the counter shows in the header")
 check(ST:Width() > 0, "it takes room the header text gives way to")
+-- 3. The label and the number only.
+check(ST.label.text == "Potential Sale Total:", "the label reads Potential Sale Total:")
+check(ST.under == nil and ST.UnderText == nil and ST.DrawUnder == nil, "there is no second line")
 ST:Update({ { itemID = 1, unitPrice = 100 * G, postQuantity = 1 },
             { itemID = 2, unitPrice = 20 * G, postQuantity = 1 } }, 0)
 check(ST.left == 114 * G and ST.count == 2, "the Sell list's net is what is left")

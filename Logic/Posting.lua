@@ -3036,7 +3036,7 @@ function Posting:ResolvePending(posted, appeared, target)
         pcall(ns.SellOut.NotePosted, ns.SellOut, pending.itemID, went, Posting:DurationFor(pending.itemID))
     end
     if went and ns.SaleTotal then
-        -- The drawer's Sale Total counts up by what this listing should bring in.
+        -- The drawer's Potential Sale Total counts up by what this listing should bring in.
         pcall(ns.SaleTotal.NoteListed, ns.SaleTotal, pending.itemID, went, pending.unitPrice)
     end
     if went and ns.StatsLog then
