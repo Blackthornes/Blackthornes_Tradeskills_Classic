@@ -123,6 +123,7 @@ end
 --- A row with a Cancel button: undercut, or cheapest with others selling
 --- first at its price.
 function AuctionsView.Cancellable(row)
+    if ns.MyAuctions and ns.MyAuctions.CanEverCancel and not ns.MyAuctions:CanEverCancel() then return false end
     return row.mine and not row.cancelling and (row.state == "undercut" or row.behind == true) or false
 end
 
@@ -435,7 +436,35 @@ function AuctionsView:SetShown(on)
     self.shown = on and true or false
     for _, part in ipairs(self.parts or {}) do part:SetShown(self.shown) end
     if self.empty and not self.shown then self.empty:Hide() end
-    if self.shown then self.key = nil end
+    if self.shown then
+        self.key = nil
+        self.controls = nil
+        self:PlaceControls()
+    end
+end
+
+--- Only the buttons this client can use: on Era there is no Check Places,
+--- and no Cancel at all once the game has turned a cancel down. The
+--- undercut list stays either way.
+function AuctionsView:PlaceControls()
+    local MyAuctions = ns.MyAuctions
+    local cancel = MyAuctions:CanEverCancel() and true or false
+    local places = MyAuctions:CanEverCheckPlaces() and true or false
+    local controls = (cancel and "c" or "") .. (places and "p" or "")
+    if controls == self.controls then return end
+    self.controls = controls
+
+    self.cancelNext:SetShown(cancel)
+    self.note:SetShown(cancel)
+    self.checkPlaces:SetShown(places)
+    self.checkPlaces:ClearAllPoints()
+    if cancel then
+        self.checkPlaces:SetPoint("RIGHT", self.cancelNext, "LEFT", -6, 0)
+    else
+        self.checkPlaces:SetPoint("RIGHT", self.cancelNext, "RIGHT", 0, 0)
+    end
+    self.note:SetPoint("RIGHT", places and self.checkPlaces or self.cancelNext, "LEFT", -8, 0)
+    self.key = nil
 end
 
 --- Built again only when a read, a cancel or a scan moved, or a minute
@@ -444,6 +473,7 @@ function AuctionsView:Refresh(force)
     if not (self.list and self.shown) then return end
 
     local MyAuctions = ns.MyAuctions
+    self:PlaceControls()
     -- Every tick: a scan starting or ending says whether it can run.
     local canCheck = (MyAuctions:CanCheckPlaces()) and true or false
     if canCheck ~= self.canCheck then

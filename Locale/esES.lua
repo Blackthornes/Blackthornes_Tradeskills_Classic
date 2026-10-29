@@ -2523,7 +2523,6 @@ L["Cancels the auction undercut the most. It comes back in the mail."] = "Cancel
 L["One cancel per click. Items come back in the mail."] = "Una cancelación por clic. Los objetos vuelven por correo."
 L["You have no auctions up."] = "No tienes subastas en venta."
 L["Reading your auctions..."] = "Leyendo tus subastas..."
-L["the game will not let addons cancel auctions"] = "el juego no deja que los addons cancelen subastas"
 L["Log in on that character to cancel it."] = "Entra con ese personaje para cancelarla."
 L["Scan your auctions again first."] = "Vuelve a leer tus subastas primero."
 L["Already cancelling that one."] = "Esa ya se está cancelando."

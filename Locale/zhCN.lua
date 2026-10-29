@@ -2520,7 +2520,6 @@ L["Cancels the auction undercut the most. It comes back in the mail."] = "取消
 L["One cancel per click. Items come back in the mail."] = "每次点击取消一个。物品会通过邮件回来。"
 L["You have no auctions up."] = "你没有在售的拍卖。"
 L["Reading your auctions..."] = "正在读取你的拍卖..."
-L["the game will not let addons cancel auctions"] = "游戏不让插件取消拍卖"
 L["Log in on that character to cancel it."] = "登录那个角色才能取消它。"
 L["Scan your auctions again first."] = "先再读取一次你的拍卖。"
 L["Already cancelling that one."] = "已经在取消那个了。"

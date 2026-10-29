@@ -2524,7 +2524,6 @@ L["Cancels the auction undercut the most. It comes back in the mail."] = "Сни
 L["One cancel per click. Items come back in the mail."] = "Один клик снимает один аукцион. Предметы вернутся по почте."
 L["You have no auctions up."] = "У тебя нет выставленных аукционов."
 L["Reading your auctions..."] = "Читаю твои аукционы..."
-L["the game will not let addons cancel auctions"] = "игра не даёт аддонам снимать аукционы"
 L["Log in on that character to cancel it."] = "Зайди этим персонажем, чтобы снять его."
 L["Scan your auctions again first."] = "Сначала снова прочитай свои аукционы."
 L["Already cancelling that one."] = "Этот уже снимается."

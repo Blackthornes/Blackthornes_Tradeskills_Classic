@@ -238,12 +238,33 @@ function MyAuctions:Rows()
     return rows, summary
 end
 
+local function IsLegacy()
+    return ns.Auctions ~= nil and ns.Auctions.IsLegacy ~= nil and ns.Auctions.IsLegacy() == true
+end
+
+-- Era cancels with its own CancelAuction(index). If the game turns that
+-- down, the Cancel buttons go for the rest of the session.
+MyAuctions.LEGACY_MISSES = 2
+
+--- Whether this client lets the Auctions view cancel at all. When not, its
+--- Cancel buttons are not shown.
+function MyAuctions:CanEverCancel()
+    if IsLegacy() then
+        return not self.legacyBlocked and type(_G.CancelAuction) == "function"
+    end
+    return Util.HasFunction("C_AuctionHouse.CancelAuction")
+end
+
+--- Whether Check Places can work on this client: Era's searches never
+--- carry places, so there it is not shown.
+function MyAuctions:CanEverCheckPlaces()
+    return not IsLegacy()
+end
+
 --- Whether the player can cancel right now, and why not.
 function MyAuctions:CanCancel(row)
     if not AuctionHouseOpen() then return false, L["the auction house must be open"] end
-    if not Util.HasFunction("C_AuctionHouse.CancelAuction") then
-        return false, L["the game will not let addons cancel auctions"]
-    end
+    if not self:CanEverCancel() then return false end
     if row and row.alt then return false, L["Log in on that character to cancel it."] end
     if row and not row.auctionID then return false, L["Scan your auctions again first."] end
     if row and (row.cancelling or (row.auctionID and self.cancelling and self.cancelling[row.auctionID])) then
@@ -255,7 +276,7 @@ function MyAuctions:CanCancel(row)
     end
 
     local AH = _G.C_AuctionHouse
-    if row and type(AH.CanCancelAuction) == "function" then
+    if row and type(AH) == "table" and type(AH.CanCancelAuction) == "function" then
         local ok, can = pcall(AH.CanCancelAuction, row.auctionID)
         if ok and can == false then return false, L["The auction house won't let you cancel that one."] end
     end
@@ -282,7 +303,17 @@ function MyAuctions:Cancel(row)
     local allowed, reason = self:CanCancel(row)
     if not allowed then return false, reason end
 
-    local ok, err = pcall(C_AuctionHouse.CancelAuction, row.auctionID)
+    local ok, err
+    if auction and auction.legacy then
+        -- Era: where it sits now, read again right before, since the list
+        -- moves up after every cancel.
+        local index = ns.Auctions.LegacyIndexOf(row.auctionID)
+        if not index then return false, L["That auction is gone already."] end
+        ok, err = pcall(_G.CancelAuction, index)
+        if not ok then self.legacyBlocked = true end
+    else
+        ok, err = pcall(C_AuctionHouse.CancelAuction, row.auctionID)
+    end
     if not ok then
         ns.Debug("cancel failed: " .. tostring(err))
         return false, L["The game would not cancel it."]
@@ -290,7 +321,8 @@ function MyAuctions:Cancel(row)
 
     if ns.AHQueue and ns.AHQueue.NoteSend then ns.AHQueue:NoteSend() end
     self.cancelling = self.cancelling or {}
-    self.cancelling[row.auctionID] = { at = GetTime(), itemID = row.itemID, quantity = row.quantity }
+    self.cancelling[row.auctionID] = { at = GetTime(), itemID = row.itemID, quantity = row.quantity,
+        legacy = auction and auction.legacy or nil }
     self.cancelCount = (self.cancelCount or 0) + 1
     self.version = self.version + 1
 
@@ -348,10 +380,17 @@ function MyAuctions:OnRead(live, final, sold)
         elseif not up[auctionID] then
             cancelling[auctionID] = nil
             self.cancelledCount = (self.cancelledCount or 0) + 1
+            self.legacyMisses = 0
             ns.Print(L.Format("Cancelled %s. It comes back to you in the mail.", label))
         elseif final and now - pending.at >= self.CANCEL_WAIT then
             cancelling[auctionID] = nil
             ns.Print(L.Format("%s is still up. The cancel didn't go through.", label))
+            -- On Era, two in a row that never went: the game is not letting
+            -- this through, so the buttons go.
+            if pending.legacy then
+                self.legacyMisses = (self.legacyMisses or 0) + 1
+                if self.legacyMisses >= self.LEGACY_MISSES then self.legacyBlocked = true end
+            end
         end
     end
 end
@@ -511,6 +550,7 @@ end
 
 --- Whether Check Places can run now, and why not.
 function MyAuctions:CanCheckPlaces()
+    if not self:CanEverCheckPlaces() then return false end
     if not AuctionHouseOpen() then return false, L["the auction house must be open"] end
     if self.checking then return false end
     if ns.Scanner and ns.Scanner.isScanning then return false, L["wait for the scan to finish"] end
@@ -575,12 +615,28 @@ function MyAuctions:CheckNext()
     if not started then self:CheckNext() end
 end
 
+--- The game said no to Era's CancelAuction from here.
+function MyAuctions:OnBlocked(_, addon, func)
+    if not IsLegacy() then return end
+    if type(func) == "string" and func:find("CancelAuction", 1, true) then
+        self.legacyBlocked = true
+        self.version = self.version + 1
+    end
+end
+
+function MyAuctions:OnEnable()
+    ns.RegisterEvent(self, "ADDON_ACTION_BLOCKED", self.OnBlocked)
+    ns.RegisterEvent(self, "ADDON_ACTION_FORBIDDEN", self.OnBlocked)
+end
+
 --- For /bts probe: which cancel calls this client has, and what happened.
 function MyAuctions:ProbeText()
     local AH = _G.C_AuctionHouse
     local function Has(name) return type(AH) == "table" and type(AH[name]) == "function" end
     local parts = {
         Has("CancelAuction") and "cancel yes" or "cancel NO",
+        type(_G.CancelAuction) == "function" and "era cancel yes" or "era cancel NO",
+        self.legacyBlocked and "era cancel blocked" or "era cancel not blocked",
         Has("GetCancelCost") and "cancel cost yes" or "cancel cost NO",
         Has("CanCancelAuction") and "can cancel yes" or "can cancel NO",
     }
