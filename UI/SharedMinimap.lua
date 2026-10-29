@@ -24,18 +24,20 @@
 -- button sits on the ring, nil until it is dragged: then it starts where
 -- the first addon's own button sits).
 
-local _, ns = ...
+local ADDON, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
 local SharedMinimap = {}
 ns.SharedMinimap = SharedMinimap
 
-local FILE_VERSION = 1
+local FILE_VERSION = 2
 SharedMinimap.FILE_VERSION = FILE_VERSION
 
 local TITLE = "Blackthornes AddOns"
 local PLATE = "BLACKTHORNES"
-local ICON = [[Interface\Icons\INV_Misc_Gem_Topaz_02]]
+-- The Blackthornes sign, a B in a ring of thorns, drawn by
+-- tools/make_minimap_art.py (the owner picked it, 2026-10-28).
+local ICON = ([[Interface\AddOns\%s\Media\Frame\MinimapBadge]]):format(ADDON)
 local MENU_WIDTH = 300
 local ROW_HEIGHT = 42
 local PAD = 12
@@ -212,7 +214,6 @@ end
 function SharedMinimap.Build()
     if hub.button then return hub.button end
     if not IsDrawer() or not Minimap or not CreateFrame then return nil end
-    local Theme = ns.Theme
 
     local button = CreateFrame("Button", "BlackthornesMinimapButton", Minimap)
     button:SetSize(31, 31)
@@ -220,16 +221,11 @@ function SharedMinimap.Build()
     button:SetFrameLevel(8)
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    local background = button:CreateTexture(nil, "BACKGROUND")
-    background:SetSize(20, 20)
-    background:SetPoint("CENTER")
-    background:SetColorTexture(Theme.Unpack("window"))
-
+    -- The badge is its own round dark face, so no square sits behind it.
     local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(18, 18)
+    icon:SetSize(22, 22)
     icon:SetPoint("CENTER")
     icon:SetTexture(ICON)
-    icon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
 
     local border = button:CreateTexture(nil, "OVERLAY")
     border:SetSize(53, 53)
