@@ -17,7 +17,7 @@
 -- Tests share one Lua state, so every global replaced here is put back,
 -- including the ones that were not set at all.
 local GLOBALS = { "time", "GetMoney", "GetInboxHeaderInfo", "AUCTION_WON_MAIL_SUBJECT",
-    "C_AuctionHouse" }
+    "C_AuctionHouse", "GetAuctionItemInfo" }
 local saved = {}
 for _, key in ipairs(GLOBALS) do saved[key] = _G[key] end
 
@@ -339,6 +339,30 @@ do
     clock = clock + AHBuys.MAX_AGE + 1
     AHBuys:Prune()
     check("and nothing older than auction mail lasts", #record.ahBuys, 0)
+end
+
+print("")
+print("the drawer's Buy list hears of a buy at once")
+
+do
+    -- A player saw Light Leather still short after the last stack was
+    -- bought (2026-10-29): bought items go to the mail, so nothing in the
+    -- bags moved to redraw the drawer.
+    Reset()
+    local told = 0
+    ns.PostPanel = { OnPurchase = function() told = told + 1 end }
+    GetAuctionItemInfo = function()
+        -- name, texture, count, ..., buyout (10th), ..., itemID (17th)
+        return "Linen Cloth", nil, 5, nil, nil, nil, nil, nil, nil, 400,
+            nil, nil, nil, nil, nil, nil, CLOTH
+    end
+    AHBuys:OnLegacyBid("list", 1, 400)
+    check("the buyout alone tells it nothing", told, 0)
+    money = money - 400
+    AHBuys:OnMoney()
+    check("the gold leaving counts the buy", AHBuys:GetPending(CLOTH), 5)
+    check("and tells the drawer straight away", told >= 1, true)
+    ns.PostPanel = nil
 end
 
 ns.db.queue = {}

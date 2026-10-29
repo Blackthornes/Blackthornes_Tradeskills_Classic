@@ -804,6 +804,13 @@ function PostPanel:OpenShoppingLine(line)
     ns.UI:SearchAuctionHouse(line.itemID, line.shortfall)
 end
 
+--- A purchase was counted, or one in the mail was taken (Logic/AHBuys.lua):
+--- the shopping list is built again, and drawn at once while it shows.
+function PostPanel:OnPurchase()
+    self.shoppingAt = nil
+    if self.view == "buy" and self.frame and self.frame:IsShown() then self:Refresh() end
+end
+
 --- Era's buy plan moved on (Logic/LegacyBuy.lua).
 function PostPanel:OnLegacyBuy()
     if self.frame and self.frame:IsShown() then self:Refresh() end

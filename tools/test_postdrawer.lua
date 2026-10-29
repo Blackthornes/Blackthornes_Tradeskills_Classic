@@ -94,6 +94,23 @@ PostPanel.frame = Stub({
     Show = function() shown = true end,
     Hide = function() shown = false end,
 })
+-- A buy counted (AHBuys) builds the Buy list again at once, not after its
+-- couple of seconds: bought items go to the mail and nothing else redraws it.
+do
+    local refreshed = 0
+    local realRefresh = PostPanel.Refresh
+    PostPanel.Refresh = function() refreshed = refreshed + 1 end
+    PostPanel.view, PostPanel.shoppingAt = "buy", 12345
+    PostPanel:OnPurchase()
+    check("a buy forgets the kept shopping lines", PostPanel.shoppingAt == nil)
+    check("and redraws the Buy list while it shows", refreshed == 1)
+    PostPanel.view, PostPanel.shoppingAt = "sell", 12345
+    PostPanel:OnPurchase()
+    check("on Sell it only forgets them", PostPanel.shoppingAt == nil and refreshed == 1)
+    PostPanel.Refresh = realRefresh
+    PostPanel.view, PostPanel.shoppingAt = nil, nil
+end
+
 PostPanel.attached = true
 PostPanel:CloseForVisit()
 check("the close gem puts the drawer away", shown == false)
