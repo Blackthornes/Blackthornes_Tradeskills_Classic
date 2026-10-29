@@ -1201,7 +1201,7 @@ counts them. Tested in `tools/test_enchanttooltip.lua`.
 A player asked, the owner said build it from a mockup (2026-10-28), in all
 five addons: one minimap button for every Blackthornes addon loaded, whose
 click opens a small menu (the house frame, "BLACKTHORNES" on the plate, a
-dark glass row for each addon with its icon, name and what it does). A
+dark glass row for each addon with its icon and name; since 2026-10-29 no line under the name, and the menu is as wide as its longest name, measured). A
 row's left-click opens the addon, right-click its settings; Farmer's
 middle-click brings back its panels and Equipment's Shift-click toggles
 the upgrade quest. `UI/SharedMinimap.lua` is the same file in all five (a

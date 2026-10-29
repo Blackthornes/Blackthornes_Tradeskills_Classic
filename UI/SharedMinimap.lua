@@ -30,7 +30,7 @@ local L = ns.L or setmetatable({ Format = string.format }, { __index = function(
 local SharedMinimap = {}
 ns.SharedMinimap = SharedMinimap
 
-local FILE_VERSION = 2
+local FILE_VERSION = 3
 SharedMinimap.FILE_VERSION = FILE_VERSION
 
 local TITLE = "Blackthornes AddOns"
@@ -38,8 +38,12 @@ local PLATE = "BLACKTHORNES"
 -- The Blackthornes sign, a B in a ring of thorns, drawn by
 -- tools/make_minimap_art.py (the owner picked it, 2026-10-28).
 local ICON = ([[Interface\AddOns\%s\Media\Frame\MinimapBadge]]):format(ADDON)
-local MENU_WIDTH = 300
-local ROW_HEIGHT = 42
+-- The menu is as wide as its longest name needs (measured, never guessed),
+-- and never narrower than MIN_WIDTH or the plate on its top edge.
+local MIN_WIDTH = 200
+local ROW_HEIGHT = 32
+local ICON_SIZE = 24
+local GEM_ROOM = 70
 local PAD = 12
 local EDGE = 6
 
@@ -120,7 +124,7 @@ function SharedMinimap.Hides(key)
 end
 
 --- An addon signs up with its own button built. `entry` holds key, order,
---- name, icon, blurb, button, angle (its own button's angle), open,
+--- name, icon, button, angle (its own button's angle), open,
 --- settings, shift and middle (optional), db (its account save).
 function SharedMinimap:Join(entry)
     if type(entry) ~= "table" or not entry.key then return end
@@ -333,18 +337,13 @@ local function MakeRow(menu, index)
     row.edge:SetColorTexture(Theme.Unpack("accentHi"))
 
     row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(24, 24)
+    row.icon:SetSize(ICON_SIZE, ICON_SIZE)
     row.icon:SetPoint("LEFT", 10, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     row.name = Theme.CreateLabel(row, "normal", "accentHi")
-    row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 10, 1)
+    row.name:SetPoint("LEFT", row.icon, "RIGHT", 10, 0)
     row.name:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-
-    row.blurb = Theme.CreateLabel(row, "small", "muted")
-    row.blurb:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
-    row.blurb:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-    row.blurb:SetWordWrap(true)
 
     row:SetScript("OnEnter", function(self) PaintRow(self, true) end)
     row:SetScript("OnLeave", function(self) PaintRow(self, false) end)
@@ -363,7 +362,7 @@ function SharedMinimap.BuildMenu()
     local Theme = ns.Theme
 
     local menu = CreateFrame("Frame", "BlackthornesMinimapMenu", UIParent)
-    menu:SetWidth(MENU_WIDTH)
+    menu:SetWidth(MIN_WIDTH)
     menu:SetFrameStrata("DIALOG")
     menu:SetToplevel(true)
     menu:SetClampedToScreen(true)
@@ -377,6 +376,7 @@ function SharedMinimap.BuildMenu()
             title = PLATE,
             close = function() menu:Hide() end,
         })
+        if ok and type(trim) == "table" then menu.trim = trim end
         if ok and trim and ns.Titanforged.Reach and menu.SetClampRectInsets then
             local left, right, top, bottom = ns.Titanforged.Reach(trim)
             menu:SetClampRectInsets(-left, right, top, -bottom)
@@ -407,25 +407,60 @@ function SharedMinimap.BuildMenu()
     return menu
 end
 
---- Lay out a row for each addon, the foot under them, and the menu's height.
+--- How wide a font string's text runs, as the game measures it.
+local function Measure(label)
+    for _, method in ipairs({ "GetUnboundedStringWidth", "GetStringWidth" }) do
+        local fn = label and label[method]
+        if type(fn) == "function" then
+            local ok, width = pcall(fn, label)
+            if ok and type(width) == "number" and width > 0 then return width end
+        end
+    end
+    return 0
+end
+
+--- The menu's width: the longest name with its icon and margins, the plate
+--- with room for the close gem, and never under MIN_WIDTH.
+function SharedMinimap.MenuWidth(nameWidths, plateWidth)
+    local width = MIN_WIDTH
+    for _, nameWidth in ipairs(nameWidths or {}) do
+        width = math.max(width, nameWidth + 10 + ICON_SIZE + 10 + 10 + 2 * EDGE + 4)
+    end
+    if type(plateWidth) == "number" and plateWidth > 0 then
+        width = math.max(width, plateWidth + GEM_ROOM)
+    end
+    return math.ceil(width)
+end
+
+--- Lay out a row for each addon, the foot under them, and the menu's size.
 function SharedMinimap.Fill(menu)
     local list = SharedMinimap.Entries()
     local top = 28
+    local widths = {}
     for index, entry in ipairs(list) do
         local row = menu.rows[index] or MakeRow(menu, index)
         menu.rows[index] = row
         row.entry = entry
         row.icon:SetTexture(entry.icon)
         row.name:SetText(entry.name or entry.key)
-        row.blurb:SetText(entry.blurb or "")
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", menu, "TOPLEFT", EDGE, -top)
         row:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -EDGE, -top)
         PaintRow(row, false)
         row:Show()
         top = top + ROW_HEIGHT
+        widths[#widths + 1] = Measure(row.name)
     end
     for index = #list + 1, #menu.rows do menu.rows[index]:Hide() end
+
+    local plateWidth
+    local trim = rawget(menu, "trim")
+    local plate = type(trim) == "table" and rawget(trim, "plate") or nil
+    if plate and type(plate.GetWidth) == "function" then
+        local ok, w = pcall(plate.GetWidth, plate)
+        if ok and type(w) == "number" then plateWidth = w end
+    end
+    menu:SetWidth(SharedMinimap.MenuWidth(widths, plateWidth))
 
     menu.foot:SetText(L["Click a name to open it. Right-click for its settings."])
     local footHeight = math.max(menu.foot:GetStringHeight() or 14, 14)
