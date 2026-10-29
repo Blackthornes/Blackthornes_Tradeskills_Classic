@@ -5,6 +5,12 @@
 local _, ns = ...
 
 ns.WHATS_NEW = {
+    { version = "0.7.0", lines = {
+        "The auction house now shows a Potential Sale Total that counts up as you list.",
+        "Enchanters now see disenchant results and chances on item tooltips.",
+        "The minimap button has a new Blackthornes badge.",
+        "Show the way now puts a gold marker on your map.",
+    } },
     { version = "0.6.0", lines = {
         "The Road to 300 now counts what your other characters carry.",
         "One minimap button now opens all your Blackthornes add-ons.",
@@ -13,9 +19,5 @@ ns.WHATS_NEW = {
         "The Profit tab now has a Shuffles view.",
         "The auction house now shows a Sale Total counter.",
         "You can set the highest price you will sell for.",
-    } },
-    { version = "0.4.0", lines = {
-        "The Road to 300 and Learn Next now send you to the closest trainer.",
-        "The Road to 300 lets you pick recipes by lowest cost or real cost.",
     } },
 }

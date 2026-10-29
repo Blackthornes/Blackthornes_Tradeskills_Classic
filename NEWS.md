@@ -23,6 +23,16 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.7.0
+
+- The auction house now shows a Potential Sale Total that counts up as you list.
+- Enchanters now see disenchant results and chances on item tooltips.
+- The minimap button has a new Blackthornes badge.
+- Show the way now puts a gold marker on your map.
+
+Fixes and changes:
+- Various bug fixes.
+
 ## 0.6.0
 
 - The Road to 300 now counts what your other characters carry.
