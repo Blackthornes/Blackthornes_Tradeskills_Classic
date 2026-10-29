@@ -208,11 +208,6 @@ local function CreateRow(row)
         ns.Posting:Request(row.data.itemID, row.data.postQuantity, row.data.unitPrice)
     end, { width = BUTTON_WIDTH, height = 18 })
     row.post:SetPoint("RIGHT", -(6 + IGNORE_WIDTH + 6), 0)
-    -- Era: the stack goes in the auction slot as the mouse comes over, so
-    -- the click lists it.
-    row.post:HookScript("OnEnter", function()
-        if row.data and ns.Posting.PrepareFor then ns.Posting:PrepareFor(row.data.itemID) end
-    end)
 
     -- How many to list, beside the button that lists them. Empty-handed this
     -- panel posted whole stacks with no way to say otherwise.
@@ -875,6 +870,10 @@ function PostPanel:ListNext()
     CommitTyping(self.list)
 
     local Posting = ns.Posting
+    -- Era: the last listing is still going in. The press waits for the
+    -- next one rather than being spent half way.
+    if Posting.Settling and Posting:Settling() then return end
+
     local lines = self.shownLines or self:ShownLines()
     local fast = Posting.FastListing ~= nil and Posting:FastListing()
 
@@ -2000,10 +1999,24 @@ function PostPanel:UpdateWaitLabels(seconds, reason)
     local Apply = ns.UI and ns.UI.ApplyWaitLabel
     if not Apply then return end
 
+    -- Era: while a listing goes in, the List buttons are grey and take no
+    -- press, keeping their labels; the hover says why.
+    local Posting = ns.Posting
+    local settling = Posting and Posting.Settling ~= nil and Posting:Settling() or false
+    local checking = Posting and Posting.CheckingAll ~= nil and Posting:CheckingAll() or false
+    local SETTLE_WHY = L["your listing is going through"]
+
     -- List all waits with the rest, back to its count once the wait is over.
     if self.listAll and self.listAll:IsShown() and (self.listAllCount or 0) > 0 then
         self:RefreshListAllLabel()
-        Apply(self.listAll, self.listAllLabel or L["List Next"], seconds, reason)
+        local button = self.listAll
+        local label = self.listAllLabel or L["List Next"]
+        if settling then
+            PostPanel.SettleLabel(button, label, SETTLE_WHY)
+        else
+            Apply(button, label, (not checking) and seconds or 0, (not checking) and reason or nil)
+        end
+        PostPanel.Grey(button, settling or checking)
         self:RefreshListAllTip()
     end
 
@@ -2013,7 +2026,13 @@ function PostPanel:UpdateWaitLabels(seconds, reason)
         -- A row with no price is disabled on its own account, and leaving it
         -- alone keeps that reason visible rather than replacing it with a
         -- countdown it is not really serving.
-        if row and row.data and row.post and not row.post.disabled then
+        if row and row.post and row.post.greyed and not (row.data and settling) then
+            PostPanel.Grey(row.post, false, row.data ~= nil and row.data.unitPrice ~= nil)
+        end
+        if row and row.data and row.post and settling and (row.post.greyed or not row.post.disabled) then
+            PostPanel.SettleLabel(row.post, L["List"], SETTLE_WHY)
+            PostPanel.Grey(row.post, true)
+        elseif row and row.data and row.post and not row.post.disabled then
             -- Another copy of the item being confirmed does not wait for it.
             local pending = ns.Posting and ns.Posting.pending
             if pending and pending.itemID == row.data.itemID then
@@ -2022,6 +2041,32 @@ function PostPanel:UpdateWaitLabels(seconds, reason)
                 Apply(row.post, L["List"], seconds, reason)
             end
         end
+    end
+end
+
+--- A List button keeps its own label while a listing goes in, and its
+--- hover says why it waits.
+function PostPanel.SettleLabel(button, label, why)
+    if button.waitTip ~= why or rawget(button, "settleLabel") ~= label then
+        button:SetText(label)
+        button.settleLabel = label
+    end
+    button.waitingLabel = true
+    button.waitTip = why
+end
+
+--- Grey a List button while a listing goes in, or bring it back. Only the
+--- buttons this greyed come back; one grey for its own reason stays so.
+-- @param back for a button coming back: whether it may be pressed again
+function PostPanel.Grey(button, on, back)
+    if on then
+        if not button.disabled then
+            button.greyed = true
+            button:SetEnabledState(false)
+        end
+    elseif button.greyed then
+        button.greyed = nil
+        if back ~= false then button:SetEnabledState(true) end
     end
 end
 

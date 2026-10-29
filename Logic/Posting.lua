@@ -1541,6 +1541,12 @@ function Posting:OnEnable()
     -- Era: the auction slot changed. A stack put in has been taken.
     ns.RegisterEvent(self, "NEW_AUCTION_UPDATE", function()
         if held and SellSlotHolds(held.itemID) then held.ready = true end
+        -- The slot emptied after a listing: the next stack goes in now,
+        -- not a second later.
+        local at = rawget(Posting, "listedAt")
+        if not held and at and GetTime() - at < Posting.SETTLE_WAIT then
+            C_Timer.After(0.1, function() Posting:PrepareNext() end)
+        end
     end)
 
     ns.RegisterEvent(self, "AUCTION_HOUSE_CLOSED", function()
@@ -1679,6 +1685,29 @@ local function LegacyStart(itemID, bag, slot, quantity, unitPrice, duration)
     return ok, err
 end
 
+-- How long after a listing the List buttons may wait for the next stack to
+-- settle in the auction slot. Past it they come back whatever happened, so
+-- a stack that never went in can't leave them grey.
+Posting.SETTLE_WAIT = 4
+
+--- Era: a listing just went up and the next stack is not in the auction
+--- slot yet, or a stack is still settling in. The List buttons go grey and
+--- presses then do nothing, so a press is never spent half way (the owner,
+--- 2026-10-29: posting felt clunky).
+function Posting:Settling()
+    if not Posting.IsLegacy() then return false end
+    local now = GetTime()
+    if held and SellSlotHolds(held.itemID) and not HeldReady(held.itemID)
+            and now - (held.at or 0) < Posting.SETTLE_WAIT then
+        return true
+    end
+    local at = rawget(self, "listedAt")
+    if at and now - at < Posting.SETTLE_WAIT and not (held and HeldReady(held.itemID)) then
+        return true
+    end
+    return false
+end
+
 --- Era: put the next stack List Next will list in the auction slot, so the
 --- click after lists it. Out of a fight, at the auction house, with nothing
 --- on the cursor; a stack already there for it stays.
@@ -1712,8 +1741,11 @@ function Posting:PrepareFor(itemID)
     if CursorHasItem and CursorHasItem() then return false end
     if HeldSlot(itemID) then return true end
 
+    -- Another stack we put in stays: only a click swaps it (LegacyStart).
+    -- Swapping on hover and on every redraw took a stack out from under the
+    -- click about to list it.
     local inSlot = SellSlotItem()
-    if inSlot and not (held and SellSlotHolds(held.itemID)) then return false end
+    if inSlot then return false end
     local box = rawget(self, "confirming")
     if type(box) == "table" and box.itemID ~= itemID then return false end
 
@@ -1941,6 +1973,7 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     C_Timer.After(POST_VERIFY_DELAY, function() Posting:VerifyPending(listing) end)
 
     -- Era: the next stack goes in the auction slot once the bags catch up.
+    if legacy then self.listedAt = GetTime() end
     if legacy then C_Timer.After(HELD_SETTLE, function() Posting:PrepareNext() end) end
     return true
 end
