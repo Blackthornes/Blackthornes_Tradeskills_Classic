@@ -453,3 +453,7 @@ seen in game.
   Up and Settings beside it (`TSTabs:AuctionOpened`, `PostPanel:LayIn`,
   `strip:ShowOnly`). Forever's drawer always hangs beside the auction
   window.
+- After a search in the game's auction window, the drawer shows a gold row
+  with the item and its Auction value from your scans, or "not scanned
+  yet" (`UI/SearchedPrice.lua`, `PostPanel:PlaceSearched`). Era only: it
+  reads Era's browse box and list. Forever has no such row.
