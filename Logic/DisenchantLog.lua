@@ -16,7 +16,10 @@
 --   * the loot window's source, which on a modern client names the item the
 --     loot came from;
 --   * the bag slot you clicked while the spell was waiting for a target;
---   * the item name the game passes with the cast, matched against the bags.
+--   * the item name the game passes with the cast, matched against the bags;
+--   * our own Disenchant button, which says which item it aimed at;
+--   * the one disenchantable item the game locks in the bags while the
+--     spell is cast on it (Classic Era names no item any other way).
 --
 -- Each record notes which one found the item, and `/bts delog` shows it, so
 -- the first disenchant in game says which of these this client supports.
@@ -397,6 +400,41 @@ function DisenchantLog:OnBagClick(bag, slot)
     end
 end
 
+--- Our own Disenchant button aimed the spell at this item.
+function DisenchantLog:Aim(itemID, from)
+    if type(itemID) ~= "number" then return end
+    aimed = { itemID = itemID, from = from or "button", at = Now() }
+end
+
+--- The disenchantable item the game has locked in the bags, while one
+--- Disenchant is being cast on it. nil when there is none, or more than one
+--- kind (something else is being moved too), since a guess would be wrong.
+function DisenchantLog:LockedInBags()
+    if not Util.HasFunction("C_Container.GetContainerNumSlots")
+        or not Util.HasFunction("C_Container.GetContainerItemInfo") then return nil end
+
+    local found
+    for bag = 0, (NUM_BAG_SLOTS or 4) do
+        local okSlots, slots = pcall(C_Container.GetContainerNumSlots, bag)
+        for slot = 1, (okSlots and type(slots) == "number") and slots or 0 do
+            local ok, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
+            local itemID = ok and type(info) == "table" and info.isLocked == true and info.itemID or nil
+            if type(itemID) == "number" and ns.Disenchant:IsDisenchantable(itemID) then
+                if found and found ~= itemID then return nil end
+                found = itemID
+            end
+        end
+    end
+    return found
+end
+
+--- No fresh aim yet: take the item the cast has locked, if there is one.
+function DisenchantLog:AimAtLocked()
+    if aimed and Now() - aimed.at < AIM_WINDOW then return end
+    local itemID = self:LockedInBags()
+    if itemID then aimed = { itemID = itemID, from = "locked", at = Now() } end
+end
+
 --- The disenchantable item in the bags with this name, if there is one.
 function DisenchantLog:FindInBags(name)
     if type(name) ~= "string" or name == "" then return nil end
@@ -438,8 +476,17 @@ function DisenchantLog:OnCastSent(_, unit, target, _, spellID)
     end
 end
 
+--- The cast has begun, so its item is locked in the bags now.
+function DisenchantLog:OnCastStart(_, unit, _, spellID)
+    if not IsPlayer(unit) or not IsDisenchant(spellID) then return end
+    self:AimAtLocked()
+end
+
 function DisenchantLog:OnCastSucceeded(_, unit, _, spellID)
     if not IsPlayer(unit) or not IsDisenchant(spellID) then return end
+
+    -- Still locked until the loot is taken, if the start was missed.
+    self:AimAtLocked()
 
     local fresh = aimed and Now() - aimed.at < AIM_WINDOW
     cast = {
@@ -535,6 +582,8 @@ local FROM = {
     loot = L["loot window"],
     click = L["bag click"],
     name = L["cast name"],
+    button = L["Disenchant button"],
+    locked = L["item in use"],
 }
 
 local function Describe(results)
@@ -609,6 +658,7 @@ function DisenchantLog:OnEnable()
     -- Only the player's casts are wanted (ns.RegisterPlayerEvent).
     local RegisterForPlayer = ns.RegisterPlayerEvent or ns.RegisterEvent
     RegisterForPlayer(self, "UNIT_SPELLCAST_SENT", self.OnCastSent)
+    RegisterForPlayer(self, "UNIT_SPELLCAST_START", self.OnCastStart)
     RegisterForPlayer(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnCastSucceeded)
     ns.RegisterEvent(self, "LOOT_READY", self.OnLootReady)
     ns.RegisterEvent(self, "LOOT_OPENED", self.OnLootReady)
@@ -619,6 +669,19 @@ function DisenchantLog:OnEnable()
         for _, name in ipairs({ "UseContainerItem", "PickupContainerItem" }) do
             if type(C_Container[name]) == "function" then
                 pcall(hooksecurefunc, C_Container, name, function(bag, slot)
+                    DisenchantLog:OnBagClick(bag, slot)
+                end)
+            end
+        end
+    end
+
+    -- Classic Era's bags may call the old global names instead.
+    if type(hooksecurefunc) == "function" then
+        for _, name in ipairs({ "UseContainerItem", "PickupContainerItem" }) do
+            local global = _G[name]
+            local tableOne = type(C_Container) == "table" and C_Container[name] or nil
+            if type(global) == "function" and global ~= tableOne then
+                pcall(hooksecurefunc, name, function(bag, slot)
                     DisenchantLog:OnBagClick(bag, slot)
                 end)
             end

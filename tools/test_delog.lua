@@ -212,6 +212,43 @@ string.match, GetLootSlotLink = realMatch, realLink
 check("a secret loot link is missed, not an error", ok and Log:GetTable().missed == missedBefore + 1
     and Casts(CHEST_KEY) == 4)
 
+print("\nClassic Era: no loot source, no name, no click seen")
+
+-- Era's bags lock the item while Disenchant is cast on it.
+local locked = {}
+C_Container.GetContainerNumSlots = function(bag) return bag == 0 and #slots or 0 end
+C_Container.GetContainerItemInfo = function(_, slot)
+    return slots[slot] and { itemID = slots[slot], isLocked = locked[slot] == true } or nil
+end
+
+local function EraCast(lockSlots, before)
+    clock = clock + 60
+    if before then before() end
+    Log:OnCastSent("UNIT_SPELLCAST_SENT", "player", "", "cast", SPELL)
+    locked = lockSlots
+    Log:OnCastStart("UNIT_SPELLCAST_START", "player", "cast", SPELL)
+    clock = clock + 1.5
+    Log:OnCastSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", SPELL)
+    loot, lootSource = { { STRANGE_DUST, 3 } }, nil
+    clock = clock + 0.3
+    Log:OnLootReady()
+    locked = {}
+end
+
+local missedEra = Log:GetTable().missed
+EraCast({ [3] = true })
+check("the item locked in the bags is the one broken", Casts("2:weapon:25") == 1
+    and Log:GetTable().recent[1].itemID == 1003 and Log:GetTable().recent[1].from == "locked")
+
+EraCast({}, function() Log:Aim(1003, "button") end)
+check("our Disenchant button says which item it aimed at", Casts("2:weapon:25") == 2
+    and Log:GetTable().recent[1].from == "button")
+
+EraCast({ [1] = true, [3] = true })
+check("two kinds locked at once is no guess", Casts("2:weapon:25") == 2
+    and Log:GetTable().missed == missedEra + 1)
+C_Container.GetContainerNumSlots, C_Container.GetContainerItemInfo = nil, nil
+
 print("\nusing your results")
 
 local outcomes, facts = Disenchant:GetOutcomes(1001)
