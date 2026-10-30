@@ -194,11 +194,17 @@ end
 
 local function Changed()
     if ns.PostPanel and ns.PostPanel.OnLegacyBuy then pcall(ns.PostPanel.OnLegacyBuy, ns.PostPanel) end
+    local tab = ns.DisenchantingTab
+    if tab and tab.OnLegacyBuy then pcall(tab.OnLegacyBuy, tab) end
 end
 
 --- Start on an item: read every stack, then work out the plan.
+-- @param opts optional: maxEach (copper for one: dearer stacks are left
+--   out), source ("disenchant" for the Disenchanting tab's Buy button) and
+--   more (after each buy, plan one more, so it keeps going while stacks
+--   under maxEach are left)
 -- @return true when the plan is on its way
-function LegacyBuy:Open(itemID, need)
+function LegacyBuy:Open(itemID, need, opts)
     if not self:Applies() then return false end
     itemID, need = tonumber(itemID), tonumber(need)
     if not itemID or not need or need <= 0 then return false end
@@ -213,6 +219,9 @@ function LegacyBuy:Open(itemID, need)
         itemID = itemID, name = name, need = need, bought = 0,
         most = need + math.floor(need * self.EXTRA),
         status = "reading", page = 0, listings = {},
+        maxEach = opts and tonumber(opts.maxEach) or nil,
+        source = opts and opts.source or nil,
+        more = opts and opts.more and true or nil,
     }
     self:SendPage(self.state, 0)
     Changed()
@@ -226,8 +235,10 @@ function LegacyBuy:Close(quiet)
     if not quiet then Changed() end
 end
 
-function LegacyBuy:IsOpenFor(itemID)
-    return self.state ~= nil and self.state.itemID == itemID
+--- Is the plan open for this item, from this place (nil for the drawer's
+--- Buy view, "disenchant" for the Disenchanting tab)?
+function LegacyBuy:IsOpenFor(itemID, source)
+    return self.state ~= nil and self.state.itemID == itemID and self.state.source == source
 end
 
 --- A scan or a price check of ours has the auction house's list: our
@@ -385,7 +396,17 @@ function LegacyBuy:MakePlan(state)
         Changed()
         return
     end
-    state.plan = self.Plan(state.listings, need, state.most - state.bought, self:Usual(state.itemID))
+    local listings, usual = state.listings, self:Usual(state.itemID)
+    if state.maxEach then
+        -- Only stacks at or under the price for one; the usual price has no say.
+        listings, usual = {}, nil
+        for _, listing in ipairs(state.listings) do
+            if listing.count > 0 and listing.buyout / listing.count <= state.maxEach then
+                listings[#listings + 1] = listing
+            end
+        end
+    end
+    state.plan = self.Plan(listings, need, state.most - state.bought, usual)
     state.status = "ready"
     self:FindNext(state)
 end
@@ -454,6 +475,11 @@ end
 
 local function Counted(state, stack)
     state.bought = state.bought + stack.count
+    -- Keep going: one more each time, while any are left under maxEach.
+    if state.more then
+        state.need = state.bought + 1
+        state.most = state.need
+    end
     stack.bought = true
     state.boughtStacks = state.boughtStacks or {}
     state.boughtStacks[#state.boughtStacks + 1] = stack

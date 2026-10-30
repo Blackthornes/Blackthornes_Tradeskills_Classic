@@ -125,8 +125,16 @@ function LegacyBuyView:Build(body, frame, opts)
     self.button = button
 end
 
+-- A plan the Disenchanting tab's Buy button opened is that tab's to show.
+local function DrawerPlan()
+    local buy = ns.LegacyBuy
+    local state = buy and buy.state
+    if state and state.source == "disenchant" then return nil end
+    return state
+end
+
 function LegacyBuyView:IsOpen()
-    return self.panel ~= nil and ns.LegacyBuy ~= nil and ns.LegacyBuy.state ~= nil
+    return self.panel ~= nil and DrawerPlan() ~= nil
 end
 
 --- What the summary says for a plan.
@@ -156,7 +164,7 @@ end
 function LegacyBuyView:Refresh()
     if not self.panel then return end
     local buy = ns.LegacyBuy
-    local state = buy and buy.state
+    local state = DrawerPlan()
     local onBuy = ns.PostPanel and ns.PostPanel.view == "buy"
     if not state or not onBuy then
         self.panel:Hide()

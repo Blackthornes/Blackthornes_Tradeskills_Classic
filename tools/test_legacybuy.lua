@@ -287,6 +287,54 @@ for _ = 1, 3 do Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1) end
 check("and nothing more is planned for it", lateState.status == "done" and not LegacyBuy:Next())
 Fire("AUCTION_HOUSE_CLOSED")
 
+print("")
+print("the Disenchanting tab's Buy: one at a time, while under the price")
+
+house = { { 1, 1500, "A" }, { 1, 1800, "B" }, { 1, 900, "Me" }, { 1, 2500, "C" }, { 1, 1000, "D" } }
+usual = 100
+local deChanges = 0
+ns.DisenchantingTab = { OnLegacyBuy = function() deChanges = deChanges + 1 end }
+check("it opens for one", LegacyBuy:Open(LINEN, 1, { maxEach = 2000, source = "disenchant", more = true }) == true)
+check("it is the tab's plan, not the drawer's", LegacyBuy:IsOpenFor(LINEN, "disenchant")
+    and not LegacyBuy:IsOpenFor(LINEN))
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+local deState = LegacyBuy.state
+stack, ready = LegacyBuy:Next()
+check("the cheapest one not yours comes first", stack and stack.buyout == 1000 and ready)
+check("only one is planned", #deState.plan.stacks == 1)
+check("the usual price has no say under maxEach", not deState.plan.skipped)
+check("the tab hears it", deChanges > 0)
+beforeBids = #bids
+LegacyBuy:Buy()
+check("a click bids on it", #bids == beforeBids + 1 and bids[#bids].amount == 1000)
+money = money - 1000
+table.remove(house, 5)
+Fire("PLAYER_MONEY")
+check("bought, it plans one more", deState.bought == 1 and deState.need == 2)
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+stack, ready = LegacyBuy:Next()
+check("the next cheapest is ready", stack and stack.buyout == 1500 and ready)
+LegacyBuy:Buy()
+money = money - 1500
+table.remove(house, 1)
+Fire("PLAYER_MONEY")
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+stack = LegacyBuy:Next()
+check("then the last under the price", stack and stack.buyout == 1800)
+LegacyBuy:Buy()
+money = money - 1800
+table.remove(house, 1)
+Fire("PLAYER_MONEY")
+Advance(0.2)
+Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
+check("one over the price is never bought: no deals left", deState.status == "done"
+    and LegacyBuy:Next() == nil)
+Fire("AUCTION_HOUSE_CLOSED")
+usual = nil
+
 -- The Buy button's price uses the game's coin icons, which read on gold.
 local priced = ns.Util.FormatMoney(230, { icons = true })
 check("the Buy button's price shows coin icons", priced:find("UI-SilverIcon", 1, true)

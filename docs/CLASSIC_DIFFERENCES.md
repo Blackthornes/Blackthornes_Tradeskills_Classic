@@ -205,6 +205,15 @@ loads them, and every reader asks for them first.
   Era buys from a post-hook on `PlaceAuctionBid`, so they are looked for
   in the mailbox. Forever's Buy view is untouched. Tested in
   `tools/test_legacybuy.lua`.
+- The Disenchanting tab buys on Era too (the owner said build it,
+  2026-10-30): a deal's detail pane has a gold Buy button beside a plain
+  Search the auction house. It opens the same plan with `source =
+  "disenchant"` (the drawer's view leaves it alone), `maxEach` at the
+  deal's net disenchant value less a copper and `more`, so each click buys
+  the cheapest copy still under that and plans one more, until "No Deals
+  Left". Each click calls `DisenchantBuys:Intend`, so every buy is marked
+  bought to disenchant. Forever keeps only the search. Tested in
+  `tools/test_legacybuy.lua`.
 - Era fills in a seller's name a moment after the row (bug pass,
   2026-10-27). The buy plan and the price check read a page once more when
   a row of the item has no seller yet, so your own stacks are known as

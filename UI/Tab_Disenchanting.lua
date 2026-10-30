@@ -14,6 +14,10 @@
 -- The addon cannot buy for you: the game wants a real click on its own Buy
 -- button for every purchase. What it can do is send the search, so the item
 -- is in the auction house list ready to click.
+-- On Era's older auction house (2026-10-30, the owner asked) a Buy button
+-- beside the search buys one copy a click itself, through the same plan as
+-- the drawer's Buy view (Logic/LegacyBuy.lua): the cheapest copy still under
+-- what it breaks into after the cut, marked bought to disenchant.
 --
 -- The second view lists what you carry that can be disenchanted, against what
 -- it would sell for, with a Disenchant button. That button is the same secure
@@ -96,6 +100,9 @@ local state = {
 }
 
 local widgets = {}
+
+-- The Buy button's two, set below once the detail pane's helpers exist.
+local UpdateBuyButton, BuyForDisenchant
 
 local shownColumns = {}
 
@@ -198,6 +205,91 @@ local function SearchAuctionHouse(entry)
 
     ns.Print(L.Format("Searching the auction house for %s. Buy it in the auction house window at %s or less and it's marked to disenchant. If the list there doesn't change, type the name into its search box.",
         Util.GetItemLabel(entry.itemID), Util.FormatMoney(entry.buy, { noColor = true })))
+end
+
+--------------------------------------------------------------------------------
+-- Buying on Era (Logic/LegacyBuy.lua)
+--------------------------------------------------------------------------------
+
+-- The most one copy may cost and still make a profit: under what it breaks
+-- into after the auction house cut.
+local function MaxEach(entry)
+    local net = entry and tonumber(entry.net)
+    if not net or net <= 1 then return nil end
+    return net - 1
+end
+
+local function CanBuyHere(entry)
+    local buy = ns.LegacyBuy
+    return buy ~= nil and buy:Applies() and entry ~= nil and entry.kind == "auction"
+        and type(entry.itemID) == "number"
+end
+
+--- What the Buy button says, and whether a click does something now.
+local function BuyLabel(entry)
+    local buy = ns.LegacyBuy
+    if buy:IsOpenFor(entry.itemID, "disenchant") then
+        local plan = buy.state
+        if plan.status == "done" then return L["No Deals Left"], false end
+        if plan.status == "buying" then return L["Buying..."], false end
+        local stack, ready = buy:Next()
+        if stack and ready then
+            return L.Format("Buy %d for %s", stack.count, Util.FormatMoney(stack.buyout, { icons = true })), true
+        end
+        return L["Looking..."], false
+    end
+    return L.Format("Buy %d for %s", 1, Util.FormatMoney(entry.buy or 0, { icons = true })), MaxEach(entry) ~= nil
+end
+
+UpdateBuyButton = function(entry)
+    local detail = widgets.detail
+    if not (detail and detail.buyButton) then return end
+    local era = CanBuyHere(entry)
+    detail.buyButton:SetShown(era)
+    detail.searchPlain:SetShown(era)
+    if not era then return end
+    detail.searchButton:Hide()
+
+    local label, ready = BuyLabel(entry)
+    local button = detail.buyButton
+    button:SetText(label)
+    -- The two share the foot: Search keeps its words whole, Buy fits the rest.
+    local searchWidth = math.max(120, (Theme.MeasureText("small", L["Search the auction house"]) or 126) + 24)
+    detail.searchPlain:SetWidth(searchWidth)
+    local room = DETAIL_WIDTH - 24 - 6 - searchWidth
+    local want = math.max(110, (Theme.MeasureText("small", label) or 96) + 24)
+    button:SetWidth(math.min(room, want))
+    button:SetEnabledState(ready)
+end
+
+--- The Buy button's click: open the plan for this item, or buy the next copy.
+BuyForDisenchant = function(entry)
+    if not CanBuyHere(entry) then return end
+    local buy = ns.LegacyBuy
+    -- Whatever is bought from here is marked to disenchant.
+    if ns.DisenchantBuys then ns.DisenchantBuys:Intend(entry.itemID) end
+
+    if buy:IsOpenFor(entry.itemID, "disenchant") then
+        buy:Buy()
+    else
+        local maxEach = MaxEach(entry)
+        if not maxEach then return end
+        local scanner = ns.Scanner
+        if not scanner or not scanner.isAuctionHouseOpen then
+            ns.Print(L["Open the auction house first, then search again."])
+            return
+        end
+        buy:Open(entry.itemID, 1, { maxEach = maxEach, source = "disenchant", more = true })
+    end
+    UpdateBuyButton(entry)
+end
+
+-- Era's plan moved on: the button follows it.
+ns.DisenchantingTab = ns.DisenchantingTab or {}
+function ns.DisenchantingTab:OnLegacyBuy()
+    local selected = state.selected
+    if selected and selected.source and selected.kind == "auction" then selected = selected.source end
+    if widgets.detail and widgets.detail:IsShown() then UpdateBuyButton(selected) end
 end
 
 --------------------------------------------------------------------------------
@@ -576,6 +668,26 @@ local function BuildDetail(parent)
     searchButton.tooltipText = L["Finds this item on the auction house. You click Buy yourself."]
     detail.searchButton = searchButton
 
+    -- On Era: Buy beside a plain Search. One click buys one copy, the
+    -- cheapest still under what it breaks into after the cut.
+    local buyButton = Widgets.CreateButton(detail, "", function()
+        local entry = state.selected
+        if entry and entry.source and entry.kind == "auction" then entry = entry.source end
+        BuyForDisenchant(entry)
+    end, { width = 120, primary = true, height = 24 })
+    buyButton:SetPoint("BOTTOMLEFT", 12, 14)
+    buyButton.tooltipText = L["Buys the cheapest one that still makes a profit. One click buys one, and it's marked bought to disenchant."]
+    buyButton:Hide()
+    detail.buyButton = buyButton
+
+    local searchPlain = Widgets.CreateButton(detail, L["Search the auction house"], function()
+        SearchAuctionHouse(state.selected)
+    end, { width = 150, height = 24 })
+    searchPlain:SetPoint("BOTTOMRIGHT", -12, 14)
+    searchPlain.tooltipText = searchButton.tooltipText
+    searchPlain:Hide()
+    detail.searchPlain = searchPlain
+
     -- Disenchant, for an item in the bags. The click itself is taken by the
     -- secure button UI/Disenchanter.lua lays over this one; this handler
     -- only runs when that button is not there, so it says why.
@@ -912,6 +1024,7 @@ local function UpdateDetail(entry)
 
     detail.searchButton:SetShown(shown and not isBag and not own)
     detail.actionButton:Hide()
+    UpdateBuyButton(shown and not isBag and not own and entry or nil)
 
     -- Hiding the button takes the secure button away with it.
     detail.disenchantButton:SetShown(isBag)
