@@ -1796,6 +1796,22 @@ valuable first of what Sell shows). Beside it on Sell, a Duration box (2, 8 or 2
 hours, opening upward) sets the same `postDuration` as the Post tab's. Tested in `tools/test_postdrawer.lua`.
 Not yet seen in game.
 
+## The searched item's price
+
+A player asked, the owner said build it from a mockup (2026-10-30), Era
+only: after a search in the game's auction window, a gold row at the top of
+the drawer (beside the auction house or in the one window's Auction House
+tab) shows the item's icon, name and "Auction value: X" from
+`Prices:GetValue`, its age when stale, or "not scanned yet"; its hover is
+the item's own tooltip. `UI/SearchedPrice.lua` reads the game's search box
+(`BrowseName`, read only) on a post-hook of `QueryAuctionItems` and on
+`AUCTION_ITEM_LIST_UPDATE`: the item the client names with those words,
+else the result named so, else the only item listed (`Resolve`). Our own
+scans' lists for the same words keep the row; new words that name nothing
+hide it; `AUCTION_HOUSE_CLOSED` clears it. `PostPanel:PlaceSearched` moves
+the view tabs under it. No setting, nothing saved, no new words. Tested in
+`tools/test_searchedprice.lua`. Not yet seen in game.
+
 ## Potential Sale Total
 
 A player asked, the owner said build it (2026-10-28, from a mockup whose

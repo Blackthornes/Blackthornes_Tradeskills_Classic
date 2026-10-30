@@ -613,6 +613,17 @@ function PostPanel:Build()
     local tabs = {}
     for _, view in ipairs(views) do tabs[#tabs + 1] = { key = view[1], text = view[2] } end
     -- The house's small view tabs, each as wide as its word (2026-10-29).
+    -- What you searched for in the game's auction window, and its price
+    -- (UI/SearchedPrice.lua, a player asked 2026-10-30): a gold row above
+    -- the view tabs, only while there is one. PostPanel:PlaceSearched moves
+    -- the tabs down under it.
+    if ns.SearchedPrice and ns.SearchedPrice:Applies() then
+        local searched = ns.SearchedPrice:Build(body)
+        searched:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, CONTENT_TOP)
+        searched:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, CONTENT_TOP)
+        self.searched = searched
+    end
+
     local switch = Widgets.CreateViewTabs(body, tabs, function(key)
         PostPanel:SetView(key)
     end, { width = PANEL_WIDTH - 28 })
@@ -877,6 +888,28 @@ end
 
 --- Put the Scan strip in the header. The strip is UI/Main.lua's (it carries
 --- the scan's status and the two buttons); this is where it goes.
+--- Lay the view tabs, and what hangs off the same top, under the searched
+--- item's row while it shows, or at the top as before.
+function PostPanel:PlaceSearched(shown)
+    shown = shown and true or false
+    if self.searchedShown == shown then return end
+    self.searchedShown = shown
+    local frame, switch = self.frame, self.switch
+    if not (frame and switch) then return end
+    local top = CONTENT_TOP - (shown and (ns.SearchedPrice.HEIGHT + 6) or 0)
+    switch:ClearAllPoints()
+    switch:SetPoint("TOPLEFT", 14, top)
+    if self.hideLosses then
+        self.hideLosses:ClearAllPoints()
+        self.hideLosses:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, top - 28 - 3)
+    end
+    local View = ns.ShoppingListsView
+    if View and View.paste then
+        View.paste:ClearAllPoints()
+        View.paste:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, top - 28 - 3)
+    end
+end
+
 function PostPanel:PlaceBar()
     local bar = self.header
     if not (bar and self.frame) then return end
@@ -1838,6 +1871,8 @@ function PostPanel:Refresh()
 
     -- Cheap, and it catches the main window being dragged, which has no event.
     self:Reflow()
+
+    if self.searched then self:PlaceSearched(ns.SearchedPrice:Update()) end
 
     if self.hideLosses then
         local showBox = self.view == "sell"
