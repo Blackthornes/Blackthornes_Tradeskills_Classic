@@ -5,6 +5,11 @@
 local _, ns = ...
 
 ns.WHATS_NEW = {
+    { version = "0.9.0", lines = {
+        "All your Blackthornes add-ons now open in one window, with a button for each add-on down the side.",
+        "The window moves beside the auction house, mailbox, vendor and trainer when you open them.",
+        "The auction house now shows the price of the item you searched for.",
+    } },
     { version = "0.8.0", lines = {
         "Every window has a new look that matches the other Blackthornes add-ons.",
         "The Disenchanting tab now has a Buy button for gear deals.",
@@ -14,9 +19,5 @@ ns.WHATS_NEW = {
         "Enchanters now see disenchant results and chances on item tooltips.",
         "The minimap button has a new Blackthornes badge.",
         "Show the way now puts a gold marker on your map.",
-    } },
-    { version = "0.6.0", lines = {
-        "The Road to 300 now counts what your other characters carry.",
-        "One minimap button now opens all your Blackthornes add-ons.",
     } },
 }
