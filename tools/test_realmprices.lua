@@ -199,7 +199,7 @@ check("our notice is filtered", ana.ns.RealmPrices.FilterNotice(nil, "CHAT_MSG_C
 check("trade chat's is not", ana.ns.RealmPrices.FilterNotice(nil, "CHAT_MSG_CHANNEL_NOTICE", "YOU_CHANGED",
     "", "", "2. Trade", "", 0, 2, "", "Trade"), false)
 check("nothing heard yet", ana.ns.RealmPrices:Describe(),
-    "Listening for prices from your realm. A price is used once 3 players agree on it.")
+    "Listening for prices from your realm.")
 
 --------------------------------------------------------------------------------
 print("\nsharing a scan")
