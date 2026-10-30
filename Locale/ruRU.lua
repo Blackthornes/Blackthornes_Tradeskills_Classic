@@ -3331,6 +3331,7 @@ L["What the items you listed this visit should bring in, after the auction house
 L["Click a name to open it. Right-click for its settings."] = "Нажми на название, чтобы открыть. Правый клик открывает его настройки."
 L["Click to pick an addon"] = "Нажми, чтобы выбрать аддон"
 L["Combine Addon Buttons:"] = "Объединить кнопки аддонов:"
+L["One Window:"] = "Одно окно:"
 L["Crafting, prices and the auction house"] = "Ремесло, цены и аукцион"
 L["Right-click for settings"] = "Правый щелчок для настроек"
 L["Got It"] = "Понятно"

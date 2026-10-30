@@ -3329,6 +3329,7 @@ L["What the items you listed this visit should bring in, after the auction house
 L["Click a name to open it. Right-click for its settings."] = "Clique sur un nom pour l'ouvrir. Clic droit pour ses réglages."
 L["Click to pick an addon"] = "Clique pour choisir un addon"
 L["Combine Addon Buttons:"] = "Regrouper les boutons d'addons :"
+L["One Window:"] = "Fenêtre unique :"
 L["Crafting, prices and the auction house"] = "Artisanat, prix et hôtel des ventes"
 L["Right-click for settings"] = "Clic droit pour les réglages"
 L["Got It"] = "Compris"

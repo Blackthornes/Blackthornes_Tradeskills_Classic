@@ -1246,6 +1246,20 @@ rename them: `oneWindow`, `oneWindowAt` (the newest wins), `oneWindowPick`,
 & Loot, arrows, plaques, loot feed, XP bar) stay their own. Tested in
 `tools/test_sharedwindow.lua`. Not yet seen in game.
 
+Tradeskills' tabs are in (2026-10-30, the last of the five): "One
+Window:" sits under "Combine Addon Buttons:" on the General page
+(`TSTabs:SetOneWindow`, writing every save). Tradeskills joins with `host =
+TSTabs.host` (`ns.TSTabs`, at the end of `UI/Main.lua`); `TSTabs:Enter(area)`
+lays the window, Settings tab and all, into the area (`LayIn`: parented to
+it, filling it, scale 1, its own trim, size grip and rim put out of sight;
+the hanging tabs under the one window's edge) and grows the one window to
+the window's size (`Grow`); `Leave` gives it back its place, size and
+scale (`LayOut`). `UI:Show` and `UI:OpenSettings` ask `TSTabs:Route`
+first; while it is in, `SavePosition`, `RestorePosition` and `ApplyScale`
+step aside, and closing it closes the one window (`TSTabs:Closed`). The
+sell list, the craft queue pane and the other panels stay their own.
+Tested in `tools/test_onewindow.lua`.
+
 ## The shared minimap button
 
 A player asked, the owner said build it from a mockup (2026-10-28), in all
