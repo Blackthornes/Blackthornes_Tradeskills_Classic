@@ -1494,6 +1494,9 @@ function Widgets.CreateTabStrip(parent, tabs, onSelect, opts)
 
         button.key = tab.key
         button.fixedWidth = tab.width
+        -- A tab marked right sits flush with the strip's right end (Settings
+        -- is always last there, the owner 2026-10-27).
+        button.right = tab.right and true or false
 
         button:SetScript("OnClick", function(self)
             strip:Select(self.key)
@@ -1558,7 +1561,33 @@ function Widgets.CreateTabStrip(parent, tabs, onSelect, opts)
         x = x + width + gap
     end
 
-    strip:SetWidth(math.max(x, 1))
+    -- Tabs marked right move to the far end of the strip, keeping their
+    -- order, when the strip has room for them. Again when the window it
+    -- hangs from changes width (strip:SetRoom).
+    local packed = math.max(x, 1)
+    local function PlaceRight(width)
+        local full = packed
+        if hanging and type(width) == "number" and width > packed then
+            local right = width
+            for index = #strip.tabs, 1, -1 do
+                local button = strip.tabs[index]
+                if button.right then
+                    right = right - button.span
+                    button.left = right
+                    right = right - gap
+                    full = width
+                end
+            end
+        end
+        strip:SetWidth(full)
+    end
+    PlaceRight(opts.width)
+    for _, button in ipairs(strip.tabs) do
+        if button.right and hanging then
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", button.left, 0)
+        end
+    end
 
     -- One gold line for the whole strip, gliding to the tab picked, with a
     -- soft glow over it: Farmer's tabs do the same. Both ride on a layer of
@@ -1609,6 +1638,16 @@ function Widgets.CreateTabStrip(parent, tabs, onSelect, opts)
         end)
     end
 
+    --- The strip's room changed (its window grew): the tabs marked right
+    --- move to its new right end.
+    function strip:SetRoom(width)
+        PlaceRight(width)
+        local picked = self.selected
+        self.selected = false
+        self.lineX, self.lineWidth = false, false
+        if picked then self:Select(picked) end
+    end
+
     function strip:Select(key)
         self.selected = key
 
@@ -1649,6 +1688,10 @@ end
 --   updateRow  function(row, data, index) -- fill a row with data
 --   onClick    function(data, index, mouseButton)
 --   onEnter / onLeave  function(row, data)
+--   clickHint  text, or function(data) giving it: what a click does, the
+--              last line, dim, of the row's hover (the house kit, 2026-10-29)
+--   menu       function(data) giving { { text, run }, ... }: a right-click
+--              opens the house row menu with these, the usual one first
 --   isSelected function(data) -- true for the row the detail pane is showing,
 --              which is then drawn lit with a gold edge
 --- Light a scrollbar's thumb gold while the mouse is over the bar.
@@ -1673,8 +1716,10 @@ end
 -- Sortable column headings
 --------------------------------------------------------------------------------
 
--- Blizzard's own list sort arrow, pointing down; flipped for smallest first.
-local SORT_ARROW = [[Interface\Buttons\UI-SortArrow]]
+-- The house's gold sort arrow (Media/Frame/SortArrow.tga, drawn by
+-- tools/make_frame_art.py, the same in every addon), pointing down; flipped
+-- for smallest first.
+local SORT_ARROW = [[Interface\AddOns\Blackthornes_TS\Media\Frame\SortArrow]]
 
 -- Room a heading keeps beside its words for the sort arrow: 8 wide, 2 off
 -- the words.
@@ -2104,6 +2149,84 @@ function Widgets.ItemShiftClick(itemID, link)
     return Widgets.LinkToChat(itemID, link)
 end
 
+--- An empty list's line dressed as the house empty block (the house kit,
+--- 2026-10-29): the emblem faint above it, and under it a gold button when
+--- there's a next step (Widgets.EmptyAction). The line keeps its place and
+--- its text; the emblem and button show and hide with it.
+function Widgets.DressEmpty(label)
+    if not label or rawget(label, "emblem") then return label end
+    local parent = label:GetParent()
+    local emblem = parent:CreateTexture(nil, "ARTWORK")
+    emblem:SetSize(44, 44)
+    emblem:SetPoint("BOTTOM", label, "TOP", 0, 8)
+    pcall(emblem.SetTexture, emblem, ([[Interface\AddOns\%s\Media\Frame\Emblem.tga]]):format(ns.ADDON_NAME or "Blackthornes_TS"))
+    emblem:SetAlpha(0.22)
+    emblem:SetShown(label:IsShown())
+    label.emblem = emblem
+
+    local function Follow(shown)
+        emblem:SetShown(shown and true or false)
+        local button = rawget(label, "emptyButton")
+        if button then button:SetShown(shown and rawget(label, "emptyRun") ~= nil or false) end
+    end
+    local show, hide, setShown = label.Show, label.Hide, label.SetShown
+    label.Show = function(self, ...) show(self, ...) Follow(true) end
+    label.Hide = function(self, ...) hide(self, ...) Follow(false) end
+    label.SetShown = function(self, shown, ...) setShown(self, shown, ...) Follow(shown) end
+    return label
+end
+
+--- The empty block's gold button: `text` and what a click does, or nil to
+--- take it away.
+function Widgets.EmptyAction(label, text, onClick)
+    if not label then return end
+    Widgets.DressEmpty(label)
+    label.emptyRun = (text and onClick) or nil
+    local button = rawget(label, "emptyButton")
+    if not button and text then
+        button = Widgets.CreateButton(label:GetParent(), text, function()
+            local run = rawget(label, "emptyRun")
+            if run then run() end
+        end, { primary = true, height = 22, width = 120 })
+        button:SetPoint("TOP", label, "BOTTOM", 0, -10)
+        label.emptyButton = button
+    end
+    if not button then return end
+    if text then
+        button:SetText(text)
+        local wordsLabel = rawget(button, "label")
+        local words = type(wordsLabel) == "table" and Theme.TextWidth and Theme.TextWidth(wordsLabel)
+        if type(words) == "number" then button:SetWidth(math.max(120, math.ceil(words + 24))) end
+    end
+    button:SetShown(text ~= nil and label:IsShown())
+end
+
+--- What a click does, as the last line of a row's hover, dim (the house
+--- kit, 2026-10-29: footers hold only a count and the version).
+function Widgets.AddClickHint(owner, hint, data)
+    if type(hint) == "function" then
+        local ok, text = pcall(hint, data)
+        hint = ok and text or nil
+    end
+    if type(hint) ~= "string" or hint == "" then return end
+    if not (GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(owner)) then return end
+    GameTooltip:AddLine(hint, Theme.Unpack("dim"))
+    GameTooltip:Show()
+end
+
+--- A right-click on a row opens the house row menu with the row's actions,
+--- the usual one first.
+-- @return true when a menu opened
+function Widgets.OpenRowMenu(data, menu)
+    if not (ns.RowMenu and ns.RowMenu.Open) or type(menu) ~= "function" then return false end
+    local ok, lines = pcall(menu, data)
+    if not ok or type(lines) ~= "table" or #lines == 0 then return false end
+    if GameTooltip then GameTooltip:Hide() end
+    local title = type(data) == "table" and (data.name or data.itemName) or nil
+    ns.RowMenu:Open(lines, { title = type(title) == "string" and title or nil })
+    return true
+end
+
 --- Shift-click on a list row: search the auction house for its item, or
 --- link it in chat with the house closed.
 -- @return true when the click was taken
@@ -2326,6 +2449,7 @@ function Widgets.CreateScrollList(parent, opts)
             if opts.onEnter and self.data then
                 self.tipFor = TipIdentity(self.data)
                 opts.onEnter(self, self.data)
+                Widgets.AddClickHint(self, opts.clickHint, self.data)
             end
         end)
 
@@ -2341,6 +2465,11 @@ function Widgets.CreateScrollList(parent, opts)
             -- house searches for it (2026-10-04). Right-click stays
             -- what each list already made it.
             if self.data and Widgets.ShiftClickSearch(self.data, opts.searchItem) then return end
+
+            if self.data and mouseButton == "RightButton" and opts.menu
+                and Widgets.OpenRowMenu(self.data, opts.menu) then
+                return
+            end
 
             if self.data and opts.onClick then
                 opts.onClick(self.data, self.dataIndex, mouseButton, self)

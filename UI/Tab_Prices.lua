@@ -732,15 +732,9 @@ local function BuildDetail(parent)
     detail.star = CreateStar(detail, 18, function() return state.selected and state.selected.itemID end)
     detail.star:SetPoint("TOPRIGHT", -8, -10)
 
-    -- The item's charts on the Stats tab (UI/Tab_Stats.lua), beside the star.
-    detail.stats = Widgets.CreateButton(detail, L["Stats"], function()
-        if state.selected and ns.StatsUI then ns.StatsUI:ShowItem(state.selected.itemID) end
-    end, { width = 50, height = 20, tooltip = L["See this item's charts on the Stats tab"] })
-    detail.stats:SetPoint("TOPRIGHT", -32, -9)
-
     local title = Theme.CreateLabel(detail, "large", "accent")
     title:SetPoint("TOPLEFT", 50, -12)
-    title:SetPoint("TOPRIGHT", detail.stats, "TOPLEFT", -6, -3)
+    title:SetPoint("TOPRIGHT", detail.star, "TOPLEFT", -6, -2)
     title:SetWordWrap(true)
     detail.title = title
 
@@ -863,7 +857,7 @@ local function BuildDetail(parent)
     empty:SetPoint("CENTER")
     empty:SetWidth(240)
     empty:SetWordWrap(true)
-    empty:SetText(L["Select an item to see its price history"])
+    empty:SetText(L["Pick an item to see its price history."])
     detail.empty = empty
 
     return detail
@@ -899,7 +893,6 @@ local function UpdateDetail(entry)
     if type(graph) == "table" then graph:SetShown(shown) end
     detail.deepScan:SetShown(shown)
     detail.searchAH:SetShown(shown)
-    if detail.stats then detail.stats:SetShown(shown) end
     detail.star:SetShown(shown)
 
     for key, value in pairs(detail.values) do
@@ -1069,7 +1062,7 @@ end
 -- Build
 --------------------------------------------------------------------------------
 
-local function Build(container)
+local function BuildDetails(container)
     -- Before any row or heading is laid out: they read these widths.
     if Widgets.FitColumns then Widgets.FitColumns(COLUMNS) end
 
@@ -1210,6 +1203,7 @@ local function Build(container)
     emptyLabel:SetWidth(320)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local countLabel = Theme.CreateLabel(container, "tiny", "dim")
     countLabel:SetPoint("BOTTOMLEFT", 8, 8)
@@ -1223,10 +1217,94 @@ local function Build(container)
     UpdateDetail(nil)
 end
 
+--------------------------------------------------------------------------------
+-- Details and Stats (the owner, 2026-10-29): the Stats tab's charts moved
+-- in here behind the house's small view tabs, one tab fewer on the strip.
+-- UI/Tab_Stats.lua hands over its view as ns.StatsUI.view.
+--------------------------------------------------------------------------------
+
+local PricesUI = {}
+ns.PricesUI = PricesUI
+PricesUI.view = "details"
+
+local VIEW_TOP = 32
+
+--- The Stats view, when UI/Tab_Stats.lua is loaded.
+local function StatsView()
+    return ns.StatsUI and ns.StatsUI.view
+end
+
+local function SelectedItem()
+    return state.selected and state.selected.itemID
+end
+
+--- Show Details or Stats. Stats opens on the item Details had picked.
+function PricesUI:ShowView(key, itemID)
+    if key ~= "stats" or not StatsView() then key = "details" end
+    self.view = key
+    if widgets.viewTabs then widgets.viewTabs:Select(key, true) end
+    if widgets.detailsView then widgets.detailsView:SetShown(key == "details") end
+    if widgets.statsView then widgets.statsView:SetShown(key == "stats") end
+    if key == "stats" then
+        local stats = StatsView()
+        if stats.onShow then stats.onShow() end
+        if ns.StatsUI.Pick then ns.StatsUI:Pick(itemID or SelectedItem()) end
+        if stats.refresh then stats.refresh() end
+    else
+        Refresh()
+    end
+end
+
+--- True while the Stats view is the one showing.
+function PricesUI:ShowingStats()
+    return UI.activeTab == "prices" and self.view == "stats"
+end
+
+local function Build(container)
+    local stats = StatsView()
+    local tabs = { { key = "details", text = L["Details"] } }
+    if stats then tabs[#tabs + 1] = { key = "stats", text = L["Stats"] } end
+    local viewTabs = Widgets.CreateViewTabs(container, tabs, function(key)
+        PricesUI:ShowView(key)
+    end)
+    viewTabs:SetPoint("TOPLEFT", container, "TOPLEFT", 8, -6)
+    viewTabs:SetPoint("RIGHT", container, "RIGHT", -8, 0)
+    widgets.viewTabs = viewTabs
+
+    local detailsView = CreateFrame("Frame", nil, container)
+    detailsView:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -VIEW_TOP)
+    detailsView:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    widgets.detailsView = detailsView
+    BuildDetails(detailsView)
+
+    if stats then
+        local statsView = CreateFrame("Frame", nil, container)
+        statsView:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -VIEW_TOP)
+        statsView:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+        statsView:Hide()
+        widgets.statsView = statsView
+        stats.build(statsView)
+    end
+
+    viewTabs:Select(PricesUI.view, true)
+    detailsView:SetShown(PricesUI.view ~= "stats")
+end
+
+local function RefreshShown()
+    if PricesUI.view == "stats" and StatsView() then
+        StatsView().refresh()
+    else
+        Refresh()
+    end
+end
+
 UI:RegisterTab({
     key = "prices",
     text = L["Prices"],
     order = 8,
     build = Build,
-    refresh = Refresh,
+    refresh = RefreshShown,
+    onShow = function()
+        if PricesUI.view == "stats" and StatsView() and StatsView().onShow then StatsView().onShow() end
+    end,
 })

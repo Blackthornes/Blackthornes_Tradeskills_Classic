@@ -69,27 +69,42 @@ function SellMarked:Create()
     if self.button then return self.button end
 
     local Theme = ns.Theme
-    local button = CreateFrame("Button", "BlackthornesTSSellMarked", UIParent, "SecureActionButtonTemplate")
+    local button
+    if ns.Plaque then
+        -- The gold plaque, as the house's other buttons out on the screen
+        -- (UI/Plaque.lua, 2026-10-29): what a click does, and under it how
+        -- many stacks wait. Still the same secure button underneath.
+        button = ns.Plaque.Create(UIParent, { name = "BlackthornesTSSellMarked",
+            template = "SecureActionButtonTemplate", minWidth = BUTTON_WIDTH })
+        button:SetIcon("Interface\\Icons\\INV_Misc_Coin_02")
+        button.label = button.first
+        button.isPlaque = true
+    else
+        button = CreateFrame("Button", "BlackthornesTSSellMarked", UIParent, "SecureActionButtonTemplate")
+        button:SetSize(BUTTON_WIDTH, 30)
+        -- A raised metal button with a gold label, like Disenchant's.
+        button.background = Theme.Fill(button, "rowActive")
+        Theme.Border(button, "accent", 0.55)
+        if Theme.TopSheen then Theme.TopSheen(button) end
+        if Theme.Halo then Theme.Halo(button, 5, 0) end
+        button.label = Theme.CreateLabel(button, "small", "accent", "CENTER")
+        button.label:SetPoint("CENTER")
+        button.label:SetWordWrap(false)
+    end
     button:Hide()
-    button:SetSize(BUTTON_WIDTH, 30)
     button:SetFrameStrata("FULLSCREEN_DIALOG")
     button:SetFrameLevel(100)
     button:RegisterForClicks("AnyUp")
     button:SetAttribute("useOnKeyDown", false)
 
-    -- A raised metal button with a gold label, like Disenchant's.
-    button.background = Theme.Fill(button, "rowActive")
-    Theme.Border(button, "accent", 0.55)
-    if Theme.TopSheen then Theme.TopSheen(button) end
-    if Theme.Halo then Theme.Halo(button, 5, 0) end
-    button.label = Theme.CreateLabel(button, "small", "accent", "CENTER")
-    button.label:SetPoint("CENTER")
-    button.label:SetWordWrap(false)
-
+    local enter, leave = button:GetScript("OnEnter"), button:GetScript("OnLeave")
     button:SetScript("OnEnter", function(frame)
-        frame.background:SetColorTexture(Theme.Unpack("rowHover"))
-        Theme.SetBorderColor(frame, "accent")
-        if Theme.SetHalo then Theme.SetHalo(frame, 0.32) end
+        if enter then enter(frame) end
+        if frame.background then
+            frame.background:SetColorTexture(Theme.Unpack("rowHover"))
+            Theme.SetBorderColor(frame, "accent")
+            if Theme.SetHalo then Theme.SetHalo(frame, 0.32) end
+        end
         if frame.tooltipText then
             GameTooltip:SetOwner(frame, "ANCHOR_TOP")
             GameTooltip:SetText(frame.tooltipText, 1, 1, 1, 1, true)
@@ -98,9 +113,12 @@ function SellMarked:Create()
     end)
 
     button:SetScript("OnLeave", function(frame)
-        frame.background:SetColorTexture(Theme.Unpack("rowActive"))
-        Theme.SetBorderColor(frame, "accent", 0.55)
-        if Theme.SetHalo then Theme.SetHalo(frame, 0) end
+        if leave then leave(frame) end
+        if frame.background then
+            frame.background:SetColorTexture(Theme.Unpack("rowActive"))
+            Theme.SetBorderColor(frame, "accent", 0.55)
+            if Theme.SetHalo then Theme.SetHalo(frame, 0) end
+        end
         GameTooltip:Hide()
     end)
 
@@ -239,10 +257,21 @@ function SellMarked:Update()
         name = name:match("^%[(.*)%]$") or name
         text = (count and count > 1) and L.Format("Sell %s x%d", name, count) or L.Format("Sell %s", name)
     end
-    button.label:SetText(text)
-
-    local width = ns.Theme.TextWidth(button.label) or 0
-    button:SetWidth(math.max(BUTTON_WIDTH, math.ceil(width + BUTTON_PAD * 2)))
+    if rawget(button, "isPlaque") then
+        -- The plaque says what a click does, and how many stacks wait under it.
+        local first, second = text, nil
+        if not self.selling and room > 0 and itemID then
+            if self:CanSellAll() then first = L["Sell Marked"] end
+            local stacks = math.min(total, room)
+            second = L.Format(stacks == 1 and "%d stack to sell" or "%d stacks to sell", stacks)
+        end
+        button:SetLines(first, second)
+        button:SetGlowing(not self.selling and room > 0 and itemID ~= nil)
+    else
+        button.label:SetText(text)
+        local width = ns.Theme.TextWidth(button.label) or 0
+        button:SetWidth(math.max(BUTTON_WIDTH, math.ceil(width + BUTTON_PAD * 2)))
+    end
 
     local lines = { L.Format("Sells what your craft queue made on Vendor: %d marked.", total) }
     if room <= 0 then

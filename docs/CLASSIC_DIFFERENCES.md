@@ -415,3 +415,15 @@ player picked changes. The switch along the top measures the room left of
 "Find a setting" and steps its gaps and text size down to fit
 (`LayoutSwitch`, `SwitchRoom`). Tested in `tools/test_uifit.lua`. Not yet
 seen in game.
+
+## The house look (2026-10-29)
+
+- Brought over from Forever's "One look across the five addons". The game
+  calls it uses (`CreateFrame`, `C_Timer.After`, `GetTime`, `CreateColor`,
+  `GetCursorPosition`, `InCombatLockdown`, `SecureActionButtonTemplate`,
+  the usual frame methods) are all in Era, so nothing needed a fallback.
+- The Profit and Level Up switches keep Classic's real tabs, Settings keeps
+  its TOOLTIPS page (so LOOK's hover is "Columns, the arrow and Goblin
+  Gold"), and the header keeps no version line.
+- The auction drawer's view tabs are Sell, Buy, Lists and Auctions; there
+  is no Merchant's Favor, so Favors never shows.

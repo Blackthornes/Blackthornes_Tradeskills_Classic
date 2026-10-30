@@ -218,12 +218,8 @@ function UI:BuildHeader()
     rule:SetHeight(1)
     Theme.SetGradientAlpha(rule, "HORIZONTAL", "accent", 0.6, 0.05)
 
-    local status = Theme.CreateLabel(header, "small", "muted")
-    status:SetPoint("LEFT", header, "LEFT", 58, -6)
-    self.statusLabel = status
-
-    -- No version line under it (the owner, 2026-10-29: label and value
-    -- only). The version is on the About page.
+    -- No version line past the portrait (the owner, 2026-10-29: label and
+    -- value only). The version is on the About page.
 
     -- Something for the scan button to sit beside, where the close button
     -- used to be: the gem is on the window's corner now.
@@ -236,13 +232,34 @@ function UI:BuildHeader()
     -- The button stays clickable even when a scan is not currently possible:
     -- a greyed-out control that cannot say why is worse than one that tells
     -- you to open the auction house.
-    local scanButton = Widgets.CreateButton(header, L["Scan auctions"], function()
+    local scanButton = Widgets.CreateButton(header, L["Scan Auctions"], function()
         UI:TriggerScan()
     end, { width = SCAN_BUTTON_WIDTH, height = 24, primary = true })
     FitScanButton(scanButton)
 
     scanButton:SetPoint("TOPRIGHT", close, "TOPLEFT", -8, -1)
     self.scanButton = scanButton
+
+    -- How old the scan is, a small chip beside the scan button (the house
+    -- kit, 2026-10-29: one header row). What the addon knows, items priced
+    -- and recipes known, is on its hover.
+    local status
+    if Widgets.CreateChip then
+        status = Widgets.CreateChip(header, "", nil, { height = 20 })
+        status:SetPoint("RIGHT", scanButton, "LEFT", -8, 0)
+        status:HookScript("OnEnter", function(self)
+            local tip = rawget(self, "tip")
+            if not tip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:SetText(tip, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        status:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    else
+        status = Theme.CreateLabel(header, "small", "muted", "RIGHT")
+        status:SetPoint("RIGHT", scanButton, "LEFT", -8, 0)
+    end
+    self.statusLabel = status
 
     -- Inline explanation, so the reason appears in the window rather than only
     -- in the chat frame.
@@ -299,7 +316,8 @@ function UI:BuildTabs()
 
     local definitions = {}
     for _, tab in ipairs(self.tabOrder) do
-        definitions[#definitions + 1] = { key = tab.key, text = tab.text }
+        -- Settings is always last, flush right (the owner, 2026-10-27).
+        definitions[#definitions + 1] = { key = tab.key, text = tab.text, right = tab.key == "settings" }
     end
 
     -- Hung below the window, as the game's own windows wear their tabs. The
@@ -342,6 +360,8 @@ UI.MOVED_TABS = {
     -- Posting is the drawer's Sell list now; a window left on the old Post
     -- tab opens on Profit.
     post = "profit",
+    -- Stats is the Prices tab's Stats view now (2026-10-29).
+    stats = "prices",
 }
 
 function UI:SelectTab(key)
@@ -380,8 +400,9 @@ function UI:UpdateHeader()
             or L.Format("scanned %s", ago)
     end
 
-    self.statusLabel:SetText(L.Format("%s items priced  ·  %s recipes known  ·  %s",
-        Util.Comma(priceCount), Util.Comma(recipeCount), scanText))
+    self.statusLabel:SetText(scanText)
+    self.statusLabel.tip = L.Format("%s items priced  ·  %s recipes known  ·  %s",
+        Util.Comma(priceCount), Util.Comma(recipeCount), scanText)
 
     -- The scan button stays live and explains itself rather than greying out
     -- into something that looks broken.
@@ -389,7 +410,7 @@ function UI:UpdateHeader()
     if scanner.isScanning or scanner.scanQueued or scanner.browseQueued then
         -- A scan waiting its turn is cancelled by this button too, so it
         -- says so rather than offering to start one.
-        self.scanButton:SetText(L["Cancel scan"])
+        self.scanButton:SetText(L["Cancel Scan"])
         FitScanButton(self.scanButton)
         self.scanButton.tooltipText = L["Stop the running scan"]
         -- The progress ("scanning... 42%") lives here while a scan runs, and
@@ -404,7 +425,7 @@ function UI:UpdateHeader()
             end
         end
     else
-        self.scanButton:SetText(L["Scan auctions"])
+        self.scanButton:SetText(L["Scan Auctions"])
         FitScanButton(self.scanButton)
 
         local allowed, reason = ns.Scanner:CanFullScan()
@@ -1471,7 +1492,8 @@ function UI:ShowTransferDialog(mode)
         Theme.Fill(dialog, "window")
         -- The house frame (UI/Titanforged.lua): the gold rim and corner gems.
         if ns.Titanforged then
-            ns.Titanforged:Dress(dialog)
+            -- The red close gem, as every house window has (2026-10-29).
+            ns.Titanforged:Dress(dialog, { close = function() dialog:Hide() end })
         else
             Theme.AddGameOutline(dialog, { style = "dialog", color = "natural" })
         end
@@ -1559,12 +1581,6 @@ function UI:ShowTransferDialog(mode)
         end, { width = 120, height = 26, primary = true })
         dialog.action:SetPoint("BOTTOMRIGHT", -20, 18)
 
-        local close = Widgets.CreateButton(dialog, L["Close"], function()
-            dialog:Hide()
-        end, { width = 90, height = 26 })
-        close:SetPoint("BOTTOMRIGHT", dialog.action, "BOTTOMLEFT", -8, 0)
-        dialog.close = close
-
         self.transferDialog = dialog
     end
 
@@ -1579,18 +1595,12 @@ function UI:ShowTransferDialog(mode)
         dialog.editBox:SetText(code)
         dialog.editBox:HighlightText()
         dialog.action:Hide()
-        -- Import is hidden here, so Close takes its corner rather than
-        -- floating where Import would have been beside it.
-        dialog.close:ClearAllPoints()
-        dialog.close:SetPoint("BOTTOMRIGHT", -20, 18)
     else
         dialog.title:SetText(L["Import"])
         dialog.hint:SetText(L["Paste a code with Ctrl+V, then press Import. Crafts are added to your queue, and the code's settings and stock limits replace yours."])
 
         dialog.editBox:SetText("")
         dialog.action:Show()
-        dialog.close:ClearAllPoints()
-        dialog.close:SetPoint("BOTTOMRIGHT", dialog.action, "BOTTOMLEFT", -8, 0)
     end
 
     -- A new code starts at its top, not wherever the last one was left.
@@ -1640,6 +1650,52 @@ function UI.ButlerBuysHere()
     return ok and yes == true
 end
 
+--- The gold plaque the house's buttons out on the screen wear (UI/Plaque.lua,
+--- 2026-10-29): what a click does, and under it how many and the cost. It
+--- answers the plain button's SetEnabledState, tooltipText and onClick.
+function UI.MerchantPlaque(onClick)
+    local button = ns.Plaque.Create(UIParent, { minWidth = MERCHANT_BUTTON_WIDTH })
+    button:SetFrameStrata("FULLSCREEN_DIALOG")
+    button:SetFrameLevel(100)
+    button:SetIcon("Interface\\Icons\\INV_Misc_Bag_10")
+    button.label = button.first
+    button.isPlaque = true
+    button.onClick = onClick
+    button:SetScript("OnClick", function(self)
+        if not self.disabled and self.onClick then self.onClick() end
+    end)
+    local enter, leave = button:GetScript("OnEnter"), button:GetScript("OnLeave")
+    button:SetScript("OnEnter", function(self)
+        if enter then enter(self) end
+        if self.tooltipText then
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText(self.tooltipText, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    button:SetScript("OnLeave", function(self)
+        if leave then leave(self) end
+        GameTooltip:Hide()
+    end)
+    button.SetEnabledState = function(plaque, on)
+        plaque.disabled = not on
+        plaque:SetAlpha(on and 1 or 0.65)
+        plaque:SetGlowing(on)
+    end
+    return button
+end
+
+--- Words on the vendor button: a plaque's two lines, else the plain
+--- button's one, sized to fit.
+local function MerchantWords(button, first, second)
+    if rawget(button, "isPlaque") then
+        button:SetLines(first, second)
+        return
+    end
+    button:SetText(second and ("%s  %s"):format(first, second) or first)
+    FitMerchantButton(button)
+end
+
 --- A button on Blizzard's vendor window that buys the queue's shortfalls.
 --
 -- Spending your gold is never automatic: this is one deliberate click, and the
@@ -1662,6 +1718,14 @@ function UI:AttachToMerchant()
     end
 
     local button = self.merchantButton
+
+    if not button and ns.Plaque then
+        button = UI.MerchantPlaque(function()
+            ns.Vendor:BuyNeeded()
+            UI:UpdateMerchantButton()
+        end)
+        self.merchantButton = button
+    end
 
     if not button then
         button = Widgets.CreateButton(UIParent, L["Buy materials"], function()
@@ -1702,8 +1766,7 @@ function UI:UpdateMerchantButton()
     if not button then return end
 
     if ns.Vendor:IsBuying() then
-        button:SetText(L["Buying..."])
-        FitMerchantButton(button)
+        MerchantWords(button, L["Buying..."])
         button:SetEnabledState(false)
         button.tooltipText = L["Purchases in progress"]
         return
@@ -1725,8 +1788,7 @@ function UI:UpdateMerchantButton()
 
     if #lines == 0 then
         -- Present but inert, so it never looks like it failed to appear.
-        button:SetText(L["Nothing needed here"])
-        FitMerchantButton(button)
+        MerchantWords(button, L["Nothing needed here"])
         button:SetEnabledState(false)
         button.tooltipText = ns.Queue:Count() == 0
             and L["Your craft queue is empty"]
@@ -1735,9 +1797,12 @@ function UI:UpdateMerchantButton()
         return
     end
 
-    button:SetText(("%s  %s"):format(L["Buy materials"],
-        Util.FormatMoney(total, { short = true })))
-    FitMerchantButton(button)
+    if rawget(button, "isPlaque") then
+        MerchantWords(button, L["Buy Materials"], L.Format(#lines == 1 and "%d item, %s" or "%d items, %s",
+            #lines, Util.FormatMoney(total, { short = true })))
+    else
+        MerchantWords(button, L["Buy materials"], Util.FormatMoney(total, { short = true }))
+    end
     button:SetEnabledState(true)
 
     -- Spell out exactly what will be bought before any gold moves.

@@ -44,6 +44,7 @@ end
 
 function TomTomLink:SetOn(on)
     ns.db.useTomTom = on and true or false
+    if ns.SharedChoices then ns.SharedChoices:Changed("useTomTom", ns.db.useTomTom) end
     if not on then self:Clear() end
     if ns.WayArrow then ns.WayArrow:Changed() end
     if ns.SettingsUI and ns.SettingsUI.Refresh then pcall(ns.SettingsUI.Refresh, ns.SettingsUI) end

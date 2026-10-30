@@ -52,7 +52,7 @@ local VIEWS = {
             { key = "skill",  label = L["SKILL"],      width = 40, justify = "CENTER" },
             { key = "age",    label = L["AGE"],        width = 44, justify = "CENTER" },
         },
-        hint = L["Right-click an item to search the auction house for it"],
+        hint = L["Right-click for more."],
     },
     bag = {
         columns = {
@@ -61,7 +61,7 @@ local VIEWS = {
             { key = "sells",      label = L["SELLS"],      width = 70, money = true },
             { key = "count",      label = L["HAVE"],       width = 40, justify = "CENTER" },
         },
-        hint = L["Pick an item, then click Disenchant. Right-click to mark it bought to disenchant"],
+        hint = L["Right-click for more."],
     },
     -- Find a material (2026-10-16): where to get one enchanting material.
     material = {
@@ -70,7 +70,7 @@ local VIEWS = {
             { key = "odds",  label = L["ODDS"],      width = 84, justify = "CENTER" },
             { key = "where", label = L["WHERE"],     width = 150, justify = "LEFT" },
         },
-        hint = L["Pick a row to see more"],
+        hint = L["Pick a row to see more."],
     },
 }
 
@@ -625,7 +625,7 @@ local function BuildDetail(parent)
     empty:SetPoint("CENTER")
     empty:SetWidth(DETAIL_WIDTH - 40)
     empty:SetWordWrap(true)
-    empty:SetText(L["Pick a row to see what it breaks into"])
+    empty:SetText(L["Pick a row to see what it breaks into."])
     detail.empty = empty
 
     return detail
@@ -1374,7 +1374,7 @@ local function ApplyView()
     widgets.dealsOnly:SetShown(state.view == "auction")
     widgets.hideTooHigh:SetShown(state.view == "auction")
     widgets.beatsOnly:SetShown(isBag)
-    widgets.hint:SetText(view.hint)
+    widgets.hint:SetText("")
 
     -- The material picker, its names as the client gives them.
     if isMaterial then
@@ -1529,22 +1529,40 @@ local function Build(container)
         onEnter = function(row, entry) ShowRowTooltip(row, entry) end,
         onLeave = function() GameTooltip:Hide() end,
 
+        -- What a click does, on the row's hover (the house kit, 2026-10-29).
+        clickHint = function(entry)
+            if entry.kind == "section" then return nil end
+            local view = VIEWS[state.view]
+            return view and view.hint
+        end,
+
+        -- The row's menu, the usual one first: a bag item is marked bought,
+        -- an auction searched for.
+        menu = function(entry)
+            if entry.kind ~= "bag" and entry.kind ~= "auction" then return nil end
+            state.selected = entry
+            UpdateDetail(entry)
+            if widgets.list then widgets.list:Refresh() end
+            local lines = {}
+            if entry.kind == "bag" then
+                local buys = ns.DisenchantBuys
+                lines[1] = { text = L["Bought to Disenchant"], run = function() ToggleBought(entry) end,
+                             checked = buys and entry.itemID and buys:Count(entry.itemID) > 0 or false }
+            end
+            if entry.kind == "auction" or (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then
+                lines[#lines + 1] = { text = L["Search the Auction House"], run = function() SearchAuctionHouse(entry) end }
+            end
+            return lines
+        end,
+
         isSelected = function(entry)
             return SameRow(entry, state.selected)
         end,
 
         onClick = function(entry, _, mouseButton)
-            if entry.kind == "section" then return end
+            if entry.kind == "section" or mouseButton == "RightButton" then return end
             state.selected = entry
             UpdateDetail(entry)
-
-            if mouseButton == "RightButton" then
-                if entry.kind == "bag" then
-                    ToggleBought(entry)
-                elseif entry.kind == "auction" then
-                    SearchAuctionHouse(entry)
-                end
-            end
         end,
     })
 
@@ -1557,6 +1575,7 @@ local function Build(container)
     emptyLabel:SetWidth(380)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local countLabel = Theme.CreateLabel(container, "tiny", "dim")
     countLabel:SetPoint("BOTTOMLEFT", 8, 8)

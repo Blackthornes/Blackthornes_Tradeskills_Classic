@@ -301,6 +301,7 @@ function Travel:SetOn(on)
     local db = DB()
     if type(db) ~= "table" then return end
     db.arrowRoute = on and true or false
+    if ns.SharedChoices then ns.SharedChoices:Changed("arrowRoute", db.arrowRoute) end
     self:Forget()
     Host.Changed()
 end

@@ -1047,6 +1047,7 @@ local function Build(container)
     emptyLabel:SetWordWrap(true)
     emptyLabel:SetText(L["Nothing queued.\nRight-click a craft on the Profit tab to add one."])
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local summaryLabel = Theme.CreateLabel(container, "small", "text")
     summaryLabel:SetPoint("BOTTOMLEFT", 8, 10)

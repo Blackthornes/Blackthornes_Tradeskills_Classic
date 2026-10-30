@@ -753,10 +753,10 @@ function WhatsNew:Build()
     self.motionBox:SetPoint("LEFT", self.popupBox, "RIGHT", 14, 0)
 
     local measure = Text(frame, "normal", "text")
-    measure:SetText(L["Got it"])
+    measure:SetText(L["Got It"])
     local buttonWidth = math.max(112, math.ceil(Wide(measure)) + 40)
     measure:Hide()
-    local done = Widgets.CreateButton(frame, L["Got it"], function() WhatsNew:Close() end,
+    local done = Widgets.CreateButton(frame, L["Got It"], function() WhatsNew:Close() end,
         { primary = true, width = buttonWidth, height = 26 })
     done:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PAD, 15)
     self.doneButton = done

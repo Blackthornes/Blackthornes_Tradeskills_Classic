@@ -93,6 +93,23 @@ local widgets = {}
 
 -- What a click does is on each row's hover, not under the list (the owner,
 -- 2026-10-29: label and value only).
+-- The row's menu (a right-click, the house kit, 2026-10-29): queue one
+-- first, as the right-click did, then search the auction house.
+local function RowMenu(analysis)
+    local lines = {
+        { text = L["Queue One"], run = function()
+            ns.Queue:Add(analysis.recipeID, 1)
+            ns.Print(L.Format("queued 1x %s", analysis.name or L["craft"]))
+            if ns.Demand then ns.Demand:WarnIfLow(analysis.outputItemID, analysis.name) end
+        end },
+    }
+    if analysis.outputItemID and ns.Scanner and ns.Scanner.isAuctionHouseOpen then
+        lines[#lines + 1] = { text = L["Search the Auction House"], run = function()
+            ns.UI:SearchAuctionHouse(analysis.outputItemID)
+        end }
+    end
+    return lines
+end
 
 --------------------------------------------------------------------------------
 -- Rows
@@ -1041,7 +1058,7 @@ local function BuildDetail(parent)
 
     local empty = Theme.CreateLabel(detail, "small", "dim", "CENTER")
     empty:SetPoint("CENTER")
-    empty:SetText(L["Select a craft to see the breakdown"])
+    empty:SetText(L["Pick a craft to see the breakdown."])
     detail.empty = empty
 
     return detail
@@ -1816,6 +1833,7 @@ local function Refresh()
 
     widgets.emptyLabel:SetShown(#data == 0)
     widgets.emptyScan:Hide()
+    if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, nil) end
 
     if #data == 0 then
         if ns.Recipes:Count() == 0 then
@@ -1845,6 +1863,7 @@ local function Refresh()
             -- message would be about crafts the search never named.
             if state.search ~= "" then
                 widgets.emptyLabel:SetText(L.Format("Nothing matching \"%s\".", state.search))
+                if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, L["Clear Search"], function() widgets.search:SetText("") end) end
             elseif #hidden > 0 and (minProfit > 0 or minMargin > 0) then
                 local best = hidden[1]
 
@@ -2016,6 +2035,7 @@ local function BuildCrafts(container)
     end)
     search:SetPoint("LEFT", method, "RIGHT", 8, 0)
     search:SetWidth(Widgets.SEARCH_WIDTH)
+    widgets.search = search
 
     local craftable = Widgets.CreateCheckbox(toolbar, L["Craftable now"], function(checked)
         state.craftableOnly = checked
@@ -2151,6 +2171,8 @@ local function BuildCrafts(container)
         end,
 
         onLeave = function() GameTooltip:Hide() end,
+        clickHint = L["Right-click for more."],
+        menu = RowMenu,
 
         -- The row the detail pane is showing stays lit.
         isSelected = function(entry)
@@ -2158,13 +2180,7 @@ local function BuildCrafts(container)
         end,
 
         onClick = function(analysis, _, mouseButton)
-            if mouseButton == "RightButton" then
-                -- Right-click is the fast path: queue one without leaving the list.
-                ns.Queue:Add(analysis.recipeID, 1)
-                ns.Print(L.Format("queued 1x %s", analysis.name or L["craft"]))
-                if ns.Demand then ns.Demand:WarnIfLow(analysis.outputItemID, analysis.name) end
-                return
-            end
+            if mouseButton == "RightButton" then return end
 
             state.selected = analysis
             UpdateDetail(ns.Profit:Analyse(analysis.recipeID, nil, Method()))
@@ -2180,10 +2196,11 @@ local function BuildCrafts(container)
     emptyLabel:SetWidth(320)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     -- When there is simply no data, the fix is one click away; put it here
     -- rather than making the player go hunting for the header.
-    local emptyScan = Widgets.CreateButton(container, L["Scan auctions"], function()
+    local emptyScan = Widgets.CreateButton(container, L["Scan Auctions"], function()
         UI:TriggerScan()
     end, { width = 130, height = 26, primary = true })
     GrowToFit(emptyScan)
@@ -2230,7 +2247,6 @@ local function BuildCrafts(container)
     queueAll:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 2)
     widgets.queueAll = queueAll
 
-
     -- Detail panel
     local detail = BuildDetail(container)
     detail:SetPoint("TOPRIGHT", container, "TOPRIGHT", -8, -40)
@@ -2268,7 +2284,7 @@ end
 -- Without that file (the tests load this one alone) the tab is the crafts.
 local switch = ns.RecipeBookView and ns.RecipeBookView.WithSwitch({
     mainKey = "crafts",
-    mainText = L["MY CRAFTS"],
+    mainText = L["My Crafts"],
     mainTip = L["The crafts you know, by profit"],
     buildMain = BuildCrafts,
     refreshMain = Refresh,
@@ -2282,12 +2298,12 @@ local switch = ns.RecipeBookView and ns.RecipeBookView.WithSwitch({
     extras = (function()
         local list = {}
         if ns.YourTimeView then
-            list[#list + 1] = { key = "time", text = L["YOUR TIME"],
+            list[#list + 1] = { key = "time", text = L["Your Time"],
                 tip = L["Farm it, sell the mats, or buy them: which pays best for your time"],
                 build = ns.YourTimeView.Build, refresh = ns.YourTimeView.Refresh }
         end
         if ns.ShuffleView then
-            list[#list + 1] = { key = "shuffles", text = L["SHUFFLES"], last = true,
+            list[#list + 1] = { key = "shuffles", text = L["Shuffles"], last = true,
                 build = ns.ShuffleView.Build, refresh = ns.ShuffleView.Refresh }
         end
         return list[1] and list or nil

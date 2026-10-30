@@ -25,7 +25,7 @@ local COLUMNS = {
     -- Learn next (2026-10-12): where an unlearned recipe is learned, what
     -- it costs, and a Show the way button, all lined up at the far right.
     -- Shown only while Learn next is ticked.
-    { key = "way",    label = "", menuText = L["Show the way"], width = 84, button = "way", learnOnly = true },
+    { key = "way",    label = "", menuText = L["Show the Way"], width = 84, button = "way", learnOnly = true },
     { key = "where",  label = L["WHERE"], width = 120, justify = "LEFT", learnOnly = true },
     { key = "learn",  label = L["LEARN"], width = 50, money = true, learnOnly = true },
     { key = "make",   label = L["MAKE"], width = 40, justify = "CENTER" },
@@ -75,6 +75,27 @@ local widgets = {}
 
 -- What a click does is on each row's hover, not under the list (the owner,
 -- 2026-10-29: label and value only).
+-- The row's menu (a right-click, the house kit, 2026-10-29), the usual
+-- one first: a recipe to learn shows the way, one you know is queued.
+local function RowMenu(entry)
+    if entry.heading then return nil end
+    local lines = {}
+    if entry.learnNext then
+        lines[1] = { text = L["Show the Way"], run = function() ns.LearnNext:ShowTheWay(entry) end }
+    else
+        lines[1] = { text = L["Queue One"], run = function()
+            ns.Queue:Add(entry.recipeID, 1)
+            ns.Print(L.Format("queued %dx %s", 1, entry.name or L["craft"]))
+        end }
+    end
+    local itemID = Widgets.RowItemID(entry)
+    if itemID and ns.Scanner and ns.Scanner.isAuctionHouseOpen then
+        lines[#lines + 1] = { text = L["Search the Auction House"], run = function()
+            ns.UI:SearchAuctionHouse(itemID)
+        end }
+    end
+    return lines
+end
 
 -- Defined with the detail panel, used by the controls built inside it.
 local UpdateCraftButton
@@ -289,7 +310,7 @@ local function CreateRow(row)
     row.cells = {}
     for _, column in ipairs(COLUMNS) do
         if column.button == "way" then
-            row.wayButton = Widgets.CreateButton(row, L["Show the way"], function()
+            row.wayButton = Widgets.CreateButton(row, L["Show the Way"], function()
                 if row.data and row.data.learnNext then ns.LearnNext:ShowTheWay(row.data) end
             end, { width = column.width, height = 16,
                    tooltip = L["Put a pin on your map where this recipe is learned"] })
@@ -833,7 +854,7 @@ local function BuildDetail(parent)
         anchor = learn.materials[index]
     end
 
-    learn.wayButton = Widgets.CreateButton(learn, L["Show the way"], function()
+    learn.wayButton = Widgets.CreateButton(learn, L["Show the Way"], function()
         if state.selected and state.selected.learnNext then ns.LearnNext:ShowTheWay(state.selected) end
     end, { width = 120, height = 24, primary = true,
            tooltip = L["Put a pin on your map where this recipe is learned"] })
@@ -851,7 +872,7 @@ local function BuildDetail(parent)
     empty:SetPoint("CENTER")
     empty:SetWidth(DETAIL_WIDTH - 40)
     empty:SetWordWrap(true)
-    empty:SetText(L["Pick a recipe to see its materials"])
+    empty:SetText(L["Pick a recipe to see its materials."])
     detail.empty = empty
 
     return detail
@@ -1238,12 +1259,14 @@ local function Refresh()
     widgets.countLabel:SetText(table.concat(parts, "   "))
 
     widgets.emptyLabel:SetShown(#shown == 0)
+    if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, nil) end
 
     if #shown == 0 then
         if ns.Recipes:Count() == 0 then
             widgets.emptyLabel:SetText(L["Open a profession window once so your recipes can be read."])
         elseif state.search ~= "" then
             widgets.emptyLabel:SetText(L.Format("Nothing matching \"%s\".", state.search))
+            if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, L["Clear Search"], function() widgets.search:SetText("") end) end
         elseif state.subCraftsOnly then
             widgets.emptyLabel:SetText(L["Nothing you know here makes a material for another craft."])
         elseif state.craftableOnly then
@@ -1286,7 +1309,7 @@ end
 local function Build(container)
     -- Before any row or heading is laid out: they read these widths. The
     -- Show the way column is as wide as its button's words.
-    local wayWidth = Theme.MeasureText and Theme.MeasureText("small", L["Show the way"])
+    local wayWidth = Theme.MeasureText and Theme.MeasureText("small", L["Show the Way"])
     if type(wayWidth) == "number" then COLUMNS[1].width = math.max(COLUMNS[1].width, math.ceil(wayWidth + 16)) end
     if Widgets.FitColumns then Widgets.FitColumns(COLUMNS) end
 
@@ -1443,6 +1466,8 @@ local function Build(container)
 
         onEnter = function(row, entry) ShowRowTooltip(row, entry) end,
         onLeave = function() GameTooltip:Hide() end,
+        clickHint = function(entry) return not entry.heading and L["Right-click for more."] or nil end,
+        menu = RowMenu,
 
         -- The row the detail pane is showing stays lit.
         isSelected = function(entry)
@@ -1451,16 +1476,7 @@ local function Build(container)
         end,
 
         onClick = function(entry, _, mouseButton)
-            if entry.heading then return end
-            if entry.learnNext and mouseButton == "RightButton" then
-                ns.LearnNext:ShowTheWay(entry)
-                return
-            end
-            if mouseButton == "RightButton" then
-                ns.Queue:Add(entry.recipeID, 1)
-                ns.Print(L.Format("queued %dx %s", 1, entry.name or L["craft"]))
-                return
-            end
+            if entry.heading or mouseButton == "RightButton" then return end
 
             state.selected = entry
             UpdateDetail(entry)
@@ -1488,11 +1504,11 @@ local function Build(container)
     emptyLabel:SetWidth(340)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local countLabel = Theme.CreateLabel(container, "tiny", "dim")
     countLabel:SetPoint("BOTTOMLEFT", 8, 8)
     widgets.countLabel = countLabel
-
 
     local detail = BuildDetail(container)
     detail:SetPoint("TOPRIGHT", container, "TOPRIGHT", -8, -40)

@@ -183,8 +183,13 @@ local function Worth(results)
     return priced and total or nil
 end
 
---- A line across the middle of the screen, where the game shows quest updates.
+--- A note on screen, in the shared note slot so it never lands on another
+--- addon's; the game's quest update line when the slot isn't loaded.
 local function Flash(text)
+    if ns.Notice and ns.Notice.Show then
+        pcall(ns.Notice.Show, ns.Notice, text, { key = "disenchant" })
+        return
+    end
     local frame = _G.UIErrorsFrame
     if type(frame) == "table" and type(frame.AddMessage) == "function" then
         pcall(frame.AddMessage, frame, text, 0.31, 0.82, 0.55, 1)

@@ -2171,6 +2171,68 @@ Equipment. The rule, in every addon:
   `tools/test_alts.lua`. This rule is in every addon's notes; keep them the
   same.
 
+## One look across the addons (the house kit)
+
+The owner said build all of it (2026-10-29), from the unified look's
+mockups (22 cards and 9 fixes, `reviews/unified-ui/` in the project
+files). These files are the same in all five addons; a fix to one
+belongs in all five:
+
+- `UI/HouseKit.lua`: `Widgets.CreateViewTabs(parent, tabs, onSelect,
+  opts)` (small tabs on top of a list, one a view: Tradeskills' My Crafts
+  and Your Time, Farmer's This Session and Overall; each as wide as its
+  words, never cut), `Widgets.CreateChip` (the filter chip),
+  `Widgets.CreateEmpty` (the emblem faint, one short line, a gold button
+  when there is a next step: "Clear Search", "Show All") and
+  `Widgets.CreatePanelGems(header, { onFold, onClose })` (the gold fold
+  gem and red close gem for panels that stay up while you play; folded,
+  only the header shows; nothing saved).
+- `UI/RowMenu.lua`: a right-click on any row opens its menu, what a click
+  does first, then the rest. Shift-click and Alt-click still work; what
+  the game guards (a craft, a cast, a sale) stays a button.
+- `UI/Notice.lua`: one note slot under the top of the screen for every
+  addon (`ns.Notice:Show(text, { icon, hold, key })`, signed up in
+  `_G.BlackthornesNotice`), so two notes never land on each other.
+- `UI/SharedChoices.lua`: Text Size, Window Style, Effects, Use TomTom,
+  Guide Me and Arrow Size, changed in one addon, are written to every
+  loaded addon (`_G.BlackthornesSharedChoices`); each keeps its own saved
+  key and name, and nothing moves until the player changes one.
+
+The rules that came with it:
+
+- A list's footer is a count or a result on the left and the version on
+  the right, nothing else. What a click does is the last line, dim, of
+  the row's hover. Settings' footer reads "Changes save as you make them."
+- Settings: the General page holds the look (Window Style, Text Size,
+  Effects, Combine Addon Buttons), TRANSPARENT and ADDONS; Settings is
+  the last tab, flush right.
+- Rows are one line: a second line under a name moves to the hover.
+- A sort picked by a column heading lasts the session; nothing is saved.
+- Buttons are Title Case ("Show the Way", "Queue It", "Got It"), and
+  "Show the Way" is our map marker and the arrow (TomTom when picked).
+- Buttons out on the screen on their own wear the gold plaque
+  (`UI/Plaque.lua`).
+
+Tradeskills' part (2026-10-29): the Profit and Level Up switches and the
+auction drawer's Sell, Buy, Lists, Auctions and Favors are view tabs
+(`RecipeBookView.WithSwitch`, `PostPanel`); Sales keeps its View drop-down.
+Stats is no longer its own tab: the Prices tab has Details and Stats view
+tabs (`ns.PricesUI:ShowView`, `StatsUI.view`, `StatsUI:Pick`; `/bts stats`
+and an old saved `stats` tab open it there, `MOVED_TABS`), so there are
+ten tabs. Settings' Look page is LOOK (Goblin Gold, tooltips, columns and
+an ARROW section) and a General page holds WINDOWS, ADDONS and SOUNDS.
+The header is the version past the portrait, the scan's age as a chip
+(items priced and recipes known on its hover) and Scan Auctions in gold.
+A right-click on a Profit, Level Up, Deals or Disenchanting row opens the
+row menu (`Widgets.CreateScrollList`'s `menu`: Queue One, Show the Way,
+Bought to Disenchant, Search the Auction House), and what a click does is
+the row's hover's last line (`clickHint`), not the footer. Empty lists
+wear the house block (`Widgets.DressEmpty`, `EmptyAction` for Clear
+Search). Characters rows are one line, race and class on the hover. The
+transfer box has the close gem; Buy Materials at a vendor and Sell Marked
+wear the gold plaque; Contribute and disenchant notes go in the shared
+note slot. Headings sort with the house arrow (`Media/Frame/SortArrow.tga`).
+
 ## Writing for players
 
 Every word a player reads (labels, buttons, tooltips, Settings rows and

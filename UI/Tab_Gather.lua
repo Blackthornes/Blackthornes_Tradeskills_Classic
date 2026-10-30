@@ -131,7 +131,7 @@ local function CreateRow(row)
 
     -- With Blackthornes Farmer loaded: turn the shortfall into a Farmer
     -- gathering goal, shown on Farmer's Goals panel.
-    row.goal = Widgets.CreateButton(row, L["Set goal"], function()
+    row.goal = Widgets.CreateButton(row, L["Set Goal"], function()
         local line = row.data
         if line then ns.FarmerGoals:SetGoal(line.itemID, line.needed) end
     end, { width = 52, height = 16,
@@ -469,6 +469,7 @@ local function Build(container)
     emptyLabel:SetWidth(360)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     -- Footer: label and value only, on one line. What sits behind the total
     -- (how many still needed, what the cheaper source saves, materials with

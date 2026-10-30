@@ -610,12 +610,12 @@ function PostPanel:Build()
     -- only while a goal is set (PostPanel:LayTabs), UI/FavorsView.lua.
     local views = { { "sell", L["Sell"] }, { "buy", L["Buy"] }, { "lists", L["Lists"] }, { "auctions", L["Auctions"] },
         { "favors", L["Favors"] } }
-    local share = math.floor((PANEL_WIDTH - 28) / #views)
     local tabs = {}
-    for _, view in ipairs(views) do tabs[#tabs + 1] = { key = view[1], text = view[2], width = share } end
-    local switch = Widgets.CreateTabStrip(body, tabs, function(key)
+    for _, view in ipairs(views) do tabs[#tabs + 1] = { key = view[1], text = view[2] } end
+    -- The house's small view tabs, each as wide as its word (2026-10-29).
+    local switch = Widgets.CreateViewTabs(body, tabs, function(key)
         PostPanel:SetView(key)
-    end)
+    end, { width = PANEL_WIDTH - 28 })
     switch:SetPoint("TOPLEFT", 14, CONTENT_TOP)
     self.switch = switch
     self:LayTabs(true)
@@ -1561,7 +1561,7 @@ function PostPanel:SetView(view)
     if view == "favors" and not PostPanel.ShowsFavors() then view = "sell" end
     self.view = (view == "buy" or view == "lists" or view == "auctions" or view == "favors") and view or "sell"
     self.searchStep = nil
-    if self.switch then self.switch:Select(self.view) end
+    if self.switch then self.switch:Select(self.view, true) end
     self.shoppingAt = nil
     self:Refresh()
 end
@@ -1824,7 +1824,7 @@ function PostPanel:Refresh()
     self:UpdateAuctionsTab()
     if self:LayTabs() and self.view == "favors" and not PostPanel.ShowsFavors() then
         self.view = "sell"
-        if self.switch then self.switch:Select(self.view) end
+        if self.switch then self.switch:Select(self.view, true) end
     end
     local View = ns.ShoppingListsView
     if View and View.list then View:SetShown(self.view == "lists") end
@@ -1977,23 +1977,8 @@ function PostPanel:LayTabs(force)
     if not force and withFavors == self.tabsWithFavors then return false end
     self.tabsWithFavors = withFavors
 
-    local shown = {}
-    for _, tab in ipairs(switch.tabs) do
-        local on = tab.key ~= "favors" or withFavors
-        tab:SetShown(on)
-        if on then shown[#shown + 1] = tab end
-    end
-    local share = math.floor((PANEL_WIDTH - 28) / math.max(1, #shown))
-    local x = 0
-    for _, tab in ipairs(shown) do
-        tab:ClearAllPoints()
-        tab:SetPoint("BOTTOMLEFT", x, 0)
-        tab:SetWidth(share)
-        tab.left, tab.span = x, share
-        x = x + share
-    end
-    switch:SetWidth(math.max(x, 1))
-    if switch.selected then switch:Select(switch.selected) end
+    switch:SetTabShown("favors", withFavors)
+    if switch.selected then switch:Select(switch.selected, true) end
     return true
 end
 
@@ -2005,13 +1990,9 @@ function PostPanel:UpdateAuctionsTab()
     local count = Auctions:UndercutCount()
     if count == self.undercutShown then return end
     self.undercutShown = count
-    for _, tab in ipairs(self.switch.tabs) do
-        if tab.key == "auctions" and tab.label then
-            tab.label:SetText(count > 0
-                and ("%s |c%s%d|r"):format(L["Auctions"], ns.COLORS.loss or "ffe5604f", count)
-                or L["Auctions"])
-        end
-    end
+    self.switch:SetTabText("auctions", count > 0
+        and ("%s |c%s%d|r"):format(L["Auctions"], ns.COLORS.loss or "ffe5604f", count)
+        or L["Auctions"])
 end
 
 --- The header's title, the first wording that fits beside the buttons.

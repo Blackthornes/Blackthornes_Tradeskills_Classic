@@ -459,8 +459,8 @@ check("QTY with no book read is a dash", loneRow.cells[5].text == "--")
 list.opts.onClick(Find(list.data, 3001), 1, "LeftButton")
 check("picking a row fills the profit bar", bars[1] and math.abs(bars[1].value - 0.6) < 1e-9)
 
-list.opts.onClick(Find(list.data, 3003), 1, "RightButton")
-check("right-click searches the auction house for it", sent[#sent] == "item3003")
+list.opts.menu(Find(list.data, 3003))[1].run()
+check("right-click's menu searches the auction house for it first", sent[#sent] == "item3003")
 
 --- The detail pane's note on where the buy price came from.
 local function Note()
@@ -651,8 +651,8 @@ check("and that it lists beside the next listing", Showing("List again at (next 
 
 ns.Scanner.isAuctionHouseOpen = true
 printed = {}
-list.opts.onClick(Find(list.data, 4001), 1, "RightButton")
-check("right-click still searches for it", sent[#sent] == "item4001")
+list.opts.menu(Find(list.data, 4001))[1].run()
+check("right-click's menu still searches for it first", sent[#sent] == "item4001")
 check("and says what is worth buying to list again", printed[1] and printed[1]:find("worth buying to list again", 1, true))
 ns.Scanner.isAuctionHouseOpen = false
 

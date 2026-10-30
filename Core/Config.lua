@@ -1434,6 +1434,9 @@ function Config:Get(key)
     return ns.db and ns.db.settings and ns.db.settings[key]
 end
 
+-- Settings every Blackthornes addon shares, by this addon's key.
+Config.SHARED_CHOICES = { textSize = "textSize", windowStyle = "windowStyle", windowEffects = "effects" }
+
 function Config:Set(key, value)
     if not ns.db then return end
     ns.db.settings[key] = value
@@ -1444,6 +1447,11 @@ function Config:Set(key, value)
     -- saved file, and a setting only survives if the CVar is already written
     -- by the time the session ends.
     if ns.Persist then ns.Persist:SaveSetting(key, value) end
+
+    -- Text Size, Window Style and Effects are one choice for every
+    -- Blackthornes addon (UI/SharedChoices.lua).
+    local shared = Config.SHARED_CHOICES[key]
+    if shared and ns.SharedChoices then ns.SharedChoices:Changed(shared, value) end
 end
 
 function Config:GetPriceTable()
