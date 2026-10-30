@@ -10,6 +10,10 @@
 --      gives the window back its own place, size and scale.
 --   5. "One Window:" writes every save, and Settings opens again where it
 --      now belongs.
+--   6. At the auction house the sell drawer goes in an Auction House tab,
+--      the window narrows to it and only the tabs that go with it show;
+--      walking away gives everything back, and a one window opened for the
+--      visit closes. Let go there, the drawer goes back beside the house.
 
 local GLOBALS = { "CreateFrame", "UIParent", "GameTooltip", "GetCursorPosition", "C_Timer",
     "UISpecialFrames", "tinsert", "GetTime", "time", "BlackthornesWindow" }
@@ -155,6 +159,7 @@ ns.Recipes = { Count = function() return 0 end }
 ns.Scanner.isScanning = false
 UI.UpdateHeader = function() end
 UI:RegisterTab({ key = "profit", text = "Profit", order = 1 })
+UI:RegisterTab({ key = "sales", text = "Sales", order = 5 })
 UI:RegisterTab({ key = "settings", text = "Settings", order = 9 })
 settings.windowScale = 0.8
 
@@ -219,6 +224,60 @@ Tabs:SetOneWindow(true)
 check("ticked in every save", ns.db.oneWindow == true and other.oneWindow == true)
 check("and Settings moves into the one window", Tabs:Hosted() and UI.window:IsShown()
     and UI.activeTab == "settings")
+
+print("6. at the auction house")
+local laidIn, laidOut, attached = nil, 0, 0
+ns.PostPanel = {
+    Reflow = function() reflows = reflows + 1 end,
+    LayIn = function(self, container) self.inside = container; laidIn = container end,
+    LayOut = function(self) self.inside = nil; laidOut = laidOut + 1 end,
+    Attach = function() attached = attached + 1 end,
+}
+local strip = UI.tabStrip
+check("away from it, no Auction House tab", not strip:Shows("auctionhouse") and strip:Shows("sales"))
+UI:SelectTab("auctionhouse")
+check("and asking for it opens Profit", UI.activeTab == "profit")
+hub.frame.area.width = 1120
+local wide = hub.frame:GetWidth()
+ns.Scanner.isAuctionHouseOpen = true
+Tabs:AuctionOpened()
+check("the Auction House tab shows", UI.activeTab == "auctionhouse" and strip:Shows("auctionhouse"))
+check("the drawer is laid in it", laidIn ~= nil and laidIn == UI.tabs.auctionhouse.container)
+check("only the tabs that go with it", strip:Shows("profit") and strip:Shows("settings")
+    and not strip:Shows("sales"))
+check("the window narrows to it", hub.frame:GetWidth() == wide - (1120 - UI.AUCTION_TAB_WIDTH))
+check("the window's own Scan steps aside", not UI.scanButton:IsShown())
+UI:SelectTab("profit")
+check("Profit gets the whole width", hub.frame:GetWidth() == wide and UI.scanButton:IsShown())
+UI:SelectTab("auctionhouse")
+check("never kept as the last tab", ns.db.lastTab ~= "auctionhouse")
+Tabs:AuctionClosed()
+ns.Scanner.isAuctionHouseOpen = false
+check("the drawer comes out", laidOut == 1 and not ns.PostPanel.inside)
+check("the tabs come back", strip:Shows("sales") and not strip:Shows("auctionhouse"))
+check("off the Auction House tab, at the whole width", UI.activeTab ~= "auctionhouse"
+    and hub.frame:GetWidth() == wide)
+check("the one window stays up", hub.frame:IsShown() and Tabs:Hosted())
+
+hub.frame:Hide()
+check("closed before the visit", not hub.frame:IsShown())
+ns.Scanner.isAuctionHouseOpen = true
+Tabs:AuctionOpened()
+check("the auction house opens it on the Auction House tab", hub.frame:IsShown() and Tabs:Hosted()
+    and UI.activeTab == "auctionhouse")
+Tabs:AuctionClosed()
+ns.Scanner.isAuctionHouseOpen = false
+check("and it closes again as you walk away", not hub.frame:IsShown() and not Tabs:Hosted())
+
+ns.Scanner.isAuctionHouseOpen = true
+Tabs:AuctionOpened()
+local before = attached
+hub.frame:Hide()
+check("closed at the auction house, the drawer goes back beside it", not ns.PostPanel.inside
+    and attached == before + 1)
+Tabs:AuctionClosed()
+ns.Scanner.isAuctionHouseOpen = false
+check("off the Auction House tab after", not Tabs.atAuction)
 
 SW.SetOn(false)
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end

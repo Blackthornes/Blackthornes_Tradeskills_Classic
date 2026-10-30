@@ -446,5 +446,10 @@ seen in game.
 - Tradeskills' window and its Settings tab move into it when ticked
   (`TSTabs.host`, `Route`, `Closed` at the end of `UI/Main.lua`);
   Forever's Main.lua has none of it.
-- Docking beside the mailbox, vendor and trainer (2026-10-30) is in the
+- Docking beside the auction house, mailbox, vendor and trainer (2026-10-30) is in the
   shared file, so Forever has none of it either.
+- At the auction house the one window shows the Auction House tab with
+  the sell drawer inside it, narrows and keeps only Profit, Queue, Level
+  Up and Settings beside it (`TSTabs:AuctionOpened`, `PostPanel:LayIn`,
+  `strip:ShowOnly`). Forever's drawer always hangs beside the auction
+  window.

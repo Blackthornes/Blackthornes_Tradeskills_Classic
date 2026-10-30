@@ -1246,8 +1246,8 @@ rename them: `oneWindow`, `oneWindowAt` (the newest wins), `oneWindowPick`,
 & Loot, arrows, plaques, loot feed, XP bar) stay their own. Tested in
 `tools/test_sharedwindow.lua`. Not yet seen in game.
 
-Docking (2026-10-30, `UI/SharedWindow.lua` FILE_VERSION 2): while the
-game's mailbox, vendor or trainer window is open and the one window is up,
+Docking (2026-10-30, `UI/SharedWindow.lua` FILE_VERSION 3): while the
+game's auction house, mailbox, vendor or trainer window is open and the one window is up,
 it sits beside it (`SharedWindow.PLACES`, `Arrived`, `Dock`, by screen
 position only, never in a fight), its rail a row of emblems along the top
 (`SharedWindow.Lay`; the area keeps its size, so the window loses the
@@ -1257,7 +1257,8 @@ to its own place (`Undock`) and, `BACK_WAIT` later, to the addon open
 before (`Left`, `hub.back`); one that was closed before stays closed,
 since each addon closes what it opened by itself. Which addon shows at a
 place is still each addon's own doing (Butler at the mailbox and vendor).
-The auction house comes next, with Tradeskills' drawer. Tested in
+Tradeskills shows at the auction house, with its sell drawer inside the
+window (FILE_VERSION 3, see Tradeskills' notes). Tested in
 `tools/test_sharedwindow.lua`. Not yet seen in game.
 
 Tradeskills' tabs are in (2026-10-30, the last of the five): "One
@@ -1273,6 +1274,23 @@ first; while it is in, `SavePosition`, `RestorePosition` and `ApplyScale`
 step aside, and closing it closes the one window (`TSTabs:Closed`). The
 sell list, the craft queue pane and the other panels stay their own.
 Tested in `tools/test_onewindow.lua`.
+
+At the auction house (the owner picked "Inside, like the mockup",
+2026-10-30): with the one window up on Tradeskills, or opened by the
+visit, `TSTabs:AuctionOpened` shows only `UI.AUCTION_TABS` (Auction
+House, Profit, Queue, Level Up, Settings; `UI:ShownTabKeys`,
+`strip:ShowOnly`), narrows the window to `UI.AUCTION_TAB_WIDTH` (560,
+`TSTabs:Narrow`, by a change of width, so docking's own change still
+holds) and picks the Auction House tab, whose page holds the sell drawer
+(`PostPanel:LayIn`: parented to the tab, bare of its rim; `Redock`,
+`ApplyHeight` and `Reflow` step aside, and Scan stays in the drawer's
+header, so the window's own Scan hides there). The other tabs make it
+full width again. `TSTabs:AuctionClosed` gives the drawer back
+(`PostPanel:LayOut`), brings every tab back, picks the tab open before,
+and closes the one window when the visit opened it. Closing the window
+at the auction house puts the drawer back beside the game's window. The
+Auction House tab is never saved as `lastTab`. Tested in
+`tools/test_onewindow.lua`.
 
 ## The shared minimap button
 

@@ -881,9 +881,66 @@ function PostPanel:PlaceBar()
     local bar = self.header
     if not (bar and self.frame) then return end
     bar:ClearAllPoints()
-    bar:SetPoint("TOPLEFT", self.frame, "TOPLEFT", EDGE_PAD, -HEADER_TOP)
-    bar:SetWidth(PANEL_WIDTH - 2 * EDGE_PAD)
+    if self.inside then
+        -- Inside the window's Auction House tab, as wide as the tab.
+        bar:SetPoint("TOPLEFT", self.frame, "TOPLEFT", EDGE_PAD, -HEADER_TOP)
+        bar:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -EDGE_PAD, -HEADER_TOP)
+    else
+        bar:SetPoint("TOPLEFT", self.frame, "TOPLEFT", EDGE_PAD, -HEADER_TOP)
+        bar:SetWidth(PANEL_WIDTH - 2 * EDGE_PAD)
+    end
     bar:Show()
+end
+
+--------------------------------------------------------------------------------
+-- Inside the one Blackthornes window (the owner picked it, 2026-10-30): at
+-- the auction house the drawer is laid into the window's Auction House tab,
+-- filling it, bare of its own rim, plate, gems and glow, and back beside the
+-- auction house when the window lets it go.
+--------------------------------------------------------------------------------
+
+-- The tab's container while the drawer is in it, else nil.
+PostPanel.inside = nil
+
+-- What the drawer wears on its own, put out of sight inside and back after.
+local function Bare(frame, bare)
+    local trim = rawget(frame, "titan")
+    if trim and trim.SetShown then trim:SetShown(not bare) end
+    if Theme.SetHalo then Theme.SetHalo(frame, bare and 0 or 0.08) end
+end
+
+--- Lay the drawer into `container`, filling it.
+function PostPanel:LayIn(container)
+    if not container then return end
+    local frame = self:Build()
+    self.inside = container
+    if frame:GetParent() ~= container then frame:SetParent(container) end
+    frame:ClearAllPoints()
+    frame:SetAllPoints(container)
+    Bare(frame, true)
+    -- Never folded in there: the fold gem is the drawer's own.
+    if self.body then self.body:Show() end
+    self.attached = true
+    self.closedThisVisit = false
+    self:PlaceBar()
+    frame:Show()
+    self:Refresh()
+end
+
+--- Give the drawer back its own place, size and look. Hidden: the caller
+--- docks it again beside the auction house when it is still open.
+function PostPanel:LayOut()
+    if not self.inside then return end
+    self.inside = nil
+    local frame = self.frame
+    if not frame then return end
+    frame:Hide()
+    frame:SetParent(UIParent)
+    frame:ClearAllPoints()
+    frame:SetWidth(PANEL_WIDTH)
+    Bare(frame, false)
+    if ns.Collapse and ns.Collapse.Apply then ns.Collapse.Apply(frame) end
+    self:PlaceBar()
 end
 
 --- The close gem: put the drawer away until the auction house is opened
@@ -1370,7 +1427,7 @@ end
 -- the panel back after the character window closes if no event does.
 function PostPanel:Redock()
     local frame = self.frame
-    if not (frame and self.attached) then return end
+    if not (frame and self.attached) or self.inside then return end
 
     -- Put away with the close gem: it stays away until the next visit.
     if self.closedThisVisit then return end
@@ -1447,6 +1504,13 @@ end
 --- Dock to the right of the auction house, as tall as there is room for.
 function PostPanel:Attach()
     local frame = self:Build()
+    -- In the window's Auction House tab: it stays there.
+    if self.inside then
+        self.attached = true
+        self:PlaceBar()
+        self:Refresh()
+        return
+    end
     local auctionFrame = ns.UI:FindAuctionFrame()
 
     frame:ClearAllPoints()
@@ -1508,12 +1572,13 @@ function PostPanel:TargetHeight(fallback)
 end
 
 function PostPanel:IsCollapsed()
+    if self.inside then return false end
     return ns.Collapse.IsCollapsed(COLLAPSE_KEY)
 end
 
 --- Set the height outright, after attaching or folding.
 function PostPanel:ApplyHeight(fallback)
-    if not self.frame then return end
+    if not self.frame or self.inside then return end
 
     local height = self:TargetHeight(fallback ~= false)
     if height then self.frame:SetHeight(height) end
@@ -1521,7 +1586,7 @@ end
 
 --- Re-measure after the main window is opened, closed or dragged.
 function PostPanel:Reflow()
-    if not self.frame or not self.frame:IsShown() then return end
+    if not self.frame or not self.frame:IsShown() or self.inside then return end
 
     local height = self:TargetHeight(false)
 

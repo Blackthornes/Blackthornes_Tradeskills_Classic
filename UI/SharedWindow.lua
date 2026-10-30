@@ -23,20 +23,21 @@
 -- corner) and `oneWindowScale` (the size grip's percent).
 --
 -- Docking (the owner said build it, 2026-10-30, mockup B): while the game's
--- mailbox, vendor or trainer window is open and the one window is up, it
--- sits beside the game's window, its rail turned into a small row of addon
--- buttons along the top so it stays narrow. When the game's window closes it
--- goes back to its own place, on the addon that was open before. Which addon
--- shows there is each addon's own doing (Butler opens at the mailbox and the
--- vendor). The game's frames are only read for where they stand, never
--- shown, hidden, moved or written; ours is placed by screen position.
+-- auction house, mailbox, vendor or trainer window is open and the one
+-- window is up, it sits beside the game's window, its rail turned into a
+-- small row of addon buttons along the top so it stays narrow. When the
+-- game's window closes it goes back to its own place, on the addon that was
+-- open before. Which addon shows there is each addon's own doing (Tradeskills
+-- at the auction house, Butler at the mailbox and the vendor). The game's
+-- frames are only read for where they stand, never shown, hidden, moved or
+-- written; ours is placed by screen position.
 
 local ADDON, ns = ...
 
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 2
+local FILE_VERSION = 3
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -62,6 +63,7 @@ SharedWindow.PRIOR_FOR = 0.5
 -- The game's windows the one window docks beside: the events that open and
 -- close each, and the frames it may be (read only).
 SharedWindow.PLACES = {
+    auction = { show = "AUCTION_HOUSE_SHOW", hide = "AUCTION_HOUSE_CLOSED", frames = { "AuctionFrame", "AuctionHouseFrame" } },
     mail = { show = "MAIL_SHOW", hide = "MAIL_CLOSED", frames = { "MailFrame" } },
     vendor = { show = "MERCHANT_SHOW", hide = "MERCHANT_CLOSED", frames = { "MerchantFrame" } },
     trainer = { show = "TRAINER_SHOW", hide = "TRAINER_CLOSED", frames = { "ClassTrainerFrame" } },

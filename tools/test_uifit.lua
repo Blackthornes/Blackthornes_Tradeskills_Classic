@@ -812,7 +812,14 @@ UI.window.width = 1120
 UI.header = Region(UI.window)
 UI:BuildTabs()
 
-check("the window's own tabs are sized to their names", UI.tabStrip.tabs[2].span > UI.tabStrip.tabs[1].span, true)
+-- The tabs showing: the Auction House tab is left out away from the
+-- auction house.
+local showing = {}
+for _, tab in ipairs(UI.tabStrip.tabs) do
+    if not tab.leftOut then showing[#showing + 1] = tab end
+end
+check("the window's own tabs are sized to their names", showing[2].span > showing[1].span, true)
+check("the Auction House tab is left out", UI.tabStrip:Shows("auctionhouse"), false)
 
 print("")
 print("Settings")
