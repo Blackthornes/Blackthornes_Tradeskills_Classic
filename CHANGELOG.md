@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.8.0
+
+- Every window has a new look that matches the other Blackthornes add-ons.
+- The Disenchanting tab now has a Buy button for gear deals.
+- Various bug fixes.
+
 ## 0.7.0
 
 - The auction house now shows a Potential Sale Total that counts up as you list.
