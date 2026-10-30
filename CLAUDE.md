@@ -1246,6 +1246,20 @@ rename them: `oneWindow`, `oneWindowAt` (the newest wins), `oneWindowPick`,
 & Loot, arrows, plaques, loot feed, XP bar) stay their own. Tested in
 `tools/test_sharedwindow.lua`. Not yet seen in game.
 
+Docking (2026-10-30, `UI/SharedWindow.lua` FILE_VERSION 2): while the
+game's mailbox, vendor or trainer window is open and the one window is up,
+it sits beside it (`SharedWindow.PLACES`, `Arrived`, `Dock`, by screen
+position only, never in a fight), its rail a row of emblems along the top
+(`SharedWindow.Lay`; the area keeps its size, so the window loses the
+rail's width and gains the row's height; each emblem's name is its hover).
+Moving it there saves nothing. When the game's window closes it goes back
+to its own place (`Undock`) and, `BACK_WAIT` later, to the addon open
+before (`Left`, `hub.back`); one that was closed before stays closed,
+since each addon closes what it opened by itself. Which addon shows at a
+place is still each addon's own doing (Butler at the mailbox and vendor).
+The auction house comes next, with Tradeskills' drawer. Tested in
+`tools/test_sharedwindow.lua`. Not yet seen in game.
+
 Tradeskills' tabs are in (2026-10-30, the last of the five): "One
 Window:" sits under "Combine Addon Buttons:" on the General page
 (`TSTabs:SetOneWindow`, writing every save). Tradeskills joins with `host =

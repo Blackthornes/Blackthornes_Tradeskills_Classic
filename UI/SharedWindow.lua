@@ -21,13 +21,22 @@
 -- or false), `oneWindowAt` (when it was set; the newest wins), `oneWindowPick`
 -- (the addon picked last), `oneWindowLeft`, `oneWindowTop` (its top left
 -- corner) and `oneWindowScale` (the size grip's percent).
+--
+-- Docking (the owner said build it, 2026-10-30, mockup B): while the game's
+-- mailbox, vendor or trainer window is open and the one window is up, it
+-- sits beside the game's window, its rail turned into a small row of addon
+-- buttons along the top so it stays narrow. When the game's window closes it
+-- goes back to its own place, on the addon that was open before. Which addon
+-- shows there is each addon's own doing (Butler opens at the mailbox and the
+-- vendor). The game's frames are only read for where they stand, never
+-- shown, hidden, moved or written; ours is placed by screen position.
 
 local ADDON, ns = ...
 
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 1
+local FILE_VERSION = 2
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -40,6 +49,23 @@ SharedWindow.SCALE_MAX = 150
 local EDGE = 8
 local TOP = 30
 local ICON = 34
+SharedWindow.ROW_HEIGHT = 40
+SharedWindow.ROW_BUTTON = 34
+SharedWindow.ROW_ICON = 26
+SharedWindow.DOCK_GAP = 6
+-- How soon after a game window closes the one window goes back to the addon
+-- open before, so the addons' own closing comes first.
+SharedWindow.BACK_WAIT = 0.1
+-- How long an Open counts as "just before" a game window opened.
+SharedWindow.PRIOR_FOR = 0.5
+
+-- The game's windows the one window docks beside: the events that open and
+-- close each, and the frames it may be (read only).
+SharedWindow.PLACES = {
+    mail = { show = "MAIL_SHOW", hide = "MAIL_CLOSED", frames = { "MailFrame" } },
+    vendor = { show = "MERCHANT_SHOW", hide = "MERCHANT_CLOSED", frames = { "MerchantFrame" } },
+    trainer = { show = "TRAINER_SHOW", hide = "TRAINER_CLOSED", frames = { "ClassTrainerFrame" } },
+}
 
 local hub = _G.BlackthornesWindow
 if type(hub) ~= "table" then
@@ -183,9 +209,20 @@ function SharedWindow.Open(key)
     if not entry then return false end
     local frame = SharedWindow.Build()
     if not frame then return false end
+    local wasOpen = frame:IsShown() and true or false
+    hub.prior = { key = hub.current and hub.current.key, open = wasOpen, at = SharedWindow.Now() }
     if ns.FoldWindow and ns.FoldWindow.Unfold then pcall(ns.FoldWindow.Unfold, ns.FoldWindow, frame) end
     frame:Show()
-    return SharedWindow.Pick(entry.key)
+    local picked = SharedWindow.Pick(entry.key)
+    if hub.place then
+        if not hub.docked then
+            hub.back = wasOpen and { key = hub.prior.key, open = true } or nil
+        end
+        SharedWindow.Dock()
+    elseif hub.docked then
+        SharedWindow.Undock()
+    end
+    return picked
 end
 
 function SharedWindow.Close()
@@ -260,7 +297,7 @@ local function MakeGrip(frame)
             frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * old / (percent / 100), top * old / (percent / 100))
         end
         WriteAll("oneWindowScale", percent)
-        SavePlace(frame)
+        if hub.docked then SharedWindow.Dock(true) else SavePlace(frame) end
     end
     grip:SetScript("OnEnter", function() Light(true) end)
     grip:SetScript("OnLeave", function() if not grip.dragging then Light(false) end end)
@@ -302,7 +339,9 @@ function SharedWindow.Build()
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        SavePlace(self)
+        -- Moved while docked, it stays where it was dropped for this visit,
+        -- but its own place is kept for when the game's window closes.
+        if not hub.docked then SavePlace(self) end
     end)
     frame:Hide()
     Theme.Fill(frame, "window")
@@ -330,16 +369,12 @@ function SharedWindow.Build()
 
     -- The rail down the left side, and the area the picked addon's pages fill.
     local rail = CreateFrame("Frame", nil, frame)
-    rail:SetPoint("TOPLEFT", frame, "TOPLEFT", EDGE, -TOP)
-    rail:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", EDGE, EDGE)
-    rail:SetWidth(SharedWindow.RAIL_WIDTH)
     rail.buttons = {}
     frame.rail = rail
 
     local area = CreateFrame("Frame", nil, frame)
-    area:SetPoint("TOPLEFT", rail, "TOPRIGHT", EDGE, 0)
-    area:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -EDGE, EDGE)
     frame.area = area
+    SharedWindow.Lay(frame, false)
 
     frame.grip = MakeGrip(frame)
 
@@ -356,6 +391,28 @@ function SharedWindow.Build()
     hub.frame = frame
     Place(frame)
     return frame
+end
+
+--- Lay the rail down the left side, or, docked, as a row along the top.
+--- The area keeps its size either way, so the pages in it stay as they are:
+--- the window loses the rail's width and gains the row's height.
+function SharedWindow.Lay(frame, docked)
+    local rail, area = frame.rail, frame.area
+    rail:ClearAllPoints()
+    area:ClearAllPoints()
+    if docked then
+        rail:SetPoint("TOPLEFT", frame, "TOPLEFT", EDGE, -TOP)
+        rail:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -EDGE, -TOP)
+        rail:SetHeight(SharedWindow.ROW_HEIGHT)
+        area:SetPoint("TOPLEFT", rail, "BOTTOMLEFT", 0, -EDGE)
+    else
+        rail:SetPoint("TOPLEFT", frame, "TOPLEFT", EDGE, -TOP)
+        rail:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", EDGE, EDGE)
+        rail:SetWidth(SharedWindow.RAIL_WIDTH)
+        area:SetPoint("TOPLEFT", rail, "TOPRIGHT", EDGE, 0)
+    end
+    area:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -EDGE, EDGE)
+    frame.docked = docked and true or false
 end
 
 --------------------------------------------------------------------------------
@@ -403,8 +460,23 @@ local function MakeButton(rail, index)
     button.name:SetPoint("TOPLEFT", button.icon, "BOTTOMLEFT", -16, -4)
     button.name:SetPoint("TOPRIGHT", button.icon, "BOTTOMRIGHT", 16, -4)
 
-    button:SetScript("OnEnter", function(self) PaintButton(self, true) end)
-    button:SetScript("OnLeave", function(self) PaintButton(self, false) end)
+    button:SetScript("OnEnter", function(self)
+        PaintButton(self, true)
+        -- In the row along the top only the emblem shows: the name is the hover.
+        local tip = rawget(_G, "GameTooltip")
+        if hub.docked and tip and self.entry then
+            pcall(function()
+                tip:SetOwner(self, "ANCHOR_BOTTOM")
+                tip:SetText(self.entry.name or self.entry.key)
+                tip:Show()
+            end)
+        end
+    end)
+    button:SetScript("OnLeave", function(self)
+        PaintButton(self, false)
+        local tip = rawget(_G, "GameTooltip")
+        if tip and tip.GetOwner and tip:GetOwner() == self then pcall(tip.Hide, tip) end
+    end)
     button:SetScript("OnClick", function(self, mouseButton)
         local entry = self.entry
         if not entry then return end
@@ -422,19 +494,205 @@ function SharedWindow.FillRail()
     local frame = hub.frame
     if not frame then return end
     local rail = frame.rail
-    local top = 0
+    local docked = hub.docked
+    local size = docked and SharedWindow.ROW_BUTTON or SharedWindow.RAIL_BUTTON
+    local icon = docked and SharedWindow.ROW_ICON or ICON
+    local step = 0
     local list = SharedWindow.Entries()
     for index, entry in ipairs(list) do
         local button = rail.buttons[index] or MakeButton(rail, index)
         rail.buttons[index] = button
         button.entry = entry
+        button:SetSize(size, size)
+        button.icon:SetSize(icon, icon)
+        button.icon:ClearAllPoints()
         button.icon:SetTexture(entry.icon)
         button.name:SetText(entry.name or entry.key)
         button:ClearAllPoints()
-        button:SetPoint("TOP", rail, "TOP", 0, -top)
+        if docked then
+            button.icon:SetPoint("CENTER")
+            button.name:Hide()
+            button:SetPoint("LEFT", rail, "LEFT", step, 0)
+        else
+            button.icon:SetPoint("TOP", 0, -10)
+            button.name:Show()
+            button:SetPoint("TOP", rail, "TOP", 0, -step)
+        end
         PaintButton(button, false)
         button:Show()
-        top = top + SharedWindow.RAIL_BUTTON + 4
+        step = step + size + (docked and 6 or 4)
     end
     for index = #list + 1, #rail.buttons do rail.buttons[index]:Hide() end
+end
+
+--------------------------------------------------------------------------------
+-- Docking beside the game's windows
+--------------------------------------------------------------------------------
+
+function SharedWindow.Now()
+    local GetTime = rawget(_G, "GetTime")
+    if type(GetTime) == "function" then
+        local ok, now = pcall(GetTime)
+        if ok and type(now) == "number" then return now end
+    end
+    return 0
+end
+
+local function InFight()
+    local fn = rawget(_G, "InCombatLockdown")
+    if type(fn) ~= "function" then return false end
+    local ok, fighting = pcall(fn)
+    return ok and fighting and true or false
+end
+
+--- The game's window for the place open now, read only, or nil.
+local function GameFrame()
+    local place = hub.place and SharedWindow.PLACES[hub.place]
+    if not place then return nil end
+    for _, name in ipairs(place.frames) do
+        local game = rawget(_G, name)
+        if type(game) == "table" then
+            local ok, shown = pcall(game.IsShown, game)
+            if ok and shown then return game end
+        end
+    end
+    return nil
+end
+
+--- True while the window sits beside one of the game's windows.
+function SharedWindow.Docked()
+    return hub.docked == true
+end
+
+--- The place open now ("mail", "vendor" or "trainer"), or nil.
+function SharedWindow.Place()
+    return hub.place
+end
+
+--- Put the window beside the game's window, by screen position: its left
+--- edge (portrait and all) just past the game's right edge, the tops level.
+local function Beside(frame, game)
+    local ok, right, top, scale = pcall(function()
+        return game:GetRight(), game:GetTop(), game:GetEffectiveScale()
+    end)
+    if not ok or type(right) ~= "number" or type(top) ~= "number" then return false end
+    if type(scale) ~= "number" or scale <= 0 then scale = 1 end
+    local okOurs, ours = pcall(frame.GetEffectiveScale, frame)
+    if not okOurs or type(ours) ~= "number" or ours <= 0 then ours = 1 end
+    local reach = 0
+    local trim = rawget(frame, "trim")
+    if trim and ns.Titanforged and ns.Titanforged.Reach then
+        local okReach, left = pcall(ns.Titanforged.Reach, trim)
+        if okReach and type(left) == "number" then reach = left end
+    end
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
+        right * scale / ours + reach + SharedWindow.DOCK_GAP, top * scale / ours)
+    return true
+end
+
+--- Dock beside the game's window open now. `again` only places it anew
+--- (after a resize). Nothing moves in a fight.
+function SharedWindow.Dock(again)
+    local frame = hub.frame
+    if not (frame and frame:IsShown() and hub.place) or InFight() then return false end
+    local game = GameFrame()
+    if not game then return false end
+    if not hub.docked then
+        hub.docked = true
+        local okW, width = pcall(frame.GetWidth, frame)
+        local okH, height = pcall(frame.GetHeight, frame)
+        if okW and okH and type(width) == "number" and type(height) == "number" then
+            frame:SetSize(width - SharedWindow.RAIL_WIDTH - EDGE,
+                height + SharedWindow.ROW_HEIGHT + EDGE)
+        end
+        SharedWindow.Lay(frame, true)
+        SharedWindow.FillRail()
+    elseif not again then
+        return true
+    end
+    return Beside(frame, game)
+end
+
+--- Back to its own place, with the rail down the left side.
+function SharedWindow.Undock()
+    local frame = hub.frame
+    if not (frame and hub.docked) then return end
+    hub.docked = false
+    local okW, width = pcall(frame.GetWidth, frame)
+    local okH, height = pcall(frame.GetHeight, frame)
+    if okW and okH and type(width) == "number" and type(height) == "number" then
+        frame:SetSize(width + SharedWindow.RAIL_WIDTH + EDGE,
+            height - SharedWindow.ROW_HEIGHT - EDGE)
+    end
+    SharedWindow.Lay(frame, false)
+    Place(frame)
+    SharedWindow.FillRail()
+end
+
+--- One of the game's windows opened.
+function SharedWindow.Arrived(key)
+    if not SharedWindow.PLACES[key] then return end
+    hub.place = key
+    local frame = hub.frame
+    if not (frame and frame:IsShown()) or hub.docked then return end
+    -- Up already: what it showed before is what it goes back to. An addon
+    -- that opened it a moment ago (Butler at the vendor) left a note of
+    -- what was there before it.
+    local prior = hub.prior
+    if prior and SharedWindow.Now() - (prior.at or 0) <= SharedWindow.PRIOR_FOR then
+        hub.back = prior.open and { key = prior.key, open = true } or nil
+    else
+        hub.back = { key = hub.current and hub.current.key, open = true }
+    end
+    -- The game shows its window on the same event: place ours a moment after.
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function() SharedWindow.Dock() end)
+    else
+        SharedWindow.Dock()
+    end
+end
+
+--- The game's window closed: back to its own place, and, a moment later,
+--- back to the addon that was open before.
+function SharedWindow.Left(key)
+    if hub.place ~= key then return end
+    hub.place = nil
+    local back = hub.back
+    hub.back = nil
+    if hub.docked then SharedWindow.Undock() end
+    if not (back and back.open and back.key and SharedWindow.On()) then return end
+    local function Return()
+        if hub.place then return end
+        local frame = hub.frame
+        if frame and frame:IsShown() then
+            if not (hub.current and hub.current.key == back.key) then SharedWindow.Pick(back.key) end
+        else
+            SharedWindow.Open(back.key)
+        end
+    end
+    if C_Timer and C_Timer.After then
+        C_Timer.After(SharedWindow.BACK_WAIT, Return)
+    else
+        Return()
+    end
+end
+
+-- Every copy listens; only the one that draws acts.
+if CreateFrame then
+    local events = CreateFrame("Frame")
+    local which = {}
+    for key, place in pairs(SharedWindow.PLACES) do
+        which[place.show] = { key = key, open = true }
+        which[place.hide] = { key = key, open = false }
+        pcall(events.RegisterEvent, events, place.show)
+        pcall(events.RegisterEvent, events, place.hide)
+    end
+    events:SetScript("OnEvent", function(_, event)
+        if not IsDrawer() then return end
+        local what = which[event]
+        if not what then return end
+        if what.open then SharedWindow.Arrived(what.key) else SharedWindow.Left(what.key) end
+    end)
+    SharedWindow.events = events
 end

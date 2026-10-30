@@ -446,3 +446,5 @@ seen in game.
 - Tradeskills' window and its Settings tab move into it when ticked
   (`TSTabs.host`, `Route`, `Closed` at the end of `UI/Main.lua`);
   Forever's Main.lua has none of it.
+- Docking beside the mailbox, vendor and trainer (2026-10-30) is in the
+  shared file, so Forever has none of it either.

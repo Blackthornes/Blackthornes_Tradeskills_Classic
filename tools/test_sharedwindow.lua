@@ -9,9 +9,14 @@
 --      one go; one that has not opens its own window.
 --   5. The pick, place and scale are kept in every save; closing lets the
 --      pages go; unticking closes the window.
+--   6. Docking: up when the game's mailbox, vendor or trainer opens, it
+--      sits beside it with the rail as a row along the top, the area the
+--      same size; moving it there keeps its own place; when the game's
+--      window closes it goes back to its place and the addon open before,
+--      and stays closed when it was closed before.
 
 local NAMES = { "CreateFrame", "UIParent", "C_Timer", "time", "BlackthornesWindow",
-    "UISpecialFrames", "GetCursorPosition" }
+    "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "MerchantFrame" }
 local saved = {}
 for _, name in ipairs(NAMES) do saved[name] = _G[name] end
 
@@ -36,6 +41,14 @@ local function Object()
     function o:IsMouseOver() return false end
     function o:CreateTexture() return Object() end
     function o:CreateFontString() return Object() end
+    function o:SetSize(w, h) self.width, self.height = w, h end
+    function o:SetWidth(w) self.width = w end
+    function o:SetHeight(h) self.height = h end
+    function o:GetWidth() return self.width or 0 end
+    function o:GetHeight() return self.height or 0 end
+    function o:GetRight() return self.right end
+    function o:ClearAllPoints() self.point = nil end
+    function o:SetPoint(...) self.point = { ... } end
     return setmetatable(o, { __index = function() return function() end end })
 end
 
@@ -46,6 +59,8 @@ UISpecialFrames = {}
 local clock = 1000
 time = function() return clock end
 BlackthornesWindow = nil
+local now = 50
+GetTime = function() return now end
 
 local ns = {
     Theme = {
@@ -127,6 +142,52 @@ SW.Close()
 assert(log[#log] == "leave gamma", "closing lets the pages go")
 assert(SW.Open(), "opens again")
 assert(log[#log] == "enter gamma", "on the addon picked last")
+-- 6. Docking. Up on gamma, the game's mailbox opens.
+MailFrame = Object()
+MailFrame.right, MailFrame.top = 500, 700
+local width, height = frame:GetWidth(), frame:GetHeight()
+dbA.oneWindowLeft, dbA.oneWindowTop = 100, 600
+now = now + 5
+SW.Arrived("mail")
+assert(SW.Docked() and SW.Place() == "mail", "docks at the mailbox")
+assert(frame:GetWidth() == width - SW.RAIL_WIDTH - 8 and frame:GetHeight() == height + SW.ROW_HEIGHT + 8,
+    "narrower by the rail, taller by the row")
+assert(frame.point and frame.point[4] == 500 + SW.DOCK_GAP and frame.point[5] == 700, "beside the game's window")
+assert(frame.rail.buttons[1].name.shown == false, "the row shows emblems only")
+SW.Open("alpha")
+assert(SW.Docked() and BlackthornesWindow.current == a, "an addon can take it over while docked")
+frame.left = 1
+frame.scripts.OnDragStop(frame)
+assert(dbA.oneWindowLeft == 100, "moving it while docked keeps its own place")
+SW.Left("mail")
+assert(not SW.Docked() and frame:GetWidth() == width and frame:GetHeight() == height, "back to its own size")
+assert(frame.point and frame.point[4] == 100 and frame.point[5] == 600, "back to its own place")
+assert(BlackthornesWindow.current == c and log[#log] == "enter gamma", "back on the addon open before")
+assert(frame.rail.buttons[1].name.shown == true, "the rail again")
+
+-- Closed, an addon opens it at the vendor and closes it as it leaves.
+MerchantFrame = Object()
+MerchantFrame.right, MerchantFrame.top = 400, 650
+SW.Close()
+SW.Arrived("vendor")
+assert(not SW.Docked(), "nothing to dock while closed")
+now = now + 5
+SW.Open("alpha")
+assert(SW.Docked(), "opened at the vendor, it docks")
+SW.Close()
+SW.Left("vendor")
+assert(not SW.IsOpen() and not SW.Docked(), "closed before, it stays closed")
+
+-- Up on gamma, the addon opens before the game's event is heard.
+now = now + 5
+SW.Open("gamma")
+SW.Open("alpha")
+SW.Arrived("vendor")
+assert(SW.Docked(), "docks when the event comes after")
+SW.Close()
+SW.Left("vendor")
+assert(SW.IsOpen() and BlackthornesWindow.current == c and not SW.Docked(), "reopens on the addon open before")
+
 SW.SetOn(false)
 assert(not SW.IsOpen(), "unticking closes it")
 assert(not SW.Hosts("gamma"), "nothing is hosted while off")
