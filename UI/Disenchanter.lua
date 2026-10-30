@@ -201,6 +201,11 @@ function Disenchanter:CreateOverlay()
         button:SetAttribute("target-bag", bag)
         button:SetAttribute("target-slot", slot)
 
+        -- The disenchant log is told which item this cast is for, since the
+        -- game does not say on Classic Era.
+        local log = ns.DisenchantLog
+        if log and log.Aim then pcall(log.Aim, log, wanted, "button") end
+
         -- The Queue tab's Disenchant next counts its marks off this.
         local anchor = Disenchanter.anchor
         if anchor and type(anchor.onSecureClick) == "function" then anchor.onSecureClick(wanted) end
