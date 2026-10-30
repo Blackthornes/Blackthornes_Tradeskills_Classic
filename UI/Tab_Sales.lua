@@ -1086,8 +1086,10 @@ local function Refresh()
 
     UpdateDetail(selected, totals)
 
+    if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, nil) end
     if #data == 0 then
         widgets.emptyLabel:Show()
+        if query ~= "" and Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, L["Clear Search"], function() widgets.search:SetText("") end) end
 
         if state.view == "listed" then
             if query ~= "" then
@@ -1304,6 +1306,7 @@ local function Build(container)
     emptyLabel:SetWidth(340)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local summary = Theme.CreateLabel(container, "small", "text")
     summary:SetPoint("BOTTOMLEFT", 8, 10)

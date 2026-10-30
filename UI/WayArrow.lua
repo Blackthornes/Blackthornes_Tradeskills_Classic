@@ -468,6 +468,7 @@ function ArrowUI:SetSize(percent)
     end
     if not known or type(ns.db) ~= "table" then return end
     ns.db.wayArrowSize = percent ~= ArrowUI.USUAL and percent or nil
+    if ns.SharedChoices then ns.SharedChoices:Changed("arrowSize", percent) end
     local frame = self.frame
     if not frame then return end
     pcall(frame.SetScale, frame, ArrowUI.Scale())

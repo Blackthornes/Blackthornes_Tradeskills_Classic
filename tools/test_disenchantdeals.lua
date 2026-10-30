@@ -502,8 +502,8 @@ checkboxes["Only ones I can disenchant"].onToggle(true)
 check("and hidden when asked", Find(list.data, 2001) == nil and Find(list.data, 2007) ~= nil)
 checkboxes["Only ones I can disenchant"].onToggle(false)
 
-list.opts.onClick(Find(list.data, 2003), 1, "RightButton")
-check("right-click searches the auction house for it", sent[#sent] == "item2003")
+list.opts.menu(Find(list.data, 2003))[1].run()
+check("right-click's menu searches the auction house for it first", sent[#sent] == "item2003")
 
 -- Redraws for bag changes and auction events reuse the list; walking every
 -- scanned item each time pushed bag items out of the client's memory.
@@ -565,7 +565,7 @@ C_Timer.After = function() end
 
 ns.Scanner.isAuctionHouseOpen = false
 printed = {}
-list.opts.onClick(Find(list.data, 2003), 1, "RightButton")
+list.opts.menu(Find(list.data, 2003))[1].run()
 check("with the auction house shut it says to open it", #sent == 1 and printed[1]:find("Open the auction house", 1, true))
 
 for _, key in ipairs({ "C_Item", "GetTime", "CreateFrame", "PlaySound", "SOUNDKIT",

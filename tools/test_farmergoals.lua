@@ -1,6 +1,6 @@
 -- Logic/FarmerGoals.lua outside WoW.
 --
--- The Gather tab's "Set goal" button hands a material to Blackthornes Farmer.
+-- The Gather tab's "Set Goal" button hands a material to Blackthornes Farmer.
 -- What must hold:
 --   1. Without Farmer (or a Farmer too old to have goals) it is not offered,
 --      and a click says so instead of throwing.

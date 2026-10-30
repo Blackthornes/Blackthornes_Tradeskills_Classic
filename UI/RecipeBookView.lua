@@ -685,16 +685,16 @@ local SWITCH_HEIGHT = 32
 local SWITCH_ROOM = 1060
 local CORNER_ROOM = 240
 
---- A tab's own view and Recipes to learn behind a switch at its top, drawn
---- like the Characters tab's: the view showing is lit gold and underlined,
---- the other waits in grey and lights under the mouse.
+--- A tab's own view and Recipes to learn behind small tabs at its top
+--- (`Widgets.CreateViewTabs`, the house's view tabs, 2026-10-29): the view
+--- showing opens into the list, the others wait as dark gold metal.
 --
 -- @param spec.mainKey, spec.mainText, spec.mainTip  the tab's own view
 -- @param spec.buildMain(view), spec.refreshMain()  how the tab fills and
 --   redraws its own view
 -- @param spec.learn  the copy of Recipes to learn to show (a NewView), or
 --   the Profit tab's when nil
--- @param spec.learnText  the learn view's name, when not RECIPES TO LEARN
+-- @param spec.learnText  the learn view's name, when not Recipes to Learn
 -- @param spec.extras  optional views shown between the two, each
 --   { key, text, tip (optional), last (optional), build(view), refresh() };
 --   one marked last comes after the learn view instead (Shuffles, 2026-10-25)
@@ -703,7 +703,7 @@ function RecipeBookView.WithSwitch(spec)
     local learn = spec.learn or main
     local extras = spec.extras or {}
     local tab = { view = spec.mainKey }
-    local views, parts
+    local views, strip
 
     local function Extra(key)
         for _, extra in ipairs(extras) do
@@ -733,7 +733,7 @@ function RecipeBookView.WithSwitch(spec)
             view:SetShown(viewKey == tab.view)
         end
 
-        if parts and parts.Select then parts:Select(tab.view) end
+        if strip and strip.Select then strip:Select(tab.view) end
 
         RefreshView()
     end
@@ -750,7 +750,7 @@ function RecipeBookView.WithSwitch(spec)
                 definitions[#definitions + 1] = { key = extra.key, text = extra.text, tip = extra.tip }
             end
         end
-        definitions[#definitions + 1] = { key = "learn", text = spec.learnText or L["RECIPES TO LEARN"],
+        definitions[#definitions + 1] = { key = "learn", text = spec.learnText or L["Recipes to Learn"],
             tip = L["Recipes you have not learned, and what each is worth"] }
         for _, extra in ipairs(extras) do
             if extra.last then
@@ -817,7 +817,7 @@ function RecipeBookView.WithSwitch(spec)
         learn.Build(made.learn)
 
         views = made
-        parts = BuildSwitch(container)
+        strip = BuildSwitch(container)
 
         tab.ShowView(tab.view)
     end

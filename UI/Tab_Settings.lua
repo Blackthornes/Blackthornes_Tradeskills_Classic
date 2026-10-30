@@ -46,14 +46,16 @@ local PAGES = {
       tip = L["The mailbox, your disenchanter, selling to vendors and the mail report"] },
     { key = "auction", text = L["AUCTION HOUSE"],
       tip = L["Buying, posting and scanning"] },
-    { key = "look", text = L["LOOK & SOUND"],
-      tip = L["Window size and effects, and every sound"] },
+    { key = "look", text = L["LOOK"],
+      tip = L["Columns, the arrow and Goblin Gold"] },
     { key = "tooltips", text = L["TOOLTIPS"],
       tip = L["Lines added to item and recipe tooltips."] },
     { key = "sharing", text = L["SHARING"],
       tip = L["Your other account and guild prices"] },
     { key = "data", text = L["DATA"],
       tip = L["What is saved and clearing old prices"] },
+    { key = "general", text = L["GENERAL"],
+      tip = L["Window position, text size and What's New"] },
     { key = "about", text = L["ABOUT"],
       tip = L["How these addons are made, the version, the Discord and the other Blackthornes addons"] },
 }
@@ -1457,37 +1459,23 @@ local function Build(outer)
     end, false)
     widgets.tradeRequests:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    -- Core/SisterNote.lua: one chat line, once, naming the Blackthornes
-    -- addons the player does not have. Off here is off in all of them.
-    local sistersRow = CreateRow(pages.look, 1, L["Sister Addons:"],
-        L["Says once in chat which Blackthornes addons you don't have."])
-
-    widgets.sisters = Widgets.CreateCheckbox(sistersRow, L["On"], function(checked)
-        ns.SisterNote:SetOn(checked)
-    end, true)
-    widgets.sisters:SetPoint("TOPLEFT", CONTROL_X, -2)
-
-    -- UI/WhatsNew.lua: one window after an update for every Blackthornes
-    -- addon. Off here is off in all of them, as the sister note is.
-    local whatsNewRow = CreateRow(pages.look, 1, L["What's New:"])
-    widgets.whatsnew = Widgets.CreateButton(whatsNewRow, L["Open"], function()
-        ns.WhatsNew:Toggle()
+    -- UI/Tab_Stats.lua (asked 2026-10-14): one item at a time, in charts.
+    -- The button is /bts stats.
+    local statsRow = CreateRow(pages.look, 1, L["Stats:"])
+    local statsOpen = Widgets.CreateButton(statsRow, L["Open"], function()
+        if ns.StatsUI then ns.StatsUI:ShowItem(nil) end
     end, { width = 60, height = 20 })
-    FitButton(widgets.whatsnew)
-    widgets.whatsnew:SetPoint("TOPLEFT", CONTROL_X, 0)
+    statsOpen:SetPoint("TOPLEFT", CONTROL_X, -2)
+    FitButton(statsOpen)
 
-    local whatsNewPopupRow = CreateRow(pages.look, 1, L["What's New After Updates:"],
-        L["Opens What's New the first time you play after an update."])
-    widgets.whatsNewPopup = Widgets.CreateCheckbox(whatsNewPopupRow, L["On"], function(checked)
-        ns.WhatsNew:SetOn(checked)
-    end, true)
-    widgets.whatsNewPopup:SetPoint("TOPLEFT", CONTROL_X, -2)
-
-    local whatsNewMotionRow = CreateRow(pages.look, 1, L["What's New Motion:"])
-    widgets.whatsNewMotion = Widgets.CreateCheckbox(whatsNewMotionRow, L["On"], function(checked)
-        ns.WhatsNew:SetMotionOn(checked)
-    end, true)
-    widgets.whatsNewMotion:SetPoint("TOPLEFT", CONTROL_X, -2)
+    -- The Welcome card (2026-10-20): which professions' roads come first on
+    -- the Level Up tab's Road to 300. Opens the card again.
+    local roadRow = CreateRow(pages.look, 1, L["Road to 300:"])
+    local roadOpen = Widgets.CreateButton(roadRow, L["Open"], function()
+        if ns.WelcomeUI then ns.WelcomeUI:Show() end
+    end, { width = 60, height = 20 })
+    roadOpen:SetPoint("TOPLEFT", CONTROL_X, -2)
+    FitButton(roadOpen)
 
     local shopsRow = CreateRow(pages.auction, 1, L["Open With AH and Vendors:"],
         L["Opens this window with the auction house or a vendor."])
@@ -1497,20 +1485,34 @@ local function Build(outer)
     end, false)
     widgets.openWithShops:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    -- A player's request (2026-10-07): the window was too big on a 4K
-    -- screen. The grip below its bottom right corner does the same, to any
-    -- size; one dragged to shows in the box as its percent.
-    CreateSection(pages.look, 1, L["THIS WINDOW"])
-    local sizeRow = CreateRow(pages.look, 1, L["Window Size:"])
+    -- The General page (2026-10-29): the same WINDOWS and ADDONS sections
+    -- in every Blackthornes addon, then the sounds.
+    CreateSection(pages.general, 1, L["WINDOWS"])
+    -- Asked 2026-10-10: the game's own look for players who would rather
+    -- the windows matched the rest of their screen. Read at login, so it
+    -- waits for /reload as Text size does. See UI/BlizzardLook.lua.
+    local styleRow = CreateRow(pages.general, 1, L["Window Style:"])
 
-    widgets.windowSize = Widgets.CreateDropdown(sizeRow, {}, function(value)
-        UI:SetWindowScale(value)
-    end, { width = 150 })
-    widgets.windowSize:SetPoint("TOPLEFT", CONTROL_X, 0)
+    widgets.windowStyle = Widgets.CreateDropdown(styleRow, {
+        { text = "Titanforged", value = "titanforged" },
+        { text = "Blizzard", value = "blizzard" },
+    }, function(value)
+        Config:Set("windowStyle", value)
+        local Look = ns.BlizzardLook
+        widgets.styleReload:SetShown(Look and Look.Style() ~= value or false)
+    end, { width = 110 })
+    widgets.windowStyle:SetPoint("TOPLEFT", CONTROL_X, 0)
+
+    widgets.styleReload = Widgets.CreateButton(styleRow, L["Reload"], function()
+        if ReloadUI then ReloadUI() end
+    end, { width = 90, height = 20 })
+    FitButton(widgets.styleReload)
+    ReloadUnder(styleRow, widgets.windowStyle, widgets.styleReload)
+    widgets.styleReload:Hide()
 
     -- Asked 2026-10-07 ("I'm getting old"): bigger letters in the same
     -- window. Every size is read as text is drawn, so it waits for /reload.
-    local textRow = CreateRow(pages.look, 1, L["Text Size:"])
+    local textRow = CreateRow(pages.general, 1, L["Text Size:"])
 
     widgets.textSize = Widgets.CreateDropdown(textRow, {
         { text = L["Normal"], value = "normal" },
@@ -1532,37 +1534,17 @@ local function Build(outer)
     ReloadUnder(textRow, widgets.textSize, widgets.textReload)
     widgets.textReload:Hide()
 
-    -- Asked 2026-10-10: the game's own look for players who would rather
-    -- the windows matched the rest of their screen. Read at login, so it
-    -- waits for /reload as Text size does. See UI/BlizzardLook.lua.
-    local styleRow = CreateRow(pages.look, 1, L["Window Style:"])
+    -- A player's request (2026-10-07): the window was too big on a 4K
+    -- screen. The grip below its bottom right corner does the same, to any
+    -- size; one dragged to shows in the box as its percent.
+    local sizeRow = CreateRow(pages.general, 1, L["Window Size:"])
 
-    widgets.windowStyle = Widgets.CreateDropdown(styleRow, {
-        { text = "Titanforged", value = "titanforged" },
-        { text = "Blizzard", value = "blizzard" },
-    }, function(value)
-        Config:Set("windowStyle", value)
-        local Look = ns.BlizzardLook
-        widgets.styleReload:SetShown(Look and Look.Style() ~= value or false)
-    end, { width = 110 })
-    widgets.windowStyle:SetPoint("TOPLEFT", CONTROL_X, 0)
+    widgets.windowSize = Widgets.CreateDropdown(sizeRow, {}, function(value)
+        UI:SetWindowScale(value)
+    end, { width = 150 })
+    widgets.windowSize:SetPoint("TOPLEFT", CONTROL_X, 0)
 
-    widgets.styleReload = Widgets.CreateButton(styleRow, L["Reload"], function()
-        if ReloadUI then ReloadUI() end
-    end, { width = 90, height = 20 })
-    FitButton(widgets.styleReload)
-    ReloadUnder(styleRow, widgets.windowStyle, widgets.styleReload)
-    widgets.styleReload:Hide()
-
-    -- A player asked (2026-10-28): one minimap button for every Blackthornes
-    -- addon loaded. Ticked unless unticked; see UI/SharedMinimap.lua.
-    local combineRow = CreateRow(pages.look, 1, L["Combine Addon Buttons:"])
-    widgets.combineButtons = Widgets.CreateCheckbox(combineRow, L["On"], function(checked)
-        if ns.SharedMinimap then ns.SharedMinimap.SetCombined(checked) end
-    end, true)
-    widgets.combineButtons:SetPoint("TOPLEFT", CONTROL_X, -2)
-
-    local effectsRow = CreateRow(pages.look, 1, L["Effects:"])
+    local effectsRow = CreateRow(pages.general, 1, L["Effects:"])
 
     widgets.effects = Widgets.CreateDropdown(effectsRow, {
         { text = L["Full"], value = "full" },
@@ -1575,54 +1557,55 @@ local function Build(outer)
     end, { width = 110 })
     widgets.effects:SetPoint("TOPLEFT", CONTROL_X, 0)
 
-    -- Which columns each list shows (asked 2026-10-09). The same tick list
-    -- a right-click on a list's headings opens. See UI/Columns.lua.
-    CreateSection(pages.look, 1, L["COLUMNS"])
-    local columnsRow = CreateRow(pages.look, 1, L["Columns Shown:"],
-        L["Pick a list to choose its columns. Right-click a list's headings does the same."])
+    -- A player asked (2026-10-28): one minimap button for every Blackthornes
+    -- addon loaded. Ticked unless unticked; see UI/SharedMinimap.lua.
+    local combineRow = CreateRow(pages.general, 1, L["Combine Addon Buttons:"])
+    widgets.combineButtons = Widgets.CreateCheckbox(combineRow, L["On"], function(checked)
+        if ns.SharedMinimap then ns.SharedMinimap.SetCombined(checked) end
+    end, true)
+    widgets.combineButtons:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    local listOptions = {}
-    for _, list in ipairs(ns.Columns:Lists()) do
-        listOptions[#listOptions + 1] = { text = list.title, value = list.id }
-    end
-    -- Picking a list opens its tick list under the box.
-    widgets.columnsList = Widgets.CreateDropdown(columnsRow, listOptions, function(id)
-        if id then ns.Columns:Open(id, widgets.columnsList) end
-    end, { width = 160 })
-    widgets.columnsList:SetPoint("TOPLEFT", CONTROL_X, 0)
-    if listOptions[1] then widgets.columnsList:SetValue(listOptions[1].value) end
+    CreateSection(pages.general, 1, L["ADDONS"])
+    -- Core/SisterNote.lua: one chat line, once, naming the Blackthornes
+    -- addons the player does not have. Off here is off in all of them.
+    local sistersRow = CreateRow(pages.general, 1, L["Sister Addons:"],
+        L["Says once in chat which Blackthornes addons you don't have."])
 
-    local showAllRow = CreateRow(pages.look, 1, L["Hidden Columns:"])
-    widgets.columnsHidden = Theme.CreateLabel(showAllRow, "small", "muted")
-    widgets.columnsHidden:SetPoint("TOPLEFT", CONTROL_X, -4)
+    widgets.sisters = Widgets.CreateCheckbox(sistersRow, L["On"], function(checked)
+        ns.SisterNote:SetOn(checked)
+    end, true)
+    widgets.sisters:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    widgets.columnsShowAll = Widgets.CreateButton(showAllRow, L["Show All"], function()
-        ns.Columns:ShowAll()
-    end, { width = 80, height = 20 })
-    widgets.columnsShowAll:SetPoint("TOPLEFT", CONTROL_X + 70, 0)
-    FitButton(widgets.columnsShowAll)
+    -- UI/WhatsNew.lua: one window after an update for every Blackthornes
+    -- addon. Off here is off in all of them, as the sister note is.
+    local whatsNewRow = CreateRow(pages.general, 1, L["What's New:"])
+    widgets.whatsnew = Widgets.CreateButton(whatsNewRow, L["Open"], function()
+        ns.WhatsNew:Toggle()
+    end, { width = 60, height = 20 })
+    FitButton(widgets.whatsnew)
+    widgets.whatsnew:SetPoint("TOPLEFT", CONTROL_X, 0)
 
-    local function PaintHiddenCount()
-        local count = ns.Columns:HiddenCount()
-        widgets.columnsHidden:SetText(count == 0 and L["None"] or tostring(count))
-        widgets.columnsHidden:SetTextColor(Theme.Unpack(count == 0 and "muted" or "accent"))
-        widgets.columnsShowAll:SetEnabledState(count > 0)
-    end
-    widgets.paintHiddenColumns = PaintHiddenCount
-    ns.Columns.onAnyChange = PaintHiddenCount
-    PaintHiddenCount()
+    local whatsNewPopupRow = CreateRow(pages.general, 1, L["What's New After Updates:"],
+        L["Opens What's New the first time you play after an update."])
+    widgets.whatsNewPopup = Widgets.CreateCheckbox(whatsNewPopupRow, L["On"], function(checked)
+        ns.WhatsNew:SetOn(checked)
+    end, true)
+    widgets.whatsNewPopup:SetPoint("TOPLEFT", CONTROL_X, -2)
 
-    -- Debug, the client check and the speed check are typed only (/bts
-    -- debug, probe, perf; the owner, 2026-10-23): players don't need them.
+    local whatsNewMotionRow = CreateRow(pages.general, 1, L["What's New Motion:"])
+    widgets.whatsNewMotion = Widgets.CreateCheckbox(whatsNewMotionRow, L["On"], function(checked)
+        ns.WhatsNew:SetMotionOn(checked)
+    end, true)
+    widgets.whatsNewMotion:SetPoint("TOPLEFT", CONTROL_X, -2)
 
     -- Every sound the addon plays, each with its own switch, all on to start
     -- with. The one sound not here is the warning that saved data failed to
     -- load, which is about losing data rather than an effect.
-    CreateSection(pages.look, 2, L["SOUNDS"])
+    CreateSection(pages.general, 2, L["SOUNDS"])
     widgets.sounds = {}
 
     local function SoundRow(key, label, description, test)
-        local row = CreateRow(pages.look, 2, label, description)
+        local row = CreateRow(pages.general, 2, label, description)
         local box = Widgets.CreateCheckbox(row, L["On"], function(checked)
             Config:Set(key, checked)
         end, true)
@@ -1641,7 +1624,7 @@ local function Build(outer)
     -- The sale alarm picks its sound (asked 2026-10-11: players found the
     -- raid warning too much and asked for an old cash register). Off is the
     -- saleAlarm switch; the sound is saleSound. Picking one plays it.
-    local saleRow = CreateRow(pages.look, 2, L["An Auction Sells:"],
+    local saleRow = CreateRow(pages.general, 2, L["An Auction Sells:"],
         L["Plays a sound when one of your auctions sells."])
 
     local function SaleSound()
@@ -1697,24 +1680,47 @@ local function Build(outer)
             pcall(PlaySound, kit, "Master")
         end)
 
-    -- UI/Tab_Stats.lua (asked 2026-10-14): one item at a time, in charts.
-    -- The button is /bts stats.
-    local statsRow = CreateRow(pages.look, 2, L["Stats:"])
-    local statsOpen = Widgets.CreateButton(statsRow, L["Open"], function()
-        if ns.StatsUI then ns.StatsUI:ShowItem(nil) end
-    end, { width = 60, height = 20 })
-    statsOpen:SetPoint("TOPLEFT", CONTROL_X, -2)
-    FitButton(statsOpen)
+    -- Which columns each list shows (asked 2026-10-09). The same tick list
+    -- a right-click on a list's headings opens. See UI/Columns.lua.
+    CreateSection(pages.look, 1, L["COLUMNS"])
+    local columnsRow = CreateRow(pages.look, 1, L["Columns Shown:"],
+        L["Pick a list to choose its columns. Right-click a list's headings does the same."])
 
-    -- The Welcome card (2026-10-20): which professions' roads come first on
-    -- the Level Up tab's Road to 300. Opens the card again.
-    local roadRow = CreateRow(pages.look, 2, L["Road to 300:"])
-    local roadOpen = Widgets.CreateButton(roadRow, L["Open"], function()
-        if ns.WelcomeUI then ns.WelcomeUI:Show() end
-    end, { width = 60, height = 20 })
-    roadOpen:SetPoint("TOPLEFT", CONTROL_X, -2)
-    FitButton(roadOpen)
+    local listOptions = {}
+    for _, list in ipairs(ns.Columns:Lists()) do
+        listOptions[#listOptions + 1] = { text = list.title, value = list.id }
+    end
+    -- Picking a list opens its tick list under the box.
+    widgets.columnsList = Widgets.CreateDropdown(columnsRow, listOptions, function(id)
+        if id then ns.Columns:Open(id, widgets.columnsList) end
+    end, { width = 160 })
+    widgets.columnsList:SetPoint("TOPLEFT", CONTROL_X, 0)
+    if listOptions[1] then widgets.columnsList:SetValue(listOptions[1].value) end
 
+    local showAllRow = CreateRow(pages.look, 1, L["Hidden Columns:"])
+    widgets.columnsHidden = Theme.CreateLabel(showAllRow, "small", "muted")
+    widgets.columnsHidden:SetPoint("TOPLEFT", CONTROL_X, -4)
+
+    widgets.columnsShowAll = Widgets.CreateButton(showAllRow, L["Show All"], function()
+        ns.Columns:ShowAll()
+    end, { width = 80, height = 20 })
+    widgets.columnsShowAll:SetPoint("TOPLEFT", CONTROL_X + 70, 0)
+    FitButton(widgets.columnsShowAll)
+
+    local function PaintHiddenCount()
+        local count = ns.Columns:HiddenCount()
+        widgets.columnsHidden:SetText(count == 0 and L["None"] or tostring(count))
+        widgets.columnsHidden:SetTextColor(Theme.Unpack(count == 0 and "muted" or "accent"))
+        widgets.columnsShowAll:SetEnabledState(count > 0)
+    end
+    widgets.paintHiddenColumns = PaintHiddenCount
+    ns.Columns.onAnyChange = PaintHiddenCount
+    PaintHiddenCount()
+
+    -- Debug, the client check and the speed check are typed only (/bts
+    -- debug, probe, perf; the owner, 2026-10-23): players don't need them.
+
+    CreateSection(pages.look, 2, L["ARROW"])
     -- Show the way aims the arrow (Logic/WayArrow.lua); with TomTom
     -- installed, its arrow instead while this is ticked (Logic/TomTom.lua,
     -- the same file in every addon with an arrow). On unless unticked.
@@ -2627,3 +2633,28 @@ UI:RegisterTab({
     refresh = Refresh,
     onShow = Refresh,
 })
+
+--------------------------------------------------------------------------------
+-- Choices every Blackthornes addon shares (UI/SharedChoices.lua): a change
+-- made in a sister is written here the way this addon writes it itself.
+--------------------------------------------------------------------------------
+
+if ns.SharedChoices then
+    ns.SharedChoices:Join("Tradeskills", function(choice, value)
+        if not ns.db then return end
+        if choice == "textSize" then
+            if ns.Theme.TEXT_STEPS and ns.Theme.TEXT_STEPS[value] then ns.Config:Set("textSize", value) end
+        elseif choice == "windowStyle" then
+            if value == "titanforged" or value == "blizzard" then ns.Config:Set("windowStyle", value) end
+        elseif choice == "effects" then
+            if value == "full" or value == "subtle" or value == "off" then ns.Config:Set("windowEffects", value) end
+        elseif choice == "useTomTom" then
+            if ns.TomTom then ns.TomTom:SetOn(value and true or false) end
+        elseif choice == "arrowRoute" then
+            if ns.Travel then ns.Travel:SetOn(value and true or false) end
+        elseif choice == "arrowSize" then
+            if ns.WayArrowUI then ns.WayArrowUI:SetSize(value) end
+        end
+        if ns.UI and ns.UI.RefreshActiveTab then pcall(ns.UI.RefreshActiveTab, ns.UI) end
+    end)
+end

@@ -1187,6 +1187,9 @@ local function RefreshList()
     widgets.emptyLabel:SetShown(#rows == 0)
     widgets.emptyLabel:SetText(state.search ~= "" and L["Nothing matches that search."]
         or L["Nothing to show yet. Items you craft, star or sell show here."])
+    if state.search ~= "" then
+        if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, L["Clear Search"], function() widgets.search:SetText("") end) end
+    elseif Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, nil) end
 
     if not state.selected and rows[1] then Select(rows[1].itemID) end
 end
@@ -1220,6 +1223,7 @@ local function Build(container)
     emptyLabel:SetWidth(LIST_WIDTH - 20)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local panel = BuildPanel(container)
     panel:SetPoint("TOPLEFT", container, "TOPLEFT", LIST_WIDTH + 24, -8)
@@ -1242,19 +1246,35 @@ local function Refresh()
     StatsUI.pending = true
     local function Later()
         StatsUI.pending = nil
-        if UI.activeTab == "stats" then Redraw(false) end
+        if StatsUI.Showing() then Redraw(false) end
     end
     if C_Timer and C_Timer.After then C_Timer.After(REDRAW_DELAY, Later) else Later() end
 end
 
---- Open the window on this tab, at `itemID` when given.
+--- True while the Prices tab shows its Stats view.
+function StatsUI.Showing()
+    local Prices = ns.PricesUI
+    if Prices and Prices.ShowingStats then return Prices:ShowingStats() end
+    return UI.activeTab == "stats"
+end
+
+--- Pick an item for the charts, when one is given (the Details view's pick).
+function StatsUI:Pick(itemID)
+    if not itemID or itemID == state.selected then return end
+    state.selected = itemID
+    state.key = nil
+    if widgets.list then Select(itemID) end
+end
+
+--- Open the window on the Prices tab's Stats view, at `itemID` when given.
 function StatsUI:ShowItem(itemID)
     if itemID then
         state.selected = itemID
         state.key = nil
     end
     UI:Show()
-    UI:SelectTab("stats")
+    UI:SelectTab("prices")
+    if ns.PricesUI then ns.PricesUI:ShowView("stats", itemID) end
     if itemID then Select(itemID) end
 end
 
@@ -1275,7 +1295,7 @@ function StatsUI.ItemFromText(text)
     return rows[1] and rows[1].itemID or nil
 end
 
-ns.RegisterCommand("stats", L["open the Stats tab, at an item when you name or link one"], function(rest)
+ns.RegisterCommand("stats", L["open an item's charts, the one you name or link"], function(rest)
     local itemID = StatsUI.ItemFromText(rest)
     if rest and rest:match("%S") and not itemID then
         ns.Print(L["No item by that name to show."])
@@ -1283,14 +1303,14 @@ ns.RegisterCommand("stats", L["open the Stats tab, at an item when you name or l
     StatsUI:ShowItem(itemID)
 end)
 
-UI:RegisterTab({
+-- Its own tab until 2026-10-29; now the Prices tab's Stats view
+-- (UI/Tab_Prices.lua builds it).
+StatsUI.view = {
     key = "stats",
-    text = L["Stats"],
-    order = 9,
     build = Build,
     refresh = Refresh,
     onShow = function()
         state.key = nil
         state.grow = true
     end,
-})
+}

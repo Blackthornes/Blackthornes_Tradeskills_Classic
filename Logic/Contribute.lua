@@ -389,12 +389,16 @@ function Contribute:Trim(store)
     if count > self.MAX_SENDERS and oldest then store[oldest] = nil end
 end
 
---- A sound and a line across the screen as the chat line goes out. Only a
+--- A sound and a note on screen (the shared note slot) as the chat line goes out. Only a
 --- receiving character ever gets here.
 function Contribute:Alert(line)
     if type(PlaySound) == "function" then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
         pcall(PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
+    end
+    if ns.Notice and ns.Notice.Show then
+        pcall(ns.Notice.Show, ns.Notice, line, { key = "contribute" })
+        return
     end
     local frame = _G.UIErrorsFrame
     if type(frame) == "table" and type(frame.AddMessage) == "function" then

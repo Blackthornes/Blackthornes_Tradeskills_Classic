@@ -286,7 +286,7 @@ local function UpdateRow(row, step)
     row.edge:SetShown(step.isNext == true)
     row.icon:SetAlpha(step.done and 0.45 or 1)
     if step.done then
-        row.badge:SetText(L["Got it"])
+        row.badge:SetText(L["Got It"])
         row.badge:SetTextColor(Theme.Unpack("profit"))
     else
         row.badge:SetText(step.isNext and L["Next"] or "")

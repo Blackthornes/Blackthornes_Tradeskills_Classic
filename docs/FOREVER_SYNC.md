@@ -59,6 +59,16 @@ Copied over since, one at a time:
   `UI/Main.lua` and its words. The Settings row stays where Classic had it.
   The Sell list's title and summary leave the gold out while it shows, as
   Forever's had since its band.
+- `d163db1` One look across the five addons (2026-10-29, Forever PR #1035):
+  `UI/HouseKit.lua`, `UI/RowMenu.lua`, `UI/Notice.lua` and
+  `UI/SharedChoices.lua` as they are (the same in all five Classic repos),
+  the row menus, hover hints, Title Case buttons, the General page, the
+  scan chip and Scan Auctions, the Prices tab's Stats view and the gold
+  plaque on Buy Materials and Sell Marked. `UI/Plaque.lua` is the shared
+  Classic copy (Farmer, Pets, Equipment). Kept Classic's: the real tabs on
+  the Profit and Level Up switches (from #67 to #75), the TOOLTIPS page,
+  and no version line past the portrait. The drawer's view tabs are Sell,
+  Buy, Lists and Auctions; Favors never shows without Merchant's Favor.
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.

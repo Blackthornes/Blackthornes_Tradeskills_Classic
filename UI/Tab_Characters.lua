@@ -24,7 +24,8 @@ local Util = ns.Util
 local UI = ns.UI
 
 local ROW_HEIGHT = 26
--- A character's row: the name with race and class under it, and the bars.
+-- A character's row: the name on one line (race and class on its hover),
+-- and the bars.
 local CHARACTER_NEED = 34
 -- The open line under a character.
 local CARD_NEED = 74
@@ -452,7 +453,7 @@ local function ShowParts(row, kind)
     row.fold:SetShown(heading)
     row.count:SetShown(heading)
     row.name:SetShown(not card)
-    row.sub:SetShown(character)
+    row.sub:SetShown(false)
     row.card:SetShown(card)
     for _, column in ipairs(COLUMNS) do
         local cell = row.cells[column.key]
@@ -509,9 +510,10 @@ local function UpdateHeading(row, entry)
 end
 
 local function UpdateCharacter(row, entry)
-    -- The name, whole, with race and class under it.
+    -- The name, whole, on one line; race and class are on its hover (the
+    -- house kit, 2026-10-29: rows are one line).
     row.name:ClearAllPoints()
-    row.name:SetPoint("TOPLEFT", 14, -5)
+    row.name:SetPoint("LEFT", 14, 0)
     row.name:SetPoint("RIGHT", row, "RIGHT", row.nameRight - 8, 0)
     Theme.SetRowName(row.name, entry.name, "normal")
     local color = ClassColor(entry.classFile)
@@ -519,17 +521,7 @@ local function UpdateCharacter(row, entry)
     local nameNeed = rawget(row.name, "rowNeed") or 14
     row.name.rowNeed, row.name.rowNeedText = math.max(CHARACTER_NEED, nameNeed + 18), entry.name
 
-    local about = {}
-    if entry.race then about[#about + 1] = entry.race end
-    if entry.class then about[#about + 1] = entry.class end
-    local sub = table.concat(about, " ")
-    if entry.linkedFrom then
-        sub = sub ~= "" and L.Format("%s, other account", sub) or L["Other account"]
-    end
-    row.sub:ClearAllPoints()
-    row.sub:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -2)
-    row.sub:SetPoint("RIGHT", row, "RIGHT", row.nameRight - 8, 0)
-    row.sub:SetText(sub)
+    row.sub:SetText("")
 
     local cells = row.cells
 
@@ -621,6 +613,7 @@ local function ShowRowTooltip(row, entry)
     if character.class then about[#about + 1] = character.class end
     if #about > 0 then GameTooltip:AddLine(table.concat(about, " "), 0.7, 0.7, 0.7) end
     if character.realm then GameTooltip:AddLine(character.realm, 0.7, 0.7, 0.7) end
+    if character.linkedFrom then GameTooltip:AddLine(L["Other account"], 0.7, 0.7, 0.7) end
 
     local learned = Learned(character)
     if #learned > 0 then
@@ -739,10 +732,12 @@ local function RefreshCharacters()
     widgets.list:SetData(rows)
 
     widgets.emptyLabel:SetShown(#rows == 0)
+    if Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, nil) end
     if #characters == 0 then
         widgets.emptyLabel:SetText(L["No characters recorded yet."])
     elseif #rows == 0 then
         widgets.emptyLabel:SetText(L["No character matches."])
+        if state.search ~= "" and Widgets.EmptyAction then Widgets.EmptyAction(widgets.emptyLabel, L["Clear Search"], function() widgets.search:SetText("") end) end
     end
 
     local count = totals.count == 1 and L["1 character"] or L.Format("%d characters", totals.count)
@@ -980,10 +975,12 @@ local function BuildCharacters(view)
     emptyLabel:SetWidth(360)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local summary = Theme.CreateLabel(view, "small", "text")
     summary:SetPoint("BOTTOMLEFT", 8, 10)
     widgets.summary = summary
+
 end
 
 local function Build(container)

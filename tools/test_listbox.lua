@@ -187,6 +187,7 @@ do
     Load(ns, "/Core/Util.lua")
     Load(ns, "/Logic/Posting.lua")
     Load(ns, "/UI/Widgets.lua")
+    Load(ns, "/UI/HouseKit.lua")
     Load(ns, "/UI/PostPanel.lua")
 
     local requested = {}

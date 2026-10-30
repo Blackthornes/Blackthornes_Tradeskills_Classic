@@ -269,7 +269,7 @@ ns.UI = { RegisterTab = function(_, tab) ns.statsTab = tab end }
 ns.Prices.GetFavourites = function() return ns.db.favouritePrices end
 assert(loadfile(lfs_cwd .. "/UI/Tab_Stats.lua"))("Blackthornes_TS", ns)
 
-check("the tab registers", ns.statsTab and ns.statsTab.key, "stats")
+check("it hands Prices its Stats view", ns.StatsUI.view and ns.StatsUI.view.key, "stats")
 check("the command registers", type(ns.commands.stats), "function")
 
 local rows = ns.UI._StatsList("")

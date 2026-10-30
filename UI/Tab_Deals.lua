@@ -409,7 +409,7 @@ local function BuildDetail(parent)
     empty:SetPoint("CENTER")
     empty:SetWidth(DETAIL_WIDTH - 40)
     empty:SetWordWrap(true)
-    empty:SetText(L["Pick a row to see the deal"])
+    empty:SetText(L["Pick a row to see the deal."])
     detail.empty = empty
 
     return detail
@@ -975,16 +975,24 @@ local function Build(container)
 
         onEnter = function(row, entry) ShowRowTooltip(row, entry) end,
         onLeave = function() GameTooltip:Hide() end,
+        clickHint = L["Right-click for more."],
+
+        -- The row's menu (the house kit, 2026-10-29): search first, as the
+        -- right-click did.
+        menu = function(entry)
+            state.selected = entry
+            UpdateDetail(entry)
+            if widgets.list then widgets.list:Refresh() end
+            return { { text = L["Search the Auction House"], run = function() SearchAuctionHouse(entry) end } }
+        end,
 
         isSelected = function(entry)
             return SameRow(entry, state.selected)
         end,
 
-        onClick = function(entry, _, mouseButton)
+        onClick = function(entry)
             state.selected = entry
             UpdateDetail(entry)
-
-            if mouseButton == "RightButton" then SearchAuctionHouse(entry) end
         end,
     })
 
@@ -997,6 +1005,7 @@ local function Build(container)
     emptyLabel:SetWidth(380)
     emptyLabel:SetWordWrap(true)
     widgets.emptyLabel = emptyLabel
+    if Widgets.DressEmpty then Widgets.DressEmpty(emptyLabel) end
 
     local countLabel = Theme.CreateLabel(flipsView, "tiny", "dim")
     countLabel:SetPoint("BOTTOMLEFT", 8, 8)
@@ -1004,7 +1013,8 @@ local function Build(container)
 
     local hint = Theme.CreateLabel(flipsView, "tiny", "dim", "RIGHT")
     hint:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 8)
-    hint:SetText(L["Right-click a row to search for it"])
+    -- What a click does is on each row's hover now; the footer is the count.
+    hint:SetText("")
     widgets.hint = hint
 
     -- The count line grows a long "not checked yet" note while items load,
