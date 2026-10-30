@@ -1224,6 +1224,28 @@ and Known by. Lines are kept per spell until `Inventory.changes` moves or
 (`tooltipEnchantCosts`, on unless unticked, never rename it); `/bts tip`
 counts them. Tested in `tools/test_enchanttooltip.lua`.
 
+## The one window (Classic first)
+
+The owner approved the mockups and said build it (2026-10-30), in all five
+Classic addons: one house-look window with a rail down its left side, a
+button for each Blackthornes addon loaded (Farmer, Butler, Pets,
+Equipment, Tradeskills), and the picked addon's own tabs beside it; one
+size, one size grip, one fold gem, one place. Later it docks beside the
+auction house, mailbox, vendor and trainer. `UI/SharedWindow.lua` is the
+same file in all five (a fix to it belongs in all five), and so is
+`tools/test_sharedwindow.lua`; like the shared minimap button, every copy
+signs up in `_G.BlackthornesWindow`, each addon joins with
+`SharedWindow:Join` (beside its `SharedMinimap:Join`), and the copy with
+the highest `FILE_VERSION` builds the window. An addon whose pages have
+moved in gives `host = { enter(area), leave() }`; until then its rail
+button opens its own window. Off unless ticked ("One Window:" on the
+General page, approved 2026-10-30, not shown until the first addon's pages
+move in). Saved in every loaded addon's account save, account wide, never
+rename them: `oneWindow`, `oneWindowAt` (the newest wins), `oneWindowPick`,
+`oneWindowLeft`, `oneWindowTop`, `oneWindowScale`. Floating pieces (Kills
+& Loot, arrows, plaques, loot feed, XP bar) stay their own. Tested in
+`tools/test_sharedwindow.lua`. Not yet seen in game.
+
 ## The shared minimap button
 
 A player asked, the owner said build it from a mockup (2026-10-28), in all
