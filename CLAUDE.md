@@ -1238,9 +1238,9 @@ signs up in `_G.BlackthornesWindow`, each addon joins with
 `SharedWindow:Join` (beside its `SharedMinimap:Join`), and the copy with
 the highest `FILE_VERSION` builds the window. An addon whose pages have
 moved in gives `host = { enter(area), leave() }`; until then its rail
-button opens its own window. Off unless ticked ("One Window:" on the
-General page, approved 2026-10-30, not shown until the first addon's pages
-move in). Saved in every loaded addon's account save, account wide, never
+button opens its own window. On unless unticked (the owner,
+2026-10-30; "One Window:" on the General page; nil reads as on, and a
+player who ticked or unticked it keeps that). Saved in every loaded addon's account save, account wide, never
 rename them: `oneWindow`, `oneWindowAt` (the newest wins), `oneWindowPick`,
 `oneWindowLeft`, `oneWindowTop`, `oneWindowScale`. Floating pieces (Kills
 & Loot, arrows, plaques, loot feed, XP bar) stay their own. Tested in
@@ -1258,7 +1258,11 @@ before (`Left`, `hub.back`); one that was closed before stays closed,
 since each addon closes what it opened by itself. Which addon shows at a
 place is still each addon's own doing (Butler at the mailbox and vendor).
 Tradeskills shows at the auction house, with its sell drawer inside the
-window (FILE_VERSION 3, see Tradeskills' notes). Tested in
+window (FILE_VERSION 3, see Tradeskills' notes). At the auction house
+only Tradeskills is needed (the owner, 2026-10-30, FILE_VERSION 4): while
+it shows there the row of emblems is left out (`PLACES.auction.only`,
+`RowShown`, `Refit`; the window keeps its height), and another addon
+picked there brings the row back. Tested in
 `tools/test_sharedwindow.lua`. Not yet seen in game.
 
 Tradeskills' tabs are in (2026-10-30, the last of the five): "One

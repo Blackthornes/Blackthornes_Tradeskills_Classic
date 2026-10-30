@@ -442,7 +442,8 @@ seen in game.
 ## The one window
 
 - `UI/SharedWindow.lua` is Classic's own (2026-10-30); Forever has no copy
-  yet. Nothing shows until "One Window:" is ticked.
+  yet. "One Window:" is on unless unticked (2026-10-30). At the auction
+  house only Tradeskills shows in it.
 - Tradeskills' window and its Settings tab move into it when ticked
   (`TSTabs.host`, `Route`, `Closed` at the end of `UI/Main.lua`);
   Forever's Main.lua has none of it.

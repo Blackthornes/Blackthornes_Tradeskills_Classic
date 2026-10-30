@@ -2,7 +2,7 @@
 -- the owner said build it, 2026-10-30).
 --
 -- What must hold:
---   1. Off unless ticked: the window opens in its own place.
+--   1. On unless unticked; unticked, the window opens in its own place.
 --   2. Ticked, opening Tradeskills opens the one window on it, with the
 --      window laid into its area, bare of its own size grip, at scale 1.
 --   3. Settings is a tab in the same area.
@@ -176,6 +176,8 @@ local hub = _G.BlackthornesWindow
 check("Tradeskills joins with its window", hub.entries.tradeskills and hub.entries.tradeskills.host == Tabs.host)
 
 print("1. off")
+check("on unless unticked", SW.On() and ns.db.oneWindow == nil)
+SW.SetOn(false)
 UI:Show()
 check("opens by itself", UI.window:IsShown() and not Tabs:Hosted())
 check("at its own size", UI.window:GetScale() == 0.8)
