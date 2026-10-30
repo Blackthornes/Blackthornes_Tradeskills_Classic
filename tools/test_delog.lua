@@ -66,6 +66,7 @@ local items = {
     [1003] = { 2, 24, "INVTYPE_WEAPON", 2 },
     [1004] = { 2, 23, "INVTYPE_RANGEDRIGHT", 2 },
     [1005] = { 2, 25, "INVTYPE_RANGEDRIGHT", 2 },
+    [1006] = { 2, 40, "INVTYPE_CHEST", 4 },
 }
 
 C_Item = {
@@ -245,9 +246,47 @@ check("our Disenchant button says which item it aimed at", Casts("2:weapon:25") 
     and Log:GetTable().recent[1].from == "button")
 
 EraCast({ [1] = true, [3] = true })
+Log:GiveUpWaiting()
 check("two kinds locked at once is no guess", Casts("2:weapon:25") == 2
     and Log:GetTable().missed == missedEra + 1)
+
+-- Another addon's button: nothing locked, the item just goes.
+local missedGone = Log:GetTable().missed
+slots[6] = 1006
+local GONE_KEY = select(2, Disenchant:GetOutcomes(1006)).key
+local function GoneCast(removeAt)
+    clock = clock + 60
+    Log:OnCastSent("UNIT_SPELLCAST_SENT", "player", "", "cast", SPELL)
+    Log:OnCastStart("UNIT_SPELLCAST_START", "player", "cast", SPELL)
+    clock = clock + 1.5
+    if removeAt == "cast" then slots[6] = nil end
+    Log:OnCastSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", SPELL)
+    loot, lootSource = { { STRANGE_DUST, 3 } }, nil
+    clock = clock + 0.3
+    Log:OnLootReady()
+    if removeAt == "later" then
+        clock = clock + 0.4
+        slots[6] = nil
+        Log:OnBagsChanged()
+    end
+    slots[6] = 1006
+end
+
+GoneCast("cast")
+check("the item gone from the bags is the one broken", Casts(GONE_KEY) == 1
+    and Log:GetTable().recent[1].from == "bags")
+GoneCast("later")
+check("even when the bags catch up after the loot", Casts(GONE_KEY) == 2
+    and Log:GetTable().missed == missedGone)
+GoneCast("never")
+Log:GiveUpWaiting()
+check("nothing gone is a miss, said once", Casts(GONE_KEY) == 2
+    and Log:GetTable().missed == missedGone + 1)
+slots[6] = nil
 C_Container.GetContainerNumSlots, C_Container.GetContainerItemInfo = nil, nil
+-- What those said on screen is not what the checks below count.
+for index = #flashed, 1, -1 do flashed[index] = nil end
+for index = #sounds, 1, -1 do sounds[index] = nil end
 
 print("\nusing your results")
 

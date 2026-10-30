@@ -19,7 +19,9 @@
 --   * the item name the game passes with the cast, matched against the bags;
 --   * our own Disenchant button, which says which item it aimed at;
 --   * the one disenchantable item the game locks in the bags while the
---     spell is cast on it (Classic Era names no item any other way).
+--     spell is cast on it;
+--   * the one disenchantable item that is gone from the bags once it breaks
+--     (Classic Era names no item any other way, whoever's button cast it).
 --
 -- Each record notes which one found the item, and `/bts delog` shows it, so
 -- the first disenchant in game says which of these this client supports.
@@ -47,7 +49,12 @@ local AIM_WINDOW = 30
 local RECENT_KEPT = 20
 
 local aimed        -- { itemID, from, at }: the item the spell was pointed at
-local cast         -- { itemID, from, at }: a Disenchant that just finished
+local cast         -- { itemID, from, at, before }: a Disenchant that just finished
+local before       -- { [itemID] = count }: disenchantable items as the cast began
+local waiting      -- { results, before, at }: loot read, item not gone from the bags yet
+
+-- How long the bags may take to show the broken item gone.
+local GONE_WINDOW = 3
 
 --------------------------------------------------------------------------------
 -- Storage
@@ -409,20 +416,54 @@ end
 --- The disenchantable item the game has locked in the bags, while one
 --- Disenchant is being cast on it. nil when there is none, or more than one
 --- kind (something else is being moved too), since a guess would be wrong.
-function DisenchantLog:LockedInBags()
+local function EachDisenchantable(fn)
     if not Util.HasFunction("C_Container.GetContainerNumSlots")
-        or not Util.HasFunction("C_Container.GetContainerItemInfo") then return nil end
+        or not Util.HasFunction("C_Container.GetContainerItemInfo") then return false end
 
-    local found
     for bag = 0, (NUM_BAG_SLOTS or 4) do
         local okSlots, slots = pcall(C_Container.GetContainerNumSlots, bag)
         for slot = 1, (okSlots and type(slots) == "number") and slots or 0 do
             local ok, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
-            local itemID = ok and type(info) == "table" and info.isLocked == true and info.itemID or nil
+            local itemID = ok and type(info) == "table" and info.itemID or nil
             if type(itemID) == "number" and ns.Disenchant:IsDisenchantable(itemID) then
-                if found and found ~= itemID then return nil end
-                found = itemID
+                fn(itemID, info)
             end
+        end
+    end
+    return true
+end
+
+function DisenchantLog:LockedInBags()
+    local found, many = nil, false
+    EachDisenchantable(function(itemID, info)
+        if info.isLocked ~= true then return end
+        if found and found ~= itemID then many = true end
+        found = itemID
+    end)
+    if many then return nil end
+    return found
+end
+
+--- How many of each disenchantable item the bags hold, or nil.
+function DisenchantLog:CountBags()
+    local counts = {}
+    local read = EachDisenchantable(function(itemID, info)
+        counts[itemID] = (counts[itemID] or 0) + math.max(1, tonumber(info.stackCount) or 1)
+    end)
+    return read and counts or nil
+end
+
+--- The one disenchantable item the bags hold fewer of than `then`, or nil.
+function DisenchantLog:GoneFromBags(earlier)
+    if not earlier then return nil end
+    local now = self:CountBags()
+    if not now then return nil end
+
+    local found
+    for itemID, count in pairs(earlier) do
+        if (now[itemID] or 0) < count then
+            if found then return nil end
+            found = itemID
         end
     end
     return found
@@ -463,6 +504,9 @@ function DisenchantLog:OnCastSent(_, unit, target, _, spellID)
         return
     end
 
+    -- What the bags hold now, to see later which item is gone.
+    before = self:CountBags()
+
     local ok, name = pcall(function() return target .. "" end)
     local named = ok and self:FindInBags(name) or nil
 
@@ -479,6 +523,7 @@ end
 --- The cast has begun, so its item is locked in the bags now.
 function DisenchantLog:OnCastStart(_, unit, _, spellID)
     if not IsPlayer(unit) or not IsDisenchant(spellID) then return end
+    before = before or self:CountBags()
     self:AimAtLocked()
 end
 
@@ -493,8 +538,9 @@ function DisenchantLog:OnCastSucceeded(_, unit, _, spellID)
         itemID = fresh and aimed.itemID or nil,
         from = fresh and aimed.from or nil,
         at = Now(),
+        before = before,
     }
-    aimed = nil
+    aimed, before = nil, nil
 end
 
 --- The item a loot slot came from, when the game says.
@@ -566,6 +612,43 @@ function DisenchantLog:OnLootReady()
     if not any then return end
 
     if not itemID then
+        itemID = self:GoneFromBags(pending.before)
+        from = itemID and "bags" or nil
+    end
+
+    -- The bags may not show it gone yet; wait for them a moment.
+    if not itemID and pending.before then
+        waiting = { results = results, before = pending.before, at = Now() }
+        if type(C_Timer) == "table" and type(C_Timer.After) == "function" then
+            C_Timer.After(GONE_WINDOW + 0.5, function() DisenchantLog:GiveUpWaiting() end)
+        end
+        return
+    end
+
+    self:Finish(itemID, results, from)
+end
+
+--- The bags changed: is the item that was waiting gone now?
+function DisenchantLog:OnBagsChanged()
+    local held = waiting
+    if not held then return end
+    if Now() - held.at > GONE_WINDOW then return self:GiveUpWaiting() end
+
+    local itemID = self:GoneFromBags(held.before)
+    if not itemID then return end
+    waiting = nil
+    self:Finish(itemID, held.results, "bags")
+end
+
+--- The bags never showed which item went.
+function DisenchantLog:GiveUpWaiting()
+    if not waiting then return end
+    waiting = nil
+    self:Finish(nil)
+end
+
+function DisenchantLog:Finish(itemID, results, from)
+    if not itemID then
         self:Miss(L["the game did not say which item was disenchanted"])
         return
     end
@@ -583,6 +666,7 @@ local FROM = {
     click = L["bag click"],
     name = L["cast name"],
     button = L["Disenchant button"],
+    bags = L["item gone from bags"],
     locked = L["item in use"],
 }
 
@@ -662,6 +746,7 @@ function DisenchantLog:OnEnable()
     RegisterForPlayer(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnCastSucceeded)
     ns.RegisterEvent(self, "LOOT_READY", self.OnLootReady)
     ns.RegisterEvent(self, "LOOT_OPENED", self.OnLootReady)
+    ns.RegisterEvent(self, "BAG_UPDATE_DELAYED", self.OnBagsChanged)
 
     -- Watch bag clicks without replacing them: hooksecurefunc runs after
     -- Blizzard's own call and changes nothing about it.
