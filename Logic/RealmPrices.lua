@@ -399,7 +399,7 @@ function RealmPrices:Describe()
     if not self:IsOn() then return L["Realm prices are off."] end
     local count = self:Count()
     if count == 0 then
-        return L["Listening for prices from your realm. A price is used once 3 players agree on it."]
+        return L["Listening for prices from your realm."]
     end
     local shown = ns.Util and ns.Util.Comma and ns.Util.Comma(count) or tostring(count)
     local players = self:Players()
