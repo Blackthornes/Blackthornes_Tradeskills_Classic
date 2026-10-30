@@ -438,3 +438,8 @@ seen in game.
   Gold"), and the header keeps no version line.
 - The auction drawer's view tabs are Sell, Buy, Lists and Auctions; there
   is no Merchant's Favor, so Favors never shows.
+
+## The one window
+
+- `UI/SharedWindow.lua` is Classic's own (2026-10-30); Forever has no copy
+  yet. Nothing shows until "One Window:" is ticked.

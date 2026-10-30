@@ -1991,6 +1991,16 @@ function UI:JoinSharedMinimap()
         settings = function() UI:OpenSettings() end,
         db = function() return ns.db end,
     })
+
+    -- And for the one Blackthornes window (UI/SharedWindow.lua).
+    if ns.SharedWindow then
+        ns.SharedWindow:Join({
+            key = "tradeskills", order = 5, name = "Tradeskills", icon = [[Interface\Icons\Trade_BlackSmithing]],
+            open = function() UI:Toggle() end,
+            settings = function() UI:OpenSettings() end,
+            db = function() return ns.db end,
+        })
+    end
 end
 
 -- Whether a name search for this item must stay wide: green or better

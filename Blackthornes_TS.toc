@@ -127,6 +127,7 @@ UI\WhatsNew.lua
 UI\Collapse.lua
 UI\PriceGraph.lua
 UI\SharedMinimap.lua
+UI\SharedWindow.lua
 UI\Main.lua
 UI\ShoppingListsView.lua
 UI\AuctionWheel.lua
