@@ -56,8 +56,8 @@ hooksecurefunc = function(name, fn) hooks[name] = hooks[name] or {}; table.inser
 local events = {}
 local function Fire(event, ...) for _, fn in ipairs(events[event] or {}) do fn(...) end end
 
-QueryAuctionItems = function(text, _, _, page)
-    queries[#queries + 1] = { text = text, page = page }
+QueryAuctionItems = function(text, _, _, page, _, _, _, exact)
+    queries[#queries + 1] = { text = text, page = page, exact = exact }
     for _, fn in ipairs(hooks.QueryAuctionItems or {}) do fn() end
     list = {}
     for i = page * 50 + 1, math.min(#house, page * 50 + 50) do list[#list + 1] = house[i] end
@@ -156,7 +156,8 @@ house[55] = { 10, 300, "Other" }
 
 check("it opens for the need", LegacyBuy:Open(LINEN, 25) == true)
 Advance(0.2)
-check("it searches by the exact name, page one", queries[1] and queries[1].text == "Linen Cloth" and queries[1].page == 0)
+check("it searches by the exact name, page one", queries[1] and queries[1].text == "Linen Cloth" and queries[1].page == 0
+    and queries[1].exact == true)
 Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
 check("then page two", queries[2] and queries[2].page == 1)
 Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
@@ -298,6 +299,7 @@ check("it opens for one", LegacyBuy:Open(LINEN, 1, { maxEach = 2000, source = "d
 check("it is the tab's plan, not the drawer's", LegacyBuy:IsOpenFor(LINEN, "disenchant")
     and not LegacyBuy:IsOpenFor(LINEN))
 Advance(0.2)
+check("it searches by name alone, so random suffixes show", queries[#queries].exact == false)
 Fire("AUCTION_ITEM_LIST_UPDATE"); Advance(1)
 local deState = LegacyBuy.state
 stack, ready = LegacyBuy:Next()

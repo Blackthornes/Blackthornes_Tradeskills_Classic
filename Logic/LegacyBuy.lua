@@ -222,6 +222,10 @@ function LegacyBuy:Open(itemID, need, opts)
         maxEach = opts and tonumber(opts.maxEach) or nil,
         source = opts and opts.source or nil,
         more = opts and opts.more and true or nil,
+        -- Gear with a random suffix is listed as "Northern Shortsword of
+        -- Strength", which a search for the exact name never finds. The
+        -- Disenchanting tab searches by name alone; rows are kept by item ID.
+        exact = not (opts and opts.source == "disenchant"),
     }
     self:SendPage(self.state, 0)
     Changed()
@@ -292,7 +296,7 @@ function LegacyBuy:SendPage(state, page)
         state.loaded = nil
         LegacyBuy.sending = true
         ns.LegacyScan.sendingOwn = true
-        local sent = pcall(QueryAuctionItems, state.name, nil, nil, page, false, nil, false, true, nil)
+        local sent = pcall(QueryAuctionItems, state.name, nil, nil, page, false, nil, false, state.exact, nil)
         ns.LegacyScan.sendingOwn = false
         LegacyBuy.sending = false
         if not sent then
