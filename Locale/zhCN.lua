@@ -3327,6 +3327,7 @@ L["What the items you listed this visit should bring in, after the auction house
 L["Click a name to open it. Right-click for its settings."] = "点击名称即可打开。右键点击打开它的设置。"
 L["Click to pick an addon"] = "点击选择插件"
 L["Combine Addon Buttons:"] = "合并插件按钮："
+L["One Window:"] = "单一窗口："
 L["Crafting, prices and the auction house"] = "制造、价格和拍卖行"
 L["Right-click for settings"] = "右键点击打开设置"
 L["Got It"] = "知道了"
