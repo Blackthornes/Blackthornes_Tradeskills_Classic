@@ -106,7 +106,7 @@ ns.Widgets = {
             onClick = onClick,
             SetEnabledState = function(self, value) self.enabled = value end,
         })
-        buttons[text] = button
+        buttons[text] = buttons[text] or button
         return button
     end,
     ShowItemTooltip = function() return true end,
