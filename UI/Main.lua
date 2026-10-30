@@ -200,7 +200,7 @@ function UI:Build()
 
     -- Inside the one Blackthornes window, closing this closes that too.
     if window.HookScript then
-        window:HookScript("OnHide", function() TSTabs:Closed() end)
+        window:HookScript("OnHide", function() TSTabs:Closed(window) end)
     end
 
     self.window = window
@@ -2646,8 +2646,11 @@ end
 
 --- The window closed by itself (Escape, its close gem): inside the one
 --- window, the one window closes with it.
-function TSTabs:Closed()
+function TSTabs:Closed(frame)
     if not self.area or self.leaving then return end
+    -- A window built for the first time hides itself before it is laid
+    -- in, and that is no close: only one inside the area counts.
+    if frame and frame.GetParent and frame:GetParent() ~= self.area then return end
     local One = TSTabs.One()
     if One and One.Close then pcall(One.Close) end
 end

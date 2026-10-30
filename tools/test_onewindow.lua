@@ -201,6 +201,13 @@ UI:OpenSettings()
 check("Settings shows in the same area", UI.activeTab == "settings" and UI.window:GetParent() == area
     and UI.window:IsShown() and hub.frame:IsShown())
 
+-- A window built for the first time hides itself before it is laid in
+-- (a player's report, 2026-10-30: picking another addon on the rail once
+-- turned the one window into that addon's own window).
+local fresh = { GetParent = function() return UIParent end }
+Tabs:Closed(fresh)
+check("a window not yet laid in hiding keeps the one window", hub.frame:IsShown() and Tabs:Hosted())
+
 print("4. closing")
 UI:Hide()
 check("closing it closes the one window", not hub.frame:IsShown() and not Tabs:Hosted())
