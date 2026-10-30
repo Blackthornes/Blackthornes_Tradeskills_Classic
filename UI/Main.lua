@@ -2581,7 +2581,7 @@ function TSTabs:AuctionOpened()
     end
     local wasOpen = One.IsOpen and One.IsOpen() or false
     self.beforeAuction = nil
-    if self:Route("auctionhouse") then
+    if TSTabs:Route("auctionhouse") then
         self.openedForAuction = not wasOpen
     else
         self.atAuction = false
