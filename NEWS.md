@@ -23,6 +23,14 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.8.0
+
+- Every window has a new look that matches the other Blackthornes add-ons.
+- The Disenchanting tab now has a Buy button for gear deals.
+
+Fixes and changes:
+- Various bug fixes.
+
 ## 0.7.0
 
 - The auction house now shows a Potential Sale Total that counts up as you list.

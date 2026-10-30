@@ -5,6 +5,10 @@
 local _, ns = ...
 
 ns.WHATS_NEW = {
+    { version = "0.8.0", lines = {
+        "Every window has a new look that matches the other Blackthornes add-ons.",
+        "The Disenchanting tab now has a Buy button for gear deals.",
+    } },
     { version = "0.7.0", lines = {
         "The auction house now shows a Potential Sale Total that counts up as you list.",
         "Enchanters now see disenchant results and chances on item tooltips.",
@@ -14,10 +18,5 @@ ns.WHATS_NEW = {
     { version = "0.6.0", lines = {
         "The Road to 300 now counts what your other characters carry.",
         "One minimap button now opens all your Blackthornes add-ons.",
-    } },
-    { version = "0.5.0", lines = {
-        "The Profit tab now has a Shuffles view.",
-        "The auction house now shows a Sale Total counter.",
-        "You can set the highest price you will sell for.",
     } },
 }
