@@ -230,7 +230,8 @@ local function BuyLabel(entry)
     local buy = ns.LegacyBuy
     if buy:IsOpenFor(entry.itemID, "disenchant") then
         local plan = buy.state
-        if plan.status == "done" then return L["No Deals Left"], false end
+        -- A click looks again, in case new ones were listed.
+        if plan.status == "done" then return L["No Deals Left"], true end
         if plan.status == "buying" then return L["Buying..."], false end
         local stack, ready = buy:Next()
         if stack and ready then
@@ -269,7 +270,7 @@ BuyForDisenchant = function(entry)
     -- Whatever is bought from here is marked to disenchant.
     if ns.DisenchantBuys then ns.DisenchantBuys:Intend(entry.itemID) end
 
-    if buy:IsOpenFor(entry.itemID, "disenchant") then
+    if buy:IsOpenFor(entry.itemID, "disenchant") and buy.state.status ~= "done" then
         buy:Buy()
     else
         local maxEach = MaxEach(entry)

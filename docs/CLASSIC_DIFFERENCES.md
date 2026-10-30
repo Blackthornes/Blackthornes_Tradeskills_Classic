@@ -212,7 +212,9 @@ loads them, and every reader asks for them first.
   deal's net disenchant value less a copper and `more`, so each click buys
   the cheapest copy still under that and plans one more, until "No Deals
   Left". Each click calls `DisenchantBuys:Intend`, so every buy is marked
-  bought to disenchant. Forever keeps only the search. Tested in
+  bought to disenchant. It searches by name alone (not the exact name),
+  so gear with a random suffix ("of Strength") is found; rows are kept by
+  item ID. Forever keeps only the search. Tested in
   `tools/test_legacybuy.lua`.
 - Era fills in a seller's name a moment after the row (bug pass,
   2026-10-27). The buy plan and the price check read a page once more when
