@@ -2,7 +2,7 @@
 -- test in all five Blackthornes addons.
 --
 -- What must hold:
---   1. Off unless ticked; ticking writes every save, and the newest wins.
+--   1. On unless unticked; a choice writes every save, and the newest wins.
 --   2. Only an addon whose pages moved in (host) is hosted, and only while on.
 --   3. The rail has a button for each addon, in order.
 --   4. Picking an addon that moved in lays its pages in and lets the last
@@ -14,6 +14,8 @@
 --      top, the area the same size; moving it there keeps its own place;
 --      when the game's window closes it goes back to its place and the
 --      addon open before, and stays closed when it was closed before.
+--   7. At the auction house, while Tradeskills shows, the row of addon
+--      buttons is left out; another addon picked there brings it back.
 
 local NAMES = { "CreateFrame", "UIParent", "C_Timer", "time", "BlackthornesWindow",
     "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "MerchantFrame", "AuctionFrame" }
@@ -92,7 +94,7 @@ local function Entry(key, order, db, hosted)
     return entry
 end
 
--- 1. Off unless ticked.
+-- 1. On unless unticked.
 local dbA, dbB, dbC = {}, {}, {}
 local a = Entry("alpha", 1, dbA, true)
 local b = Entry("beta", 2, dbB, false)
@@ -100,7 +102,11 @@ local c = Entry("gamma", 3, dbC, true)
 SW:Join(c)
 SW:Join(a)
 SW:Join(b)
-assert(not SW.On(), "off unless ticked")
+assert(SW.On(), "on unless unticked")
+assert(dbA.oneWindow == nil, "nothing is written until a choice")
+SW.SetOn(false)
+assert(not SW.On(), "unticked")
+assert(dbA.oneWindow == false and dbC.oneWindow == false, "every save says off")
 SW.SetOn(true)
 assert(SW.On(), "ticked")
 assert(dbA.oneWindow == true and dbB.oneWindow == true and dbC.oneWindow == true, "every save says on")
@@ -195,8 +201,42 @@ now = now + 5
 SW.Arrived("auction")
 assert(SW.Docked() and SW.Place() == "auction", "docks at the auction house")
 assert(frame.point and frame.point[4] == 840 + SW.DOCK_GAP and frame.point[5] == 720, "beside the auction house")
+assert(SW.RowShown() and frame.rail.shown ~= false, "another addon keeps its row there")
 SW.Left("auction")
 assert(not SW.Docked() and SW.IsOpen() and BlackthornesWindow.current == c, "back on its own after the auction house")
+
+-- 7. Tradeskills alone at the auction house.
+local dbT = {}
+local t = Entry("tradeskills", 5, dbT, true)
+SW:Join(t)
+now = now + 5
+width, height = frame:GetWidth(), frame:GetHeight()
+SW.Arrived("auction")
+SW.Open("tradeskills")
+assert(SW.Docked() and BlackthornesWindow.current == t, "Tradeskills shows at the auction house")
+assert(not SW.RowShown() and frame.rail.shown == false, "no row of addon buttons there")
+assert(frame:GetWidth() == width - SW.RAIL_WIDTH - 8 and frame:GetHeight() == height,
+    "narrower by the rail, no taller")
+SW.Pick("alpha")
+assert(SW.RowShown() and frame.rail.shown == true and frame:GetHeight() == height + SW.ROW_HEIGHT + 8,
+    "another addon picked there brings the row back")
+SW.Pick("tradeskills")
+assert(frame.rail.shown == false and frame:GetHeight() == height, "and Tradeskills leaves it out again")
+SW.Left("auction")
+assert(not SW.Docked() and frame:GetWidth() == width and frame:GetHeight() == height
+    and frame.rail.shown == true, "back to its own size, rail and all")
+assert(BlackthornesWindow.current == c, "back on the addon open before")
+
+-- Opened by Tradeskills as the auction house opens, with the event first.
+SW.Close()
+now = now + 5
+SW.Arrived("auction")
+SW.Open("tradeskills")
+assert(SW.Docked() and frame.rail.shown == false and frame:GetHeight() == height, "no row when opened there")
+SW.Close()
+SW.Left("auction")
+assert(not SW.Docked() and frame:GetHeight() == height and frame.rail.shown == true, "its own size again")
+SW.Open("gamma")
 
 SW.SetOn(false)
 assert(not SW.IsOpen(), "unticking closes it")

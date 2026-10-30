@@ -16,7 +16,8 @@
 -- takes them back. An addon without one still has its rail button, which
 -- opens the addon's own window, so each addon works whatever has moved in.
 --
--- Off unless ticked ("One Window:", nil reads as off). Saved in every loaded
+-- On unless unticked ("One Window:", nil reads as on; the owner, 2026-10-30:
+-- a player who ticked or unticked it keeps that). Saved in every loaded
 -- addon's account save, account wide, never rename them: `oneWindow` (true
 -- or false), `oneWindowAt` (when it was set; the newest wins), `oneWindowPick`
 -- (the addon picked last), `oneWindowLeft`, `oneWindowTop` (its top left
@@ -28,7 +29,9 @@
 -- small row of addon buttons along the top so it stays narrow. When the
 -- game's window closes it goes back to its own place, on the addon that was
 -- open before. Which addon shows there is each addon's own doing (Tradeskills
--- at the auction house, Butler at the mailbox and the vendor). The game's
+-- at the auction house, Butler at the mailbox and the vendor). At the
+-- auction house only Tradeskills is needed (the owner, 2026-10-30), so while
+-- it shows there the row of addon buttons is left out (`only`). The game's
 -- frames are only read for where they stand, never shown, hidden, moved or
 -- written; ours is placed by screen position.
 
@@ -37,7 +40,7 @@ local ADDON, ns = ...
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 3
+local FILE_VERSION = 4
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -61,9 +64,10 @@ SharedWindow.BACK_WAIT = 0.1
 SharedWindow.PRIOR_FOR = 0.5
 
 -- The game's windows the one window docks beside: the events that open and
--- close each, and the frames it may be (read only).
+-- close each, and the frames it may be (read only). `only` is the one addon
+-- needed there: while it shows, the row of addon buttons is left out.
 SharedWindow.PLACES = {
-    auction = { show = "AUCTION_HOUSE_SHOW", hide = "AUCTION_HOUSE_CLOSED", frames = { "AuctionFrame", "AuctionHouseFrame" } },
+    auction = { show = "AUCTION_HOUSE_SHOW", hide = "AUCTION_HOUSE_CLOSED", frames = { "AuctionFrame", "AuctionHouseFrame" }, only = "tradeskills" },
     mail = { show = "MAIL_SHOW", hide = "MAIL_CLOSED", frames = { "MailFrame" } },
     vendor = { show = "MERCHANT_SHOW", hide = "MERCHANT_CLOSED", frames = { "MerchantFrame" } },
     trainer = { show = "TRAINER_SHOW", hide = "TRAINER_CLOSED", frames = { "ClassTrainerFrame" } },
@@ -127,7 +131,7 @@ local function WriteAll(key, value)
     end
 end
 
---- Whether the one window is on: the newest answer any save holds, off when
+--- Whether the one window is on: the newest answer any save holds, on when
 --- none says.
 function SharedWindow.On()
     local value, at = nil, -1
@@ -138,7 +142,7 @@ function SharedWindow.On()
             if when > at then value, at = db.oneWindow, when end
         end
     end
-    return value == true
+    return value ~= false
 end
 
 --- Tick or untick it, in every loaded addon's save at once. Unticked, the
@@ -201,6 +205,7 @@ function SharedWindow.Pick(key)
     hub.current = entry
     WriteAll("oneWindowPick", key)
     if type(entry.host.enter) == "function" then pcall(entry.host.enter, frame.area) end
+    if hub.docked then SharedWindow.Refit() end
     SharedWindow.FillRail()
     return true
 end
@@ -398,16 +403,22 @@ end
 --- Lay the rail down the left side, or, docked, as a row along the top.
 --- The area keeps its size either way, so the pages in it stay as they are:
 --- the window loses the rail's width and gains the row's height.
-function SharedWindow.Lay(frame, docked)
+--- `noRow` (docked only) leaves the row out, the area taking its place.
+function SharedWindow.Lay(frame, docked, noRow)
     local rail, area = frame.rail, frame.area
     rail:ClearAllPoints()
     area:ClearAllPoints()
-    if docked then
+    if docked and noRow then
+        rail:Hide()
+        area:SetPoint("TOPLEFT", frame, "TOPLEFT", EDGE, -TOP)
+    elseif docked then
+        rail:Show()
         rail:SetPoint("TOPLEFT", frame, "TOPLEFT", EDGE, -TOP)
         rail:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -EDGE, -TOP)
         rail:SetHeight(SharedWindow.ROW_HEIGHT)
         area:SetPoint("TOPLEFT", rail, "BOTTOMLEFT", 0, -EDGE)
     else
+        rail:Show()
         rail:SetPoint("TOPLEFT", frame, "TOPLEFT", EDGE, -TOP)
         rail:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", EDGE, EDGE)
         rail:SetWidth(SharedWindow.RAIL_WIDTH)
@@ -566,9 +577,39 @@ function SharedWindow.Docked()
     return hub.docked == true
 end
 
---- The place open now ("mail", "vendor" or "trainer"), or nil.
+--- The place open now ("auction", "mail", "vendor" or "trainer"), or nil.
 function SharedWindow.Place()
     return hub.place
+end
+
+--- True when, docked here, the row of addon buttons shows: always, but
+--- where only one addon is needed and that one is showing.
+function SharedWindow.RowShown()
+    local place = hub.place and SharedWindow.PLACES[hub.place]
+    if place and place.only and hub.current and hub.current.key == place.only then
+        return false
+    end
+    return true
+end
+
+local function RowRoom()
+    return SharedWindow.ROW_HEIGHT + EDGE
+end
+
+--- Docked, the row comes or goes as the addon shown changes (another
+--- addon picked at the auction house brings the row back). The area keeps
+--- its size: the window gains or loses the row's height.
+function SharedWindow.Refit()
+    local frame = hub.frame
+    if not (frame and hub.docked) then return end
+    local row = SharedWindow.RowShown()
+    if row == hub.row then return end
+    local ok, height = pcall(frame.GetHeight, frame)
+    if ok and type(height) == "number" then
+        frame:SetHeight(height + (row and RowRoom() or -RowRoom()))
+    end
+    hub.row = row
+    SharedWindow.Lay(frame, true, not row)
 end
 
 --- Put the window beside the game's window, by screen position: its left
@@ -602,13 +643,14 @@ function SharedWindow.Dock(again)
     if not game then return false end
     if not hub.docked then
         hub.docked = true
+        hub.row = SharedWindow.RowShown()
         local okW, width = pcall(frame.GetWidth, frame)
         local okH, height = pcall(frame.GetHeight, frame)
         if okW and okH and type(width) == "number" and type(height) == "number" then
             frame:SetSize(width - SharedWindow.RAIL_WIDTH - EDGE,
-                height + SharedWindow.ROW_HEIGHT + EDGE)
+                height + (hub.row and RowRoom() or 0))
         end
-        SharedWindow.Lay(frame, true)
+        SharedWindow.Lay(frame, true, not hub.row)
         SharedWindow.FillRail()
     elseif not again then
         return true
@@ -621,11 +663,13 @@ function SharedWindow.Undock()
     local frame = hub.frame
     if not (frame and hub.docked) then return end
     hub.docked = false
+    local row = hub.row ~= false
+    hub.row = nil
     local okW, width = pcall(frame.GetWidth, frame)
     local okH, height = pcall(frame.GetHeight, frame)
     if okW and okH and type(width) == "number" and type(height) == "number" then
         frame:SetSize(width + SharedWindow.RAIL_WIDTH + EDGE,
-            height - SharedWindow.ROW_HEIGHT - EDGE)
+            height - (row and RowRoom() or 0))
     end
     SharedWindow.Lay(frame, false)
     Place(frame)
