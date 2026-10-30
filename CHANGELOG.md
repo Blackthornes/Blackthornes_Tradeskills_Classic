@@ -4,6 +4,13 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.9.0
+
+- All your Blackthornes add-ons now open in one window, with a button for each add-on down the side.
+- The window moves beside the auction house, mailbox, vendor and trainer when you open them.
+- The auction house now shows the price of the item you searched for.
+- Various bug fixes.
+
 ## 0.8.0
 
 - Every window has a new look that matches the other Blackthornes add-ons.

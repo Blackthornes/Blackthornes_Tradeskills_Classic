@@ -23,6 +23,15 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.9.0
+
+- All your Blackthornes add-ons now open in one window, with a button for each add-on down the side.
+- The window moves beside the auction house, mailbox, vendor and trainer when you open them.
+- The auction house now shows the price of the item you searched for.
+
+Fixes and changes:
+- Various bug fixes.
+
 ## 0.8.0
 
 - Every window has a new look that matches the other Blackthornes add-ons.
