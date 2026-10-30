@@ -9,14 +9,14 @@
 --      one go; one that has not opens its own window.
 --   5. The pick, place and scale are kept in every save; closing lets the
 --      pages go; unticking closes the window.
---   6. Docking: up when the game's mailbox, vendor or trainer opens, it
---      sits beside it with the rail as a row along the top, the area the
---      same size; moving it there keeps its own place; when the game's
---      window closes it goes back to its place and the addon open before,
---      and stays closed when it was closed before.
+--   6. Docking: up when the game's auction house, mailbox, vendor or
+--      trainer opens, it sits beside it with the rail as a row along the
+--      top, the area the same size; moving it there keeps its own place;
+--      when the game's window closes it goes back to its place and the
+--      addon open before, and stays closed when it was closed before.
 
 local NAMES = { "CreateFrame", "UIParent", "C_Timer", "time", "BlackthornesWindow",
-    "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "MerchantFrame" }
+    "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "MerchantFrame", "AuctionFrame" }
 local saved = {}
 for _, name in ipairs(NAMES) do saved[name] = _G[name] end
 
@@ -187,6 +187,16 @@ assert(SW.Docked(), "docks when the event comes after")
 SW.Close()
 SW.Left("vendor")
 assert(SW.IsOpen() and BlackthornesWindow.current == c and not SW.Docked(), "reopens on the addon open before")
+
+-- At the auction house too.
+AuctionFrame = Object()
+AuctionFrame.right, AuctionFrame.top = 840, 720
+now = now + 5
+SW.Arrived("auction")
+assert(SW.Docked() and SW.Place() == "auction", "docks at the auction house")
+assert(frame.point and frame.point[4] == 840 + SW.DOCK_GAP and frame.point[5] == 720, "beside the auction house")
+SW.Left("auction")
+assert(not SW.Docked() and SW.IsOpen() and BlackthornesWindow.current == c, "back on its own after the auction house")
 
 SW.SetOn(false)
 assert(not SW.IsOpen(), "unticking closes it")

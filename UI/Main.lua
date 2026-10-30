@@ -60,6 +60,12 @@ local AUCTION_BAR_BUTTON_HEIGHT = 22
 local AUCTION_BAR_GAP = 6
 
 UI.AUCTION_BAR_HEIGHT = AUCTION_BAR_HEIGHT
+
+-- Inside the one Blackthornes window at the auction house (the owner picked
+-- it, 2026-10-30): the window narrows to this on the Auction House tab, which
+-- holds the sell drawer, and these tabs are the ones that show there.
+UI.AUCTION_TAB_WIDTH = 560
+UI.AUCTION_TABS = { auctionhouse = true, profit = true, queue = true, levelup = true, settings = true }
 UI.AUCTION_BAR_WIDTH = AUCTION_BAR_WIDTH
 
 --- A button as wide as the longest of its words, plus room for the bevel.
@@ -336,6 +342,7 @@ function UI:BuildTabs()
     end, { width = stripWidth, hanging = true })
     strip:SetPoint("TOPLEFT", window, "BOTTOMLEFT", TAB_INSET, 0)
     self.tabStrip = strip
+    if strip.ShowOnly then strip:ShowOnly(self:ShownTabKeys(), stripWidth) end
 
     local content = Theme.CreatePanel(window, "panel")
     content:SetPoint("TOPLEFT", self.header, "BOTTOMLEFT", 0, -4)
@@ -373,10 +380,53 @@ UI.MOVED_TABS = {
     stats = "prices",
 }
 
+--- The tabs the strip shows: at the auction house inside the one window,
+--- the Auction House tab and the few that go with it; else every tab but
+--- that one.
+function UI:ShownTabKeys()
+    local atAuction = TSTabs:AtAuction()
+    local keys = {}
+    for _, tab in ipairs(self.tabOrder) do
+        local shown
+        if atAuction then shown = UI.AUCTION_TABS[tab.key] else shown = tab.key ~= "auctionhouse" end
+        if shown then keys[#keys + 1] = tab.key end
+    end
+    return keys
+end
+
+--- Lay the strip out again with the tabs that belong now.
+function UI:ShowTabSet()
+    local strip = self.tabStrip
+    if strip and strip.ShowOnly then strip:ShowOnly(self:ShownTabKeys()) end
+end
+
 function UI:SelectTab(key)
     key = UI.MOVED_TABS[key] or key
+    -- The Auction House tab is only there at the auction house.
+    if key == "auctionhouse" and not TSTabs:AtAuction() then key = "profit" end
     local tab = self.tabs[key]
     if not tab then return end
+
+    -- A tab left out at the auction house, asked for anyway: every tab
+    -- comes back, so the one asked for shows.
+    local strip = self.tabStrip
+    if strip and strip.Shows and not strip:Shows(key) and strip.ShowOnly then
+        local keys = {}
+        for _, other in ipairs(self.tabOrder) do
+            if other.key ~= "auctionhouse" then keys[#keys + 1] = other.key end
+        end
+        if TSTabs:AtAuction() then keys[#keys + 1] = "auctionhouse" end
+        strip:ShowOnly(keys)
+    end
+
+    -- Narrow on the Auction House tab, the whole width on the others.
+    TSTabs:Narrow(key == "auctionhouse")
+
+    -- The drawer has its own Scan in its header: the window's steps aside.
+    local auction = key == "auctionhouse"
+    if self.scanButton then self.scanButton:SetShown(not auction) end
+    if self.statusLabel and self.statusLabel.SetShown then self.statusLabel:SetShown(not auction) end
+    if self.scanHint then self.scanHint:SetShown(not auction) end
 
     for _, other in ipairs(self.tabOrder) do
         if other.container then
@@ -387,7 +437,7 @@ function UI:SelectTab(key)
     self.activeTab = key
     self.tabStrip:Select(key)
 
-    if ns.db then ns.db.lastTab = key end
+    if ns.db and key ~= "auctionhouse" then ns.db.lastTab = key end
 
     if tab.onShow then tab.onShow() end
     if tab.refresh then tab.refresh() end
@@ -2221,6 +2271,8 @@ function UI:OnEnable()
     ns.RegisterEvent(self, "AUCTION_HOUSE_SHOW", function()
         UI:UpdateHeader()
         UI:AttachToAuctionHouse()
+        -- With "One Window:" ticked, the drawer goes inside it instead.
+        TSTabs:AuctionOpened()
 
         -- Blizzard's auction UI is load-on-demand, so on the first open of a
         -- session the frame may not exist yet when this event arrives.
@@ -2279,6 +2331,7 @@ function UI:OnEnable()
     ns.RegisterEvent(self, "MERCHANT_CLOSED", function() UI:CloseWithShop("merchant") end)
 
     ns.RegisterEvent(self, "AUCTION_HOUSE_CLOSED", function()
+        TSTabs:AuctionClosed()
         UI:CloseWithShop("auction")
         UI:UpdateHeader()
         if UI.auctionBar then UI.auctionBar:Hide() end
@@ -2393,6 +2446,7 @@ function TSTabs:LayIn()
             strip:SetRoom(width - 2 * TAB_INSET)
         end
     end
+    UI:ShowTabSet()
 end
 
 --- Give the window back its own place, size and scale.
@@ -2409,6 +2463,10 @@ function TSTabs:LayOut()
         strip:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", TAB_INSET, 0)
         if strip.SetRoom then strip:SetRoom(WINDOW_WIDTH - 2 * TAB_INSET) end
     end
+    UI:ShowTabSet()
+    if UI.scanButton then UI.scanButton:Show() end
+    if UI.statusLabel and UI.statusLabel.Show then UI.statusLabel:Show() end
+    if UI.scanHint then UI.scanHint:Show() end
     frame:SetScale(UI:GetWindowScale())
     UI:RestorePosition()
 end
@@ -2446,15 +2504,125 @@ end
 function TSTabs:Leave()
     if not self.area then return end
     self.leaving = true
+    TSTabs:Narrow(false)
     local frame = UI.window
     if Shown(frame) then
         local ok, err = pcall(UI.Hide, UI)
         if not ok and ns.Debug then ns.Debug("one window leave:", tostring(err)) end
     end
     self.area = nil
+    self.openedForAuction = false
     TSTabs:LayOut()
+    -- Still at the auction house: the drawer goes back beside it.
+    if self.atAuction and ns.PostPanel and ns.PostPanel.inside then
+        ns.PostPanel:LayOut()
+        if ns.Scanner and ns.Scanner.isAuctionHouseOpen then ns.PostPanel:Attach() end
+    end
     self.leaving = false
 end
+
+--------------------------------------------------------------------------------
+-- At the auction house (the owner picked it, 2026-10-30): with "One Window:"
+-- ticked, the sell drawer goes inside the one window on an Auction House
+-- tab, the window narrows to it, and only Profit, Queue, Level Up and
+-- Settings show beside it. Walking away brings the other tabs back.
+--------------------------------------------------------------------------------
+
+-- True between the auction house opening and closing, while Tradeskills is
+-- in the one window there.
+TSTabs.atAuction = false
+-- True when the one window was opened for this visit, so it closes again.
+TSTabs.openedForAuction = false
+-- How much narrower the one window was made for the Auction House tab.
+TSTabs.narrowedBy = 0
+
+--- True while the drawer belongs inside the window.
+function TSTabs:AtAuction()
+    return self.atAuction == true and self.area ~= nil
+end
+
+--- The window narrows to the Auction House tab, or gets its width back.
+--- By how much it moved, so the one window's docking, which changes its
+--- size too, is left as it was.
+function TSTabs:Narrow(on)
+    local area = self.area
+    local one = area and area:GetParent()
+    if not one then return end
+    local by = 0
+    if on then
+        local ok, width = pcall(area.GetWidth, area)
+        width = ok and type(width) == "number" and width + (self.narrowedBy or 0) or 0
+        by = math.max(0, width - UI.AUCTION_TAB_WIDTH)
+    end
+    local move = by - (self.narrowedBy or 0)
+    if move == 0 then return end
+    self.narrowedBy = by
+    local ok, width = pcall(one.GetWidth, one)
+    if ok and type(width) == "number" then one:SetWidth(width - move) end
+    local strip = UI.tabStrip
+    local okA, areaWidth = pcall(area.GetWidth, area)
+    if strip and strip.SetRoom and okA and type(areaWidth) == "number" and areaWidth > 0 then
+        strip:SetRoom(areaWidth - 2 * TAB_INSET)
+    end
+end
+
+--- The auction house opened: inside the one window, the drawer goes on
+--- its tab, opening the one window on Tradeskills when it has to.
+function TSTabs:AuctionOpened()
+    local One = TSTabs.One()
+    if not (One and One.Hosts and One.Hosts("tradeskills")) then return end
+    if self.atAuction and self.area then return end
+    self.atAuction = true
+    if self.area then
+        self.beforeAuction = UI.activeTab
+        UI:ShowTabSet()
+        UI:SelectTab("auctionhouse")
+        return
+    end
+    local wasOpen = One.IsOpen and One.IsOpen() or false
+    self.beforeAuction = nil
+    if self:Route("auctionhouse") then
+        self.openedForAuction = not wasOpen
+    else
+        self.atAuction = false
+    end
+end
+
+--- The auction house closed: the drawer comes out, the tabs come back and
+--- a one window opened for the visit closes again.
+function TSTabs:AuctionClosed()
+    if not self.atAuction then return end
+    self.atAuction = false
+    if ns.PostPanel and ns.PostPanel.inside then ns.PostPanel:LayOut() end
+    if not self.area then return end
+    TSTabs:Narrow(false)
+    UI:ShowTabSet()
+    if UI.activeTab == "auctionhouse" or not UI.activeTab then
+        UI:SelectTab(self.beforeAuction or (ns.db and ns.db.lastTab) or "profit")
+    else
+        UI:SelectTab(UI.activeTab)
+    end
+    self.beforeAuction = nil
+    if self.openedForAuction then
+        self.openedForAuction = false
+        local One = TSTabs.One()
+        if One and One.Close then pcall(One.Close) end
+    end
+end
+
+-- The Auction House tab: the sell drawer, laid in while it shows.
+UI:RegisterTab({
+    key = "auctionhouse",
+    text = L["Auction House"],
+    order = 0,
+    build = function(container) TSTabs.auctionContainer = container end,
+    onShow = function()
+        local panel = ns.PostPanel
+        if panel and TSTabs.auctionContainer and TSTabs:AtAuction() then
+            panel:LayIn(TSTabs.auctionContainer)
+        end
+    end,
+})
 
 --- What Tradeskills gives the one window when it joins.
 TSTabs.host = {
