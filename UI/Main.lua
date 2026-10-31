@@ -65,7 +65,17 @@ UI.AUCTION_BAR_HEIGHT = AUCTION_BAR_HEIGHT
 -- it, 2026-10-30): the window narrows to this on the Auction House tab, which
 -- holds the sell drawer, and these tabs are the ones that show there.
 UI.AUCTION_TAB_WIDTH = 560
-UI.AUCTION_TABS = { auctionhouse = true, profit = true, queue = true, levelup = true, settings = true }
+-- The tabs at the auction house, in this order: Forever's row, less Favors
+-- and Writs, which Era has not got.
+UI.AUCTION_TABS = { "auctionhouse", "prices", "profit", "queue", "disenchanting", "settings" }
+
+--- True for a tab on the auction house row.
+function UI.IsAuctionTab(key)
+    for _, other in ipairs(UI.AUCTION_TABS) do
+        if other == key then return true end
+    end
+    return false
+end
 UI.AUCTION_BAR_WIDTH = AUCTION_BAR_WIDTH
 
 --- A button as wide as the longest of its words, plus room for the bevel.
@@ -384,14 +394,27 @@ UI.MOVED_TABS = {
 --- the Auction House tab and the few that go with it; else every tab but
 --- that one.
 function UI:ShownTabKeys()
-    local atAuction = TSTabs:AtAuction()
     local keys = {}
+    if TSTabs:AtAuction() then
+        for _, key in ipairs(UI.AUCTION_TABS) do
+            if self.tabs[key] then keys[#keys + 1] = key end
+        end
+        return keys
+    end
     for _, tab in ipairs(self.tabOrder) do
-        local shown
-        if atAuction then shown = UI.AUCTION_TABS[tab.key] else shown = tab.key ~= "auctionhouse" end
-        if shown then keys[#keys + 1] = tab.key end
+        if tab.key ~= "auctionhouse" then keys[#keys + 1] = tab.key end
     end
     return keys
+end
+
+--- True while the strip shows a tab that is not on the auction house row.
+function UI:ShowsOtherTabs()
+    local strip = self.tabStrip
+    if not (strip and strip.Shows) then return false end
+    for _, tab in ipairs(self.tabOrder) do
+        if not UI.IsAuctionTab(tab.key) and strip:Shows(tab.key) then return true end
+    end
+    return false
 end
 
 --- Lay the strip out again with the tabs that belong now.
@@ -407,15 +430,20 @@ function UI:SelectTab(key)
     local tab = self.tabs[key]
     if not tab then return end
 
-    -- A tab left out at the auction house, asked for anyway: every tab
-    -- comes back, so the one asked for shows.
     local strip = self.tabStrip
-    if strip and strip.Shows and not strip:Shows(key) and strip.ShowOnly then
+    if strip and strip.ShowOnly and strip.Shows and TSTabs:AtAuction() and UI.IsAuctionTab(key)
+        and UI:ShowsOtherTabs() then
+        -- Back on the auction house row: a tab opened before it (the last
+        -- tab the window kept, as it opens there) had brought every tab back.
+        UI:ShowTabSet()
+    elseif strip and strip.Shows and not strip:Shows(key) and strip.ShowOnly then
+        -- A tab left out at the auction house, asked for anyway: every tab
+        -- comes back, so the one asked for shows.
         local keys = {}
+        if TSTabs:AtAuction() then keys[1] = "auctionhouse" end
         for _, other in ipairs(self.tabOrder) do
             if other.key ~= "auctionhouse" then keys[#keys + 1] = other.key end
         end
-        if TSTabs:AtAuction() then keys[#keys + 1] = "auctionhouse" end
         strip:ShowOnly(keys)
     end
 
@@ -2280,6 +2308,7 @@ function UI:OnEnable()
         C_Timer.After(0.5, function()
             if ns.Scanner.isAuctionHouseOpen then
                 UI:AttachToAuctionHouse()
+                TSTabs:DockAgain()
             end
         end)
 
@@ -2586,6 +2615,18 @@ function TSTabs:AuctionOpened()
     else
         self.atAuction = false
     end
+end
+
+--- On the first visit of a session the game's auction window shows late,
+--- so the one window opened for it found nothing to sit beside and stayed
+--- where it was, over the auction house. A moment later, dock it.
+function TSTabs:DockAgain()
+    if not TSTabs:AtAuction() then return end
+    local One = TSTabs.One()
+    if not (One and One.Place and One.Docked and One.Dock) then return end
+    local okPlace, place = pcall(One.Place)
+    local okDocked, docked = pcall(One.Docked)
+    if okPlace and place == "auction" and okDocked and not docked then pcall(One.Dock) end
 end
 
 --- The auction house closed: the drawer comes out, the tabs come back and

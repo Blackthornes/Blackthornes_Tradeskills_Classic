@@ -1526,9 +1526,19 @@ function Widgets.CreateTabStrip(parent, tabs, onSelect, opts)
     local packed = 1
 
     --- The tabs showing, in order: all of them unless strip:ShowOnly picked
-    --- some (Tradeskills at the auction house, 2026-10-30).
+    --- some (Tradeskills at the auction house, 2026-10-30), in the order it
+    --- named them.
     local function Showing()
         local list = {}
+        if strip.order then
+            local byKey = {}
+            for _, button in ipairs(strip.tabs) do byKey[button.key] = button end
+            for _, key in ipairs(strip.order) do
+                local button = byKey[key]
+                if button and not button.leftOut then list[#list + 1] = button end
+            end
+            return list
+        end
         for _, button in ipairs(strip.tabs) do
             if not button.leftOut then list[#list + 1] = button end
         end
@@ -1678,6 +1688,7 @@ function Widgets.CreateTabStrip(parent, tabs, onSelect, opts)
             wanted = {}
             for _, key in ipairs(keys) do wanted[key] = true end
         end
+        self.order = keys
         for _, button in ipairs(self.tabs) do
             button.leftOut = wanted and not wanted[button.key] or nil
             button:SetShown(not button.leftOut)

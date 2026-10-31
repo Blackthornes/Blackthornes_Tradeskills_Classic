@@ -450,10 +450,15 @@ seen in game.
 - Docking beside the auction house, mailbox, vendor and trainer (2026-10-30) is in the
   shared file, so Forever has none of it either.
 - At the auction house the one window shows the Auction House tab with
-  the sell drawer inside it, narrows and keeps only Profit, Queue, Level
-  Up and Settings beside it (`TSTabs:AuctionOpened`, `PostPanel:LayIn`,
-  `strip:ShowOnly`). Forever's drawer always hangs beside the auction
-  window.
+  the sell drawer inside it, narrows and keeps only the tabs Forever's
+  auction row has, in Forever's order: Auction House, Prices, Profit,
+  Queue, Disenchanting and Settings (`UI.AUCTION_TABS`; Forever's Favors
+  and Writs is left out, Era has no Merchant's Favor). `strip:ShowOnly`
+  keeps that order, and a remembered tab outside the row no longer brings
+  every tab back (2026-10-31). `TSTabs:DockAgain` docks it half a second
+  after the visit starts, since the game's auction window shows late on
+  the first visit and the one window was left over it. Forever's drawer
+  always hangs beside the auction window.
 - After a search in the game's auction window, the drawer shows a gold row
   with the item and its Auction value from your scans, or "not scanned
   yet" (`UI/SearchedPrice.lua`, `PostPanel:PlaceSearched`). Era only: it
