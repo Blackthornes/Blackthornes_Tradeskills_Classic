@@ -206,6 +206,13 @@ local function CreateRow(row)
     end)
     row.priceField = field
 
+    -- The price each in the game's coins, in its own columns at the end of
+    -- the price line (UI/Coins.lua), so the prices line up down the list.
+    if ns.Coins then
+        row.coins = ns.Coins.Create(row, function() return Theme.CreateLabel(row, "tiny", "text", "RIGHT") end)
+        row.coinsGap = ns.Coins.Width(row.coins) + 6
+    end
+
     row.post = Widgets.CreateButton(row, L["List"], function()
         CommitTyping(PostPanel.list)
         if not row.data then return end
@@ -311,7 +318,10 @@ local function PlaceDetail(row, need)
         if mark.ClearAllPoints then mark:ClearAllPoints() end
         mark:SetPoint("TOPLEFT", row, "TOPLEFT", 6, y + 1)
     end
-    row.detail:SetPoint("TOPRIGHT", row, "TOPRIGHT", -TEXT_INSET, y)
+    local coins = rawget(row, "coins")
+    local gap = coins and rawget(row, "coinsGap") or 0
+    row.detail:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(TEXT_INSET + gap), y)
+    if coins and ns.Coins then ns.Coins.Place(coins, row, "TOPRIGHT", -TEXT_INSET, y - 6) end
     if need then
         -- The price line under it, and a little room below.
         row.name.rowNeed = need + 16
@@ -389,10 +399,22 @@ function UpdateRow(row, line)
     -- and a commodity posting 63 at once is worth noticing before clicking.
     -- Listing part of a stack says so, since "7 @ 6c" out of 20 in the bag
     -- reads the same as all of them otherwise.
+    -- With the coin columns the price each sits in them, and the line keeps
+    -- how many go up.
+    local coins = rawget(row, "coins")
+    local inCoins = coins ~= nil and ns.Coins ~= nil and line.unitPrice ~= nil and not line.held
+    if coins and ns.Coins then ns.Coins.Set(coins, inCoins and line.unitPrice or nil) end
     local eachPrice = Util.FormatMoney(line.unitPrice, { noColor = true, short = true })
-    local each = line.postQuantity < maxQuantity
-        and L.Format("%d of %d @ %s", line.postQuantity, maxQuantity, eachPrice)
-        or L.Format("%d @ %s", line.postQuantity, eachPrice)
+    local each
+    if inCoins then
+        each = line.postQuantity < maxQuantity
+            and L.Format("%d of %d", line.postQuantity, maxQuantity)
+            or tostring(line.postQuantity)
+    else
+        each = line.postQuantity < maxQuantity
+            and L.Format("%d of %d @ %s", line.postQuantity, maxQuantity, eachPrice)
+            or L.Format("%d @ %s", line.postQuantity, eachPrice)
+    end
     -- Held down to the Highest price the player set (2026-10-28).
     if line.priceBasis == "highest" then each = L.Format("%s (the most you set)", each) end
     local total = "  =  " .. Util.FormatMoney(line.postTotal or 0, { noColor = true, short = true })
