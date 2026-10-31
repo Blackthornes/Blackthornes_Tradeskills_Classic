@@ -148,4 +148,20 @@ do
     check("and the row grows to hold it", row.name.rowNeed == 40)
 end
 
+-- The mark before the price line (UI/Marks.lua, 2026-10-31): a tag to
+-- list, an hourglass while it waits, a lock while another addon keeps it.
+do
+    local MarkFor = PostPanel._MarkFor
+    check("a row to list shows the tag", MarkFor({ itemID = 1 }) == "list")
+    check("a row kept for another addon shows the lock", MarkFor({ held = "For your goal" }) == "kept")
+    check("a row that waits shows the hourglass",
+        MarkFor({ held = "Waiting, already 2 up", heldWaits = true }) == "waiting")
+    check("no line, no mark", MarkFor(nil) == nil)
+
+    local xs = {}
+    local row = { name = {}, detail = { SetPoint = function(_, point, _, _, x) xs[point] = x end }, markGap = 22 }
+    PostPanel._PlaceDetail(row, nil)
+    check("the price line starts past the mark", xs.TOPLEFT == 22)
+end
+
 print(("\n%d check(s) passed\n"):format(checks))

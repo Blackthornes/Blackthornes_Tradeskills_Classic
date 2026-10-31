@@ -160,6 +160,11 @@ local function CreateRow(row)
         row.chip:SetPoint("TOPRIGHT", row, "TOPRIGHT", -TEXT_INSET, -4)
     end
 
+    -- The mark before the price line (UI/Marks.lua): a tag to list, an
+    -- hourglass while it waits, a lock while another addon keeps it.
+    row.mark = row:CreateTexture(nil, "ARTWORK")
+    if ns.Marks then ns.Marks.Attach(row.mark) else row.mark:Hide() end
+
     row.detail = Theme.CreateLabel(row, "tiny", "muted")
     row.detail:SetPoint("TOPLEFT", 8, -18)
     row.detail:SetPoint("TOPRIGHT", row, "TOPRIGHT", -TEXT_INSET, -18)
@@ -274,7 +279,7 @@ local function DetailTooWide(row)
     if type(room) ~= "number" or room <= 0 then
         -- Not laid out yet: the room its anchors will give it.
         local rowWidth = row:GetWidth()
-        room = type(rowWidth) == "number" and (rowWidth - 8 - TEXT_INSET) or nil
+        room = type(rowWidth) == "number" and (rowWidth - (rawget(row, "markGap") or 8) - TEXT_INSET) or nil
     end
 
     return room ~= nil and room > 0 and width > room
@@ -299,7 +304,13 @@ end
 --- both. `need` is how tall the wrapped name stands, nil on one line.
 local function PlaceDetail(row, need)
     local y = need and -(4 + need + 2) or -18
-    row.detail:SetPoint("TOPLEFT", row, "TOPLEFT", 8, y)
+    local x = rawget(row, "markGap") or 8
+    row.detail:SetPoint("TOPLEFT", row, "TOPLEFT", x, y)
+    local mark = rawget(row, "mark")
+    if mark and mark.SetPoint then
+        if mark.ClearAllPoints then mark:ClearAllPoints() end
+        mark:SetPoint("TOPLEFT", row, "TOPLEFT", 6, y + 1)
+    end
     row.detail:SetPoint("TOPRIGHT", row, "TOPRIGHT", -TEXT_INSET, y)
     if need then
         -- The price line under it, and a little room below.
@@ -308,6 +319,16 @@ local function PlaceDetail(row, need)
 end
 
 PostPanel._PlaceDetail = PlaceDetail
+
+--- The mark a Sell row shows (UI/Marks.lua): "waiting" while it waits for
+--- room or a better price, "kept" while another addon keeps it, else "list".
+local function MarkFor(line)
+    if not line then return nil end
+    if line.held then return line.heldWaits and "waiting" or "kept" end
+    return "list"
+end
+
+PostPanel._MarkFor = MarkFor
 
 --- The row's tag: its list's name, or "Own price", and what each means.
 local function ListTag(line)
@@ -334,6 +355,11 @@ function UpdateRow(row, line)
             row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -TEXT_INSET, -4)
         end
     end
+
+    -- The mark first, so the price line knows where it starts.
+    local markKind = ns.Marks and MarkFor(line) or nil
+    if ns.Marks and rawget(row, "mark") then ns.Marks.Set(row.mark, markKind) end
+    row.markGap = markKind and (8 + ns.Marks.SIZE + 2) or 8
 
     -- Whole, never cut to "...": smaller, then wrapped, when it is long.
     if Theme.SetRowName then Theme.SetRowName(row.name, line.label) else row.name:SetText(line.label) end
@@ -406,6 +432,8 @@ function UpdateRow(row, line)
     if line.held then
         row.name:SetTextColor(Theme.Unpack("muted"))
         row.detail:SetTextColor(Theme.Unpack("accent"))
+        -- In its mark's colour: amber while it waits, green while kept.
+        if ns.Marks then ns.Marks.Paint(row.detail, markKind) end
     elseif line.atALoss then
         row.name:SetTextColor(Theme.Unpack("loss"))
         row.detail:SetTextColor(Theme.Unpack("loss"))
