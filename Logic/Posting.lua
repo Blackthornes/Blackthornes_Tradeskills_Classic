@@ -1228,7 +1228,7 @@ function Posting:GetPostable(opts)
             -- row still shows dimmed with why when the caller asks
             -- (showHeld), so the player can list it by hand, but List all
             -- and Post Crafted never pick it (GetNextPostable).
-            local heldAll, kept, keptWhy
+            local heldAll, kept, keptWhy, heldWaits
             -- The list the item is on (Logic/ListRules.lua): its Keep in
             -- Bags is one more keep, the bigger one wins.
             local listRule = ns.ListRules and ns.ListRules:For(itemID)
@@ -1259,6 +1259,7 @@ function Posting:GetPostable(opts)
                 listRoom, listUp = ns.ListRules:ListedRoom(itemID)
                 if listRoom and listRoom <= 0 then
                     heldAll = L.Format("Waiting, already %d up", listUp)
+                    heldWaits = true
                 elseif listRoom and listRoom < count then
                     count = listRoom
                 end
@@ -1270,6 +1271,7 @@ function Posting:GetPostable(opts)
             -- session still lists, and so does its own List button.
             if waits and not chosen and count and count > 0 and not heldAll then
                 heldAll = L["Waiting, others are selling for less"]
+                heldWaits = true
             end
 
             if keep and count and count <= 0 then
@@ -1362,6 +1364,9 @@ function Posting:GetPostable(opts)
                     -- Why another addon wants it all kept, or how many it
                     -- kept back and why (SisterKeeps).
                     held = heldAll,
+                    -- Held only to wait (Keep Listed full, or When
+                    -- Cheaper), not kept for another addon: its mark.
+                    heldWaits = heldWaits or nil,
                     kept = kept,
                     keptWhy = keptWhy,
                     -- The copy itself when it has a random suffix: the item
