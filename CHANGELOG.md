@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.10.1
+
+- Various bug fixes.
+
 ## 0.10.0
 
 - The auction house tabs now match the other Blackthornes add-ons.
