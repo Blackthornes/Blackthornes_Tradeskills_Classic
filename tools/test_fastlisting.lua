@@ -246,7 +246,7 @@ Posting:NoteChecked(POTION)
 Posting:Request(POTION, 5, 290)
 check("selling at a loss off: nothing listed on the click", #posted, 0)
 if searches[1] then searches[1].cb(POTION, 290, 290, 5, true, {}, "recent") end
-check("and no box after the check", popup, nil)
+check("the List It or Skip box asks instead", popup ~= nil, true)
 check("nothing listed after it either", #posted, 0)
 settings.allowPostingAtALoss = true
 
@@ -423,8 +423,8 @@ costs[POTION] = 500
 recorded[POTION] = 290
 Posting:NoteChecked(POTION)
 Posting:Request(POTION, 5, 290)
-check("a loss is refused when it is off", #posted, 0)
-check("and no box", popup, nil)
+check("a loss is not listed straight off when it is off", #posted, 0)
+check("the List It or Skip box asks first", popup ~= nil, true)
 
 Reset()
 settings.askBeforeListing = nil

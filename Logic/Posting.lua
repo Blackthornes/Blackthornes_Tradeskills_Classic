@@ -1759,7 +1759,7 @@ function Posting:PrepareFor(itemID)
     return PlaceInSellSlot(itemID, bag, slot)
 end
 
-function Posting:Post(itemID, quantity, unitPrice, byHand)
+function Posting:Post(itemID, quantity, unitPrice, byHand, anyway)
     local allowed, reason = self:CanPost(itemID)
     if not allowed then
         ns.Print(reason)
@@ -1838,7 +1838,10 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     -- A nonsense price is caught before anything irreversible happens. This
     -- is separate from the material-cost check below: that one is about
     -- profit, this one is about the number being wrong.
-    local floor, why = self:GetPriceFloor(itemID, byHand)
+    -- `anyway`: the player said List It in the box that asked about this
+    -- one listing (Posting:AskAnyway), so the three guards below step aside.
+    local floor, why
+    if not anyway then floor, why = self:GetPriceFloor(itemID, byHand) end
 
     if floor and unitPrice < floor then
         ns.Warn(L.Format("not listing %s at %s: %s.",
@@ -1851,7 +1854,7 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     -- Refuse to list below what the materials cost. An undercut war can drive
     -- the rival price under your own cost, and following it down loses gold on
     -- every sale.
-    local unitCost = self:BelowCost(itemID, unitPrice)
+    local unitCost = not anyway and self:BelowCost(itemID, unitPrice)
     if unitCost then
         ns.Warn(L.Format("not listing %s at %s, the materials cost %s",
             Util.GetItemLabel(itemID),
@@ -1861,7 +1864,8 @@ function Posting:Post(itemID, quantity, unitPrice, byHand)
     end
 
     -- Under what the last craft of it cost, with that guard turned on.
-    local paid, net = self:BelowCraftedCost(itemID, unitPrice)
+    local paid, net
+    if not anyway then paid, net = self:BelowCraftedCost(itemID, unitPrice) end
     if paid then
         ns.Warn(ns.CraftedCost:RefusalText(itemID, unitPrice, paid, net))
         ns.Warn(L["turn off 'Never below what I paid' in Settings to allow it."])
@@ -2015,16 +2019,16 @@ end
 -- @param byHand  the price is one the player typed (the price editor): the
 --   fifth-of-market guard stands aside, since selling far under market is
 --   then the point. The vendor floor still holds.
--- @return floor, why
+-- @return floor, why, kind ("vendor" or "market")
 function Posting:GetPriceFloor(itemID, byHand)
-    local floor, why = 0, nil
+    local floor, why, kind = 0, nil, nil
 
     -- Below what a vendor pays, selling it to a vendor is strictly better.
     -- Remembered for the session: this runs for every line, every second,
     -- at the auction house.
     local sellPrice = Util.GetVendorSellPrice(itemID)
     if sellPrice and sellPrice > 0 then
-        floor, why = sellPrice, L["a vendor pays more than that"]
+        floor, why, kind = sellPrice, L["a vendor pays more than that"], "vendor"
     end
 
     -- A fifth of market value. Wide enough for a real undercut war, narrow
@@ -2039,12 +2043,12 @@ function Posting:GetPriceFloor(itemID, byHand)
     if market and market > 0 then
         local fraction = math.floor(market * 0.2)
         if fraction > floor then
-            floor, why = fraction, L["that is a fraction of what it normally sells for"]
+            floor, why, kind = fraction, L["that is a fraction of what it normally sells for"], "market"
         end
     end
 
     if floor < 1 then return nil end
-    return floor, why
+    return floor, why, kind
 end
 
 --------------------------------------------------------------------------------
@@ -2081,7 +2085,11 @@ StaticPopupDialogs["BLACKTHORNES_TS_CONFIRM_POST"] = {
         if not data then return end
 
         Posting.confirming = nil
-        Posting:Post(data.itemID, data.quantity, data.unitPrice, data.byHand)
+        if data.anyway then
+            Posting.saidAnyway = rawget(Posting, "saidAnyway") or {}
+            Posting.saidAnyway[data.itemID] = { price = data.unitPrice, at = GetTime() }
+        end
+        Posting:Post(data.itemID, data.quantity, data.unitPrice, data.byHand, data.anyway)
     end,
 
     -- "override" is the game replacing this dialog with the next one (a
@@ -2200,6 +2208,11 @@ function Posting:BuildConfirmText(itemID, quantity, unitPrice, check)
         end
     end
 
+    -- Why this one would not go up by itself (Posting:AskAnyway).
+    if check.warn then
+        text = text .. ("\n|c%s%s|r"):format(ns.COLORS.warn, check.warn)
+    end
+
     return text .. "\n\n" .. L["List it at this price, or skip it."]
 end
 
@@ -2255,8 +2268,9 @@ function Posting:HideConfirmIcon(dialog)
     if icon then pcall(icon.Hide, icon) end
 end
 
-function Posting:ShowConfirm(itemID, quantity, unitPrice, text, byHand)
-    local confirming = { itemID = itemID, quantity = quantity, unitPrice = unitPrice, byHand = byHand or nil }
+function Posting:ShowConfirm(itemID, quantity, unitPrice, text, byHand, anyway)
+    local confirming = { itemID = itemID, quantity = quantity, unitPrice = unitPrice,
+        byHand = byHand or nil, anyway = anyway or nil }
     self.confirming = confirming
 
     local dialog = StaticPopup_Show("BLACKTHORNES_TS_CONFIRM_POST", text, nil, confirming)
@@ -2375,7 +2389,11 @@ end
 --- about it. Asking "Do you wish to continue?" and refusing after Yes is the
 --- same answer, one click later and after a question it had no use for.
 -- @return true when it would be refused (and was said)
-function Posting:RefusesEarly(itemID, price, byHand)
+function Posting:RefusesEarly(itemID, price, byHand, quantity)
+    -- A List click (quantity given): the List It / Skip box asks instead of
+    -- refusing, and List It lists this one stack (the owner, 2026-10-31).
+    if quantity and self:AskAnyway(itemID, quantity, price, byHand) then return true end
+
     -- Under what a vendor pays, or a fraction of market after a dump.
     local floor, why = self:GetPriceFloor(itemID, byHand)
     if floor and price and price < floor then
@@ -2403,6 +2421,51 @@ function Posting:RefusesEarly(itemID, price, byHand)
     end
 
     return false
+end
+
+--- What would stop this listing, said the way the box says it: the kind
+--- ("floor", "cost" or "crafted") and the warning line, or nil when nothing
+--- would. Under the materials' cost needs no line of its own: the box
+--- already says "Below the X it cost to make."
+function Posting:RefusalOf(itemID, price, byHand)
+    if not price then return nil end
+    local floor, _, kind = self:GetPriceFloor(itemID, byHand)
+    if floor and price < floor then
+        if kind == "vendor" then return "floor", L["This is under what a vendor pays."] end
+        return "floor", L["This is far under what it usually sells for."]
+    end
+    if self:BelowCost(itemID, price) then return "cost", nil end
+    if self:BelowCraftedCost(itemID, price) then
+        return "crafted", L["This is under what you paid to make it."]
+    end
+    return nil
+end
+
+--- A List click on a stack Tradeskills would refuse (the owner, 2026-10-31:
+--- let the player list it anyway): the List It / Skip box with the reason.
+--- List It lists only this stack; List Next still passes such stacks by.
+-- @return true when the box was shown
+-- How long a List It in that box stands for the same item and price: on Era
+-- the first press may only put the stack in the auction slot, and the click
+-- after it should list, not ask again.
+Posting.ANYWAY_FOR = 60
+
+function Posting:AskAnyway(itemID, quantity, price, byHand)
+    local kind, warn = self:RefusalOf(itemID, price, byHand)
+    if not kind then return false end
+
+    local said = rawget(self, "saidAnyway")
+    said = said and said[itemID]
+    if said and said.price == price and GetTime() - said.at < Posting.ANYWAY_FOR then
+        self:Post(itemID, quantity, price, byHand, true)
+        return true
+    end
+
+    -- Era: the stack goes in the auction slot now, so List It lists it.
+    if Posting.IsLegacy() then pcall(self.PrepareFor, self, itemID) end
+    local text = self:BuildConfirmText(itemID, quantity, price, { byHand = byHand, warn = warn })
+    self:ShowConfirm(itemID, quantity, price, text, byHand, true)
+    return true
 end
 
 --------------------------------------------------------------------------------
@@ -2804,14 +2867,14 @@ function Posting:Request(itemID, quantity, unitPrice)
     -- the costs), and says why.
     local fastPrice = chosen and unitPrice or self:GetPostPrice(itemID) or unitPrice
     if self:CanListOnClick(itemID, fastPrice) then
-        if self:RefusesEarly(itemID, fastPrice, chosen ~= nil) then return false end
+        if self:RefusesEarly(itemID, fastPrice, chosen ~= nil, quantity) then return true end
         return self:Post(itemID, quantity, fastPrice, chosen ~= nil) and true or false
     end
 
     local verify = ns.Config:Get("verifyPriceBeforePosting") ~= false
 
     if not verify or not ns.Scanner.isAuctionHouseOpen then
-        if self:RefusesEarly(itemID, unitPrice, chosen ~= nil) then return false end
+        if self:RefusesEarly(itemID, unitPrice, chosen ~= nil, quantity) then return true end
         -- No check to wait for, so this click can list it (the owner,
         -- 2026-10-28). Ask Before Listing, or fast listing unticked, brings
         -- the box back.
@@ -2888,7 +2951,7 @@ function Posting:Request(itemID, quantity, unitPrice)
         -- A price the listing step will refuse (under what a vendor pays, a
         -- fraction of market after a rival's dump, or under what it cost to
         -- make) is said now rather than after Yes.
-        if self:RefusesEarly(itemID, price, chosen ~= nil) then return end
+        if self:RefusesEarly(itemID, price, chosen ~= nil, quantity) then return end
 
         -- With the box off (the owner, 2026-10-28) the check came back, so
         -- the next click lists it with no Yes/No box. Listing needs a real
