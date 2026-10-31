@@ -180,14 +180,13 @@ print("under what it cost to make")
 Reset()
 Posting:Request(ITEM, 5, 300)
 Answer("fresh")
-check("no confirmation is shown", popup, nil)
-check("it says why at once", Said("the materials cost"), true)
-check("and nothing is listed", Said("POSTED"), false)
+check("the List It or Skip box asks", popup ~= nil, true)
+check("and nothing is listed yet", Said("POSTED"), false)
 
 Reset()
 settings.verifyPriceBeforePosting = false
 Posting:Request(ITEM, 5, 300)
-check("without a price check, still no confirmation", popup, nil)
+check("without a price check, it asks too", popup ~= nil, true)
 settings.verifyPriceBeforePosting = true
 
 Reset()

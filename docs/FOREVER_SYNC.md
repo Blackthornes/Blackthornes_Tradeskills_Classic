@@ -74,6 +74,9 @@ Copied over since, one at a time:
   when it docks, moves or undocks (`SharedWindow.Watch`, `DockedFrame`).
   `UI/SharedWindow.lua` is FILE_VERSION 5, the same in all five Classic
   repos. The queue's mail panel (`UI/QueueMailPanel.lua`) sits past the docked window at the mailbox, with `tools/test_queuemaildock.lua`.
+- `18449eb` Bypass Disallowed Postings (not taken, 2026-10-31): Classic asks
+  on the List click instead, with the List It or Skip box (see
+  `docs/CLASSIC_DIFFERENCES.md`).
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.

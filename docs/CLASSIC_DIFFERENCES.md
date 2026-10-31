@@ -463,3 +463,11 @@ seen in game.
   with the item and its Auction value from your scans, or "not scanned
   yet" (`UI/SearchedPrice.lua`, `PostPanel:PlaceSearched`). Era only: it
   reads Era's browse box and list. Forever has no such row.
+- A List click on a stack Tradeskills would refuse (under a vendor's
+  price, far under its usual price, or under what it cost to make) brings
+  up the List It or Skip box with the reason, and List It lists it anyway
+  (`Posting:RefusalOf`, `AskAnyway`, `Post`'s `anyway`; the next click at
+  that price for 60 s lists straight off, for Era's two presses). List
+  Next still passes such stacks by. Forever does this with a "Bypass
+  Disallowed Postings:" tick box instead (18449eb, not taken); the box is
+  Retail's idea (68e8dbc), widened to every refusal (2026-10-31).
