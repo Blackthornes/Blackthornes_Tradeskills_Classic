@@ -753,6 +753,8 @@ function Theme.CreateItemIcon(parent, size)
     icon:SetSize(size or 16, size or 16)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     iconState[icon] = { size = size or 16, upgrade = false }
+    -- The thin quality ring (UI/ItemLook.lua), shown and hidden with the icon.
+    if ns.ItemLook then ns.ItemLook.Attach(icon) end
 
     local show, hide, setShown = icon.Show, icon.Hide, icon.SetShown
     function icon:Show() show(self); ShowArrow(self) end
@@ -787,6 +789,7 @@ function Theme.SetItemIcon(icon, itemID, link)
     end
     icon:SetTexture((ns.Util and ns.Util.GetItemIcon and ns.Util.GetItemIcon(itemID))
         or FALLBACK_ICON)
+    if ns.ItemLook then ns.ItemLook.SetItem(icon, link or itemID) end
     icon:Show()
 end
 
@@ -812,6 +815,7 @@ function Theme.SetSpellIcon(icon, spellID, upgrade)
         state.upgrade = texture ~= nil and upgrade == true
         state.itemID, state.link = nil, nil
     end
+    if ns.ItemLook then ns.ItemLook.SetQuality(icon, nil) end
     if not texture then
         icon:Hide()
         return

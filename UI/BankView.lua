@@ -137,6 +137,7 @@ local function UpdateRow(row, entry)
     if row.columnsVersion ~= ns.Columns.version then PlaceRow(row) end
     Theme.SetItemIcon(row.icon, entry.itemID)
     Theme.SetRowName(row.name, Util.GetItemLabel(entry.itemID))
+    Theme.SetItemNameColor(row.name, entry.itemID)
 
     row.cells.worth:SetText(Money(entry.worth))
     row.cells.have:SetText(Util.Comma(entry.total))

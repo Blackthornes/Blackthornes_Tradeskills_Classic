@@ -111,6 +111,7 @@ Logic\ItemStats.lua
 
 UI\TooltipShift.lua
 UI\Theme.lua
+UI\ItemLook.lua
 UI\BlizzardLook.lua
 UI\Widgets.lua
 UI\SpotMarker.lua
