@@ -16,9 +16,13 @@
 --      addon open before, and stays closed when it was closed before.
 --   7. At the auction house, while Tradeskills shows, the row of addon
 --      buttons is left out; another addon picked there brings it back.
+--   8. An open letter: docked at the mailbox, the window moves beside the
+--      letter while it shows and back beside the mailbox when it closes;
+--      watchers hear each dock, move and undock, and DockedFrame gives the
+--      window only while it is docked.
 
 local NAMES = { "CreateFrame", "UIParent", "C_Timer", "time", "BlackthornesWindow",
-    "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "MerchantFrame", "AuctionFrame" }
+    "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "OpenMailFrame", "MerchantFrame", "AuctionFrame" }
 local saved = {}
 for _, name in ipairs(NAMES) do saved[name] = _G[name] end
 
@@ -32,6 +36,14 @@ local function Object()
     end
     function o:IsShown() return self.shown end
     function o:SetScript(name, fn) self.scripts[name] = fn end
+    function o:HookScript(name, fn)
+        self.hooks = rawget(self, "hooks") or {}
+        self.hooks[name] = self.hooks[name] or {}
+        table.insert(self.hooks[name], fn)
+    end
+    function o:Fire(name)
+        for _, fn in ipairs((rawget(self, "hooks") or {})[name] or {}) do fn(self) end
+    end
     function o:SetText(text) self.text = text end
     function o:SetTexture(texture) self.texture = texture end
     function o:SetScale(scale) self.scale = scale end
@@ -151,11 +163,29 @@ assert(log[#log] == "enter gamma", "on the addon picked last")
 -- 6. Docking. Up on gamma, the game's mailbox opens.
 MailFrame = Object()
 MailFrame.right, MailFrame.top = 500, 700
+OpenMailFrame = Object()
+OpenMailFrame.shown = false
+OpenMailFrame.right, OpenMailFrame.top = 860, 690
 local width, height = frame:GetWidth(), frame:GetHeight()
 dbA.oneWindowLeft, dbA.oneWindowTop = 100, 600
+local heard = 0
+SW.Watch(function() heard = heard + 1 end)
+SW.Watch(function() error("a broken watcher") end)
+assert(SW.DockedFrame() == nil, "nothing docked yet")
 now = now + 5
 SW.Arrived("mail")
 assert(SW.Docked() and SW.Place() == "mail", "docks at the mailbox")
+assert(SW.DockedFrame() == frame and heard == 1, "watchers hear it dock, past a broken one")
+-- 8. A letter opens beside the mailbox: the window steps past it, and back.
+OpenMailFrame.shown = true
+OpenMailFrame:Fire("OnShow")
+assert(frame.point and frame.point[4] == 860 + SW.DOCK_GAP and frame.point[5] == 690, "beside the open letter")
+assert(heard == 2, "watchers hear it move")
+OpenMailFrame:Hide()
+OpenMailFrame:Fire("OnHide")
+assert(frame.point and frame.point[4] == 500 + SW.DOCK_GAP and frame.point[5] == 700, "back beside the mailbox")
+SW.Arrived("mail")
+assert(#OpenMailFrame.hooks.OnShow == 1, "the letter is watched once")
 assert(frame:GetWidth() == width - SW.RAIL_WIDTH - 8 and frame:GetHeight() == height + SW.ROW_HEIGHT + 8,
     "narrower by the rail, taller by the row")
 assert(frame.point and frame.point[4] == 500 + SW.DOCK_GAP and frame.point[5] == 700, "beside the game's window")
@@ -165,8 +195,14 @@ assert(SW.Docked() and BlackthornesWindow.current == a, "an addon can take it ov
 frame.left = 1
 frame.scripts.OnDragStop(frame)
 assert(dbA.oneWindowLeft == 100, "moving it while docked keeps its own place")
+heard = 0
 SW.Left("mail")
 assert(not SW.Docked() and frame:GetWidth() == width and frame:GetHeight() == height, "back to its own size")
+assert(heard == 1 and SW.DockedFrame() == nil, "watchers hear it undock")
+OpenMailFrame.shown = true
+OpenMailFrame:Fire("OnShow")
+assert(not SW.Docked() and frame.point[4] == 100, "a letter after the mailbox closed moves nothing")
+OpenMailFrame.shown = false
 assert(frame.point and frame.point[4] == 100 and frame.point[5] == 600, "back to its own place")
 assert(BlackthornesWindow.current == c and log[#log] == "enter gamma", "back on the addon open before")
 assert(frame.rail.buttons[1].name.shown == true, "the rail again")

@@ -253,13 +253,38 @@ local function Shown(frame)
     return ok and shown and true or false
 end
 
+--- The one window while it sits docked at the mailbox, else nil.
+local function DockedHere()
+    local shared = ns.SharedWindow
+    if not (shared and shared.DockedFrame and shared.Place) then return nil end
+    local ok, place = pcall(shared.Place)
+    if not ok or place ~= "mail" then return nil end
+    local okFrame, docked = pcall(shared.DockedFrame)
+    if okFrame then return docked end
+    return nil
+end
+
+--- Placed again whenever the one window docks, moves or undocks.
+function QueueMailPanel:WatchWindow()
+    if self.watching then return end
+    local shared = ns.SharedWindow
+    if not (shared and shared.Watch) then return end
+    self.watching = true
+    shared.Watch(function()
+        QueueMailPanel.anchoredTo = nil
+        if QueueMailPanel.frame then QueueMailPanel:Place() end
+    end)
+end
+
 --- To the right of the mailbox, or of the open letter when one is open, so
---- neither is covered.
+--- neither is covered. With the one window docked there, to its right.
 function QueueMailPanel:Place()
     local panel = self.frame
     if not panel then return end
+    self:WatchWindow()
 
-    local anchor = Shown(_G.OpenMailFrame) and _G.OpenMailFrame or _G.MailFrame
+    local anchor = DockedHere()
+        or (Shown(_G.OpenMailFrame) and _G.OpenMailFrame or _G.MailFrame)
     if anchor == self.anchoredTo then return end
     self.anchoredTo = anchor
 
