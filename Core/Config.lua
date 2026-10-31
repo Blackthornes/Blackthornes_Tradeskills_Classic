@@ -139,6 +139,8 @@ local DEFAULTS = {
         -- yet checks it, then the next click lists. Fast listing unticked
         -- asks too (Classic's #47). Never rename it.
         askBeforeListing = false,
+        -- "List Anyway:" (2026-11-02): off unless ticked.
+        postAnyway = false,
 
         -- Whether to recommend selling below material cost. Such items are
         -- always shown, marked red; with this off they are skipped when

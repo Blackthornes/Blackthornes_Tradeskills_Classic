@@ -1131,6 +1131,14 @@ function Posting:GetIgnored()
     return list
 end
 
+--- "List Anyway:" (Forever's Bypass Disallowed Postings, the owner, 2026-11-02): ticked, nothing
+--- this addon would hold back or refuse stops a listing. The price floor,
+--- the cost guards, the queue's keeps, the other addons' keeps, list rules
+--- and When Cheaper all step aside; the game's own limits stay.
+function Posting:PostsAnyway()
+    return ns.Config:Get("postAnyway") == true
+end
+
 --- Items in your bags worth listing.
 --
 -- @param opts.includeAll  everything sellable in the bags, not only what one
@@ -1148,6 +1156,7 @@ end
 -- means not selling it, so Post Crafted and Post ALL leave it alone too.
 function Posting:GetPostable(opts)
     opts = opts or {}
+    local anyway = self:PostsAnyway()
 
     local outputs = {}
 
@@ -1217,7 +1226,7 @@ function Posting:GetPostable(opts)
                 price, basis = self:NormalisePrice(chosen, ns.Scanner:IsCommodity(itemID)), "chosen"
             end
 
-            local keep = reserved[itemID]
+            local keep = not anyway and reserved[itemID]
             if keep and count then
                 count = count - (type(keep) == "number" and keep or count)
             end
@@ -1232,7 +1241,7 @@ function Posting:GetPostable(opts)
             -- The list the item is on (Logic/ListRules.lua): its Keep in
             -- Bags is one more keep, the bigger one wins.
             local listRule = ns.ListRules and ns.ListRules:For(itemID)
-            if count and count > 0 then
+            if count and count > 0 and not anyway then
                 local hold, why = 0, nil
                 if ns.SisterKeeps then
                     local ok, sister, sisterWhy = pcall(ns.SisterKeeps.Hold, ns.SisterKeeps, itemID, held, count, price)
@@ -1255,7 +1264,7 @@ function Posting:GetPostable(opts)
             -- Keep Listed: no more up than the list allows. Full, it waits
             -- (dimmed, as a keep: its List button still lists it).
             local listRoom, listUp
-            if listRule and count and count > 0 and not heldAll then
+            if listRule and count and count > 0 and not heldAll and not anyway then
                 listRoom, listUp = ns.ListRules:ListedRoom(itemID)
                 if listRoom and listRoom <= 0 then
                     heldAll = L.Format("Waiting, already %d up", listUp)
@@ -1269,7 +1278,7 @@ function Posting:GetPostable(opts)
             -- others sell it for less than the least the player set, so it
             -- waits in the bags, dimmed as a keep. A price typed this
             -- session still lists, and so does its own List button.
-            if waits and not chosen and count and count > 0 and not heldAll then
+            if waits and not chosen and not anyway and count and count > 0 and not heldAll then
                 heldAll = L["Waiting, others are selling for less"]
                 heldWaits = true
             end
@@ -1298,7 +1307,7 @@ function Posting:GetPostable(opts)
             -- Worth more at a vendor than the auction house pays after its
             -- cut: it goes to the vendor pile, not this list. A price the
             -- player typed this session still lists.
-            local toVendor = basis ~= "chosen" and Posting.VendorPaysMore(itemID, price, vendorPrice)
+            local toVendor = not anyway and basis ~= "chosen" and Posting.VendorPaysMore(itemID, price, vendorPrice)
             if toVendor and sellable and count and count > 0
                     and not (heldAll and not opts.showHeld) then
                 vendorPile = vendorPile + 1
@@ -1471,7 +1480,7 @@ end)
 --- refusing it after the price check and confirm, with everything else
 --- stuck behind it.
 function Posting:IsUnderFloor(line)
-    if not line.unitPrice then return false end
+    if not line.unitPrice or self:PostsAnyway() then return false end
     local floor = self:GetPriceFloor(line.itemID, line.priceBasis == "chosen")
     return floor ~= nil and line.unitPrice < floor
 end
@@ -1486,12 +1495,13 @@ end
 --   confirmed (fast listing: a second click on it before the bags catch up
 --   must not list it twice). The second return says whether any were.
 function Posting:GetNextPostable(opts, lines)
-    local allowLoss = ns.Config:Get("allowPostingAtALoss") == true
+    local anyway = self:PostsAnyway()
+    local allowLoss = anyway or ns.Config:Get("allowPostingAtALoss") == true
     local skipSettling = type(opts) == "table" and opts.skipSettling
     local settling = false
 
     for _, line in ipairs(lines or self:GetPostable(opts)) do
-        if line.unitPrice and (allowLoss or not line.atALoss) and not line.belowCrafted
+        if line.unitPrice and (allowLoss or not line.atALoss) and (anyway or not line.belowCrafted)
             and not line.held and not self:IsUnderFloor(line) then
             if skipSettling and self:PendingFor(line.itemID) then
                 settling = true
@@ -1506,11 +1516,12 @@ end
 
 --- Count and total value of everything worth listing.
 function Posting:GetSummary(opts, lines)
-    local allowLoss = ns.Config:Get("allowPostingAtALoss") == true
+    local anyway = self:PostsAnyway()
+    local allowLoss = anyway or ns.Config:Get("allowPostingAtALoss") == true
 
     local count, total = 0, 0
     for _, line in ipairs(lines or self:GetPostable(opts)) do
-        if line.unitPrice and (allowLoss or not line.atALoss) and not line.belowCrafted
+        if line.unitPrice and (allowLoss or not line.atALoss) and (anyway or not line.belowCrafted)
             and not line.held and not self:IsUnderFloor(line) then
             count = count + 1
             total = total + (line.total or 0)
@@ -1839,7 +1850,9 @@ function Posting:Post(itemID, quantity, unitPrice, byHand, anyway)
     -- is separate from the material-cost check below: that one is about
     -- profit, this one is about the number being wrong.
     -- `anyway`: the player said List It in the box that asked about this
-    -- one listing (Posting:AskAnyway), so the three guards below step aside.
+    -- one listing (Posting:AskAnyway), or ticked List Anyway in Settings,
+    -- so the three guards below step aside.
+    anyway = anyway or self:PostsAnyway()
     local floor, why
     if not anyway then floor, why = self:GetPriceFloor(itemID, byHand) end
 
@@ -2390,6 +2403,8 @@ end
 --- same answer, one click later and after a question it had no use for.
 -- @return true when it would be refused (and was said)
 function Posting:RefusesEarly(itemID, price, byHand, quantity)
+    -- List Anyway ticked: nothing is held back, so nothing asks either.
+    if self:PostsAnyway() then return false end
     -- A List click (quantity given): the List It / Skip box asks instead of
     -- refusing, and List It lists this one stack (the owner, 2026-10-31).
     if quantity and self:AskAnyway(itemID, quantity, price, byHand) then return true end
