@@ -12,10 +12,16 @@
 --   ns.ItemLook.SetItem(icon, item)       -- by item ID or link
 --   ns.ItemLook.QualityOf(item)           -- 0 to 7, or nil while not loaded
 --   ns.ItemLook.Color(quality)            -- r, g, b, or nil
+--   ns.ItemLook.SetCount(icon, count)     -- the stack count in the corner
 --
 -- The ring is one texture just behind the icon, one pixel larger on every
 -- side, so nothing new sits over the icon and it needs no art. It follows
 -- the icon: hidden with it and shown with it.
+--
+-- A stack's count sits in the icon's bottom right corner in the game's own
+-- bag number font, as the bags show it, and only for more than one, so a
+-- list says "Linen Cloth" with 20 on its icon instead of "Linen Cloth x20".
+-- It follows the icon the same way.
 
 local _, ns = ...
 
@@ -84,12 +90,19 @@ function ItemLook.QualityOf(item)
     return nil
 end
 
---- Show the ring when the icon is shown and has a quality.
+--- Show the ring when the icon is shown and has a quality, and the count
+--- when it is shown and has one.
 local function Sync(icon)
     local look = looks[icon]
-    if not look or not look.ring then return end
+    if not look then return end
     local okShown, shown = pcall(icon.IsShown, icon)
-    look.ring:SetShown((look.quality ~= nil and okShown and shown) and true or false)
+    shown = (okShown and shown) and true or false
+    if look.ring then
+        look.ring:SetShown((look.quality ~= nil and shown) and true or false)
+    end
+    if look.countText then
+        look.countText:SetShown((look.count ~= nil and shown) and true or false)
+    end
 end
 
 --- Give an icon its ring. Safe to call more than once.
@@ -152,6 +165,60 @@ function ItemLook.SetItem(icon, item, quality)
     quality = Number(quality) or ItemLook.QualityOf(item)
     ItemLook.SetQuality(icon, quality)
     return quality
+end
+
+-- The game's bag number font, else the plain one, outlined.
+ItemLook.COUNT_FONTS = { "NumberFontNormal", "NumberFont_Outline_Med", "GameFontHighlightSmall" }
+ItemLook.COUNT_SIZE = 12
+
+local function MakeCount(icon, look)
+    local okParent, parent = pcall(icon.GetParent, icon)
+    if not (okParent and parent and type(parent.CreateFontString) == "function") then return nil end
+    local ok, text = pcall(parent.CreateFontString, parent, nil, "OVERLAY")
+    if not ok or not text then return nil end
+    local fonted = false
+    for _, name in ipairs(ItemLook.COUNT_FONTS) do
+        local font = rawget(_G, name)
+        if type(font) == "table" and type(text.SetFontObject) == "function" then
+            if pcall(text.SetFontObject, text, font) then fonted = true; break end
+        end
+    end
+    if not fonted and type(text.SetFont) == "function" then
+        pcall(text.SetFont, text, "Fonts\\ARIALN.TTF", ItemLook.COUNT_SIZE, "OUTLINE")
+    end
+    if type(text.SetJustifyH) == "function" then text:SetJustifyH("RIGHT") end
+    if type(text.SetTextColor) == "function" then text:SetTextColor(1, 1, 1) end
+    text:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
+    text:Hide()
+    look.countText = text
+    return text
+end
+
+--- Put a stack's count in the icon's corner; 1, 0 or nil shows none.
+function ItemLook.SetCount(icon, count)
+    local look = looks[icon] or ItemLook.Attach(icon)
+    if not look then return end
+    count = Number(count)
+    if count and count > 1 then
+        local text = look.countText or MakeCount(icon, look)
+        look.count = math.floor(count)
+        if text then text:SetText(tostring(look.count)) end
+    else
+        look.count = nil
+    end
+    Sync(icon)
+end
+
+--- The count an icon shows, or nil.
+function ItemLook.CountShown(icon)
+    local look = looks[icon]
+    return look and look.count or nil
+end
+
+--- The count's font string, for the tests.
+function ItemLook.CountOf(icon)
+    local look = looks[icon]
+    return look and look.countText or nil
 end
 
 --- The quality an icon was last ringed with, or nil.

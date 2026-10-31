@@ -342,6 +342,9 @@ function UpdateRow(row, line)
     Theme.SetItemIcon(row.icon, line.itemID)
 
     local maxQuantity = line.maxQuantity or line.count or 1
+    -- How many the bags hold sits on the icon's corner, as in the bags
+    -- (UI/ItemLook.lua); the price line still says how many go up.
+    if ns.ItemLook then ns.ItemLook.SetCount(row.icon, maxQuantity) end
 
     -- Not while it is being typed into: overwriting someone mid-number is how
     -- a field ends up refusing to accept what they meant.
