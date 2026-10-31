@@ -1025,7 +1025,8 @@ local function UpdateDetail(entry)
         line.frame:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, index == 1 and -6 or 0)
         line.frame:SetPoint("TOPRIGHT", detail, "TOPRIGHT", -12, 0)
 
-        local label = ("%dx %s"):format(reagent.quantity, Util.GetItemLabel(reagent.itemID))
+        -- How many sits on the icon's corner (UI/ItemLook.lua), set below.
+        local label = Util.GetItemLabel(reagent.itemID)
         local maker = ns.Cost and ns.Cost.MadeByName and ns.Cost.MadeByName(reagent.madeBy)
         if maker then
             -- Made by an alt and mailed here.
@@ -1038,6 +1039,7 @@ local function UpdateDetail(entry)
         end
         line.name:SetText(label)
         Theme.SetItemIcon(line.icon, reagent.itemID)
+        if ns.ItemLook then ns.ItemLook.SetCount(line.icon, reagent.quantity) end
 
         -- Have or need first: it answers "can I make this" without a second
         -- screen. Bank stock counts here, the same as on the Profit tab.

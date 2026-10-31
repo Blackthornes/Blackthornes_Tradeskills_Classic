@@ -17,6 +17,11 @@ local function NewTexture(parent)
     function t:Hide() self.shown = false end
     function t:SetShown(on) self.shown = on and true or false end
     function t:IsShown() return self.shown end
+    function t:SetText(text) self.text = text end
+    function t:SetFontObject(font) self.font = font end
+    function t:SetFont(face, size, flags) self.face = { face, size, flags } end
+    function t:SetJustifyH(h) self.justify = h end
+    function t:SetTextColor(r, g, b) self.textColor = { r, g, b } end
     return t
 end
 
@@ -26,6 +31,11 @@ local function NewFrame()
         local t = NewTexture(self)
         t.layer, t.sub = layer, sub
         self.made[#self.made + 1] = t
+        return t
+    end
+    function f:CreateFontString(_, layer)
+        local t = NewTexture(self)
+        t.layer = layer
         return t
     end
     return f
@@ -109,6 +119,30 @@ check(ItemLook.RingOf(loose) == nil, "no parent, no ring, no error")
 local other = frame:CreateTexture(nil, "OVERLAY", nil, -8)
 ItemLook.SetItem(other, 4561)
 check(ItemLook.RingOf(other).sub == -8, "never below the lowest sublevel")
+
+-- The stack count sits in the icon's corner, only for more than one.
+local counted = frame:CreateTexture(nil, "ARTWORK", nil, 0)
+ItemLook.SetCount(counted, 20)
+local count = ItemLook.CountOf(counted)
+check(count ~= nil and count.text == "20", "a stack of 20 shows 20")
+check(count.layer == "OVERLAY" and count.shown == true, "over the icon, shown")
+check(count.points[1][1] == "BOTTOMRIGHT" and count.points[1][2] == counted, "in the bottom right corner")
+check(count.face ~= nil or count.font ~= nil, "in a number font")
+check(ItemLook.CountShown(counted) == 20, "remembers the count")
+counted:Hide()
+check(count.shown == false, "the count hides with the icon")
+counted:Show()
+check(count.shown == true, "and shows with it")
+ItemLook.SetCount(counted, 1)
+check(count.shown == false and ItemLook.CountShown(counted) == nil, "one shows no number")
+ItemLook.SetCount(counted, nil)
+check(count.shown == false, "nil shows no number")
+ItemLook.SetCount(counted, 3)
+check(count.shown == true and count.text == "3", "a count comes back")
+ItemLook.SetItem(counted, 4561)
+check(count.shown == true and ItemLook.RingOf(counted).shown == true, "ring and count together")
+ItemLook.SetCount(loose, 5)
+check(ItemLook.CountOf(loose) == nil, "no parent, no count, no error")
 
 C_Item = saved.C_Item
 GetItemInfo = saved.GetItemInfo

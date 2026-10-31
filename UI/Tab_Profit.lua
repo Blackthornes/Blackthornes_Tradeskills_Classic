@@ -1376,6 +1376,8 @@ function UpdateDetail(analysis)
         -- item is drawn again when it comes.
         if not label:find("|c", 1, true) then awaitingItemData = true end
         Theme.SetItemIcon(line.icon, reagent.itemID)
+        -- How many sits on the icon's corner, as in the bags (UI/ItemLook.lua).
+        if ns.ItemLook then ns.ItemLook.SetCount(line.icon, reagent.quantity) end
         -- Made by an alt and mailed here, priced at its materials.
         local maker = ns.Cost and ns.Cost.MadeByName and ns.Cost.MadeByName(reagent.madeBy)
         if maker then
@@ -1385,16 +1387,16 @@ function UpdateDetail(analysis)
         -- Showing have/need inline is the whole point: it answers "can I make
         -- this" without a second screen.
         if reagent.shortfall > 0 then
-            line.name:SetText(("%dx %s"):format(reagent.quantity, label))
+            line.name:SetText(label)
             line.value:SetText(L.Format("need %d", reagent.shortfall))
             line.value:SetTextColor(Theme.Unpack("loss"))
         elseif reagent.source == "mine" then
             -- Costed at the player's own price from the Prices tab.
-            line.name:SetText(L.Format("%dx %s |c%s(my price)|r", reagent.quantity, label, ns.COLORS.warn))
+            line.name:SetText(L.Format("%s |c%s(my price)|r", label, ns.COLORS.warn))
             line.value:SetText(Util.FormatMoney(reagent.lineCost, { short = true }))
             line.value:SetTextColor(Theme.Unpack("warn"))
         else
-            line.name:SetText(("%dx %s"):format(reagent.quantity, label))
+            line.name:SetText(label)
             line.value:SetText(Util.FormatMoney(reagent.lineCost, { short = true }))
             line.value:SetTextColor(Theme.Unpack("muted"))
         end

@@ -230,7 +230,7 @@ list.opts.onClick(analyses[1], 1, "LeftButton")
 
 local shownLines, moreLabel = 0, nil
 for _, label in ipairs(labels) do
-    if label.text:match("^%dx item") then shownLines = shownLines + 1 end
+    if label.text:match("^item%d") then shownLines = shownLines + 1 end
     if label.text:match("more materials") then moreLabel = label end
 end
 
@@ -257,7 +257,7 @@ list.opts.onClick(analyses[1], 1, "LeftButton")
 
 shownLines = 0
 for _, label in ipairs(labels) do
-    if label.text:match("^%dx item") then shownLines = shownLines + 1 end
+    if label.text:match("^item%d") then shownLines = shownLines + 1 end
 end
 check("all nine materials are listed when they fit", shownLines == 9)
 check("and there is no more line", not moreFrame.shown)
