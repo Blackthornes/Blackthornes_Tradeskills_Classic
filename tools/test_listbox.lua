@@ -229,6 +229,48 @@ do
     check("then what it will list", GameTooltip.text:find("List 20 of 20", 1, true) ~= nil, true)
 end
 
+print("")
+print("The price each in the game's coins")
+
+do
+    local ns = NewNamespace()
+    ns.Collapse = {
+        CONTENT_TOP = -46,
+        CreateHeader = function() return NewFrame(), NewFrame() end,
+        Attach = noop,
+        IsCollapsed = function() return false end,
+        Height = function(_, full) return full end,
+    }
+    ns.UI = { ApplyWaitLabel = noop, FindAuctionFrame = function() return nil end }
+
+    Load(ns, "/Core/Util.lua")
+    Load(ns, "/Logic/Posting.lua")
+    Load(ns, "/UI/Widgets.lua")
+    Load(ns, "/UI/HouseKit.lua")
+    Load(ns, "/UI/Coins.lua")
+    Load(ns, "/UI/PostPanel.lua")
+
+    ns.PostPanel:Build()
+    ns.PostPanel.list.height = 300
+    local lines = Lines()
+    lines[1].unitPrice = 31560
+    lines[1].postQuantity = 7
+    lines[3].held = "Kept for your queue"
+    ns.PostPanel.list:SetData(lines)
+
+    local row = ns.PostPanel.list.rows[1]
+    row.detail.width = 400
+    ns.PostPanel.list:Refresh()
+    check("the row has coin columns", row.coins ~= nil, true)
+    check("gold shows", row.coins.gold.shown and row.coins.gold.text:find("^3|T") ~= nil, true)
+    check("silver shows", row.coins.silver.text:find("^15|T") ~= nil, true)
+    check("the line keeps how many go up", row.detail.text:find("^7 of 20") ~= nil, true)
+    check("and leaves the price each to the coins", row.detail.text:find("@", 1, true), nil)
+
+    local held = ns.PostPanel.list.rows[3]
+    check("a row kept back shows no coins", held.coins.silver.shown or held.coins.copper.shown, false)
+    check("and says why", held.detail.text, "Kept for your queue")
+end
 
 for key, value in pairs(saved) do _G[key] = value end
 
