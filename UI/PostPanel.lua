@@ -1695,6 +1695,22 @@ PostPanel.searchStep = nil
 --- once where the game allows it (ShoppingLists:SearchMany, with each
 --- count, so picking one fills the buy box), else one a click.
 function PostPanel:SearchAll()
+    -- Era (a player found it went round and round, 2026-10-31): open the buy
+    -- plan on the first item still to buy, the way a row's Search does. The
+    -- plan's own button buys a stack a click, then reads "Next: NAME".
+    local View = ns.LegacyBuyView
+    if View and View.Applies and View:Applies() then
+        self.searchStep = nil
+        local ids, counts = PostPanel.SearchableIDs(self:ShoppingLines())
+        if #ids == 0 then
+            ns.Print(L["Nothing on this list to look for on the auction house."])
+        elseif self:OpenBuyPlan(ids[1], counts[ids[1]]) then
+            return
+        end
+        self:UpdateSearchAll()
+        return
+    end
+
     local step = self.searchStep
     if step and step.pos <= #step.ids then
         local id = step.ids[step.pos]

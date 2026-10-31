@@ -89,6 +89,20 @@ check("drawer away: no plan", PostPanel:OpenBuyPlan(8, 1) == false)
 shown, era = true, false
 check("off Era: no plan", PostPanel:OpenBuyPlan(8, 1) == false)
 
+-- Search all on Era opens the first item's plan, never a Browse search
+-- that goes round the list again.
+lines = { { itemID = 2, shortfall = 0 }, { itemID = 5, shortfall = 6 }, { itemID = 6, shortfall = 1 } }
+era, opened, shown = true, {}, true
+PostPanel.view = "buy"
+PostPanel.UpdateSearchAll = function() end
+local browsed
+ns.UI = { SearchAuctionHouse = function(_, id) browsed = id; return true end }
+PostPanel:SearchAll()
+check("Search all on Era: the first item still short opens", opened.id == 5 and opened.need == 6)
+check("no Browse search", browsed == nil and PostPanel.searchStep == nil)
+era = false
+ns.LegacyBuyView.Applies = function() return era end
+
 -- UI:SearchOrPlan falls back to the usual search.
 local UI = { }
 ns.Scanner = { isAuctionHouseOpen = true }
