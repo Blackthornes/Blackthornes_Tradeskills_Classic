@@ -1273,6 +1273,15 @@ and undock, and `SharedWindow.DockedFrame()` gives the window while it is
 docked, so side panels (Tradeskills' mail panel, Butler's buy box) sit
 past it. Tested in `tools/test_sharedwindow.lua`.
 
+Kept beside (2026-10-31, FILE_VERSION 6): while a game window is open, a
+watcher on the one window (`SharedWindow.Keep`, every `KEEP_EVERY`
+seconds, only while shown, never in a fight) docks it once the game shows
+its window late, and places it beside again when the game's window moves
+or the one window changes width or scale (`hub.spot`). A window too wide
+for the room left was pulled back over the auction house by the screen's
+edge, then narrowed to the Auction House tab where it stood. Dragged by
+hand while docked, it stays. Tested in `tools/test_sharedwindow.lua`.
+
 Tradeskills' tabs are in (2026-10-30, the last of the five): "One
 Window:" sits under "Combine Addon Buttons:" on the General page
 (`TSTabs:SetOneWindow`, writing every save). Tradeskills joins with `host =

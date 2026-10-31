@@ -40,7 +40,7 @@ local ADDON, ns = ...
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 5
+local FILE_VERSION = 6
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -57,6 +57,9 @@ SharedWindow.ROW_HEIGHT = 40
 SharedWindow.ROW_BUTTON = 34
 SharedWindow.ROW_ICON = 26
 SharedWindow.DOCK_GAP = 6
+-- How often, while a game window is open, the window looks that it still
+-- sits beside it.
+SharedWindow.KEEP_EVERY = 0.2
 -- How soon after a game window closes the one window goes back to the addon
 -- open before, so the addons' own closing comes first.
 SharedWindow.BACK_WAIT = 0.1
@@ -390,6 +393,21 @@ function SharedWindow.Build()
 
     frame.grip = MakeGrip(frame)
 
+    -- While a game window is open, look now and then that this one still
+    -- sits beside it: the game lays its window out a moment late, and a
+    -- page that narrows the window after it was placed left it where the
+    -- screen's edge had pulled it, over the game's window. Only while shown.
+    local watch = CreateFrame("Frame", nil, frame)
+    watch.wait = 0
+    watch:SetScript("OnUpdate", function(self, elapsed)
+        if not hub.place then return end
+        self.wait = (self.wait or 0) - (elapsed or 0)
+        if self.wait > 0 then return end
+        self.wait = SharedWindow.KEEP_EVERY
+        SharedWindow.Keep()
+    end)
+    frame.watch = watch
+
     if type(UISpecialFrames) == "table" then
         table.insert(UISpecialFrames, "BlackthornesOneWindow")
     end
@@ -662,6 +680,17 @@ local function Beside(frame, game)
     return true
 end
 
+--- Where the game's window and this one stand and how wide this one is:
+--- when any of it moves, the window is placed beside it again.
+local function Spot(frame, game)
+    local ok, key = pcall(function()
+        return table.concat({ tostring(game), tostring(game:GetRight()), tostring(game:GetTop()),
+            tostring(game:GetEffectiveScale()), tostring(frame:GetWidth()),
+            tostring(frame:GetEffectiveScale()) }, ":")
+    end)
+    return ok and key or nil
+end
+
 --- Dock beside the game's window open now. `again` only places it anew
 --- (after a resize). Nothing moves in a fight.
 function SharedWindow.Dock(again)
@@ -684,8 +713,24 @@ function SharedWindow.Dock(again)
         return true
     end
     local placed = Beside(frame, game)
+    hub.spot = placed and Spot(frame, game) or nil
     Tell()
     return placed
+end
+
+--- While a game window is open: up but not docked yet (the game showed
+--- its window late), dock; docked, place it beside again when the game's
+--- window moved or this one changed width or size. Dragged there by
+--- hand, it stays. Nothing moves in a fight.
+function SharedWindow.Keep()
+    local frame = hub.frame
+    if not (frame and hub.place) or InFight() then return false end
+    local ok, shown = pcall(frame.IsShown, frame)
+    if not (ok and shown) then return false end
+    if not hub.docked then return SharedWindow.Dock() end
+    local game = GameFrame()
+    if not game or Spot(frame, game) == hub.spot then return false end
+    return SharedWindow.Dock(true)
 end
 
 --- Back to its own place, with the rail down the left side.
@@ -693,6 +738,7 @@ function SharedWindow.Undock()
     local frame = hub.frame
     if not (frame and hub.docked) then return end
     hub.docked = false
+    hub.spot = nil
     local row = hub.row ~= false
     hub.row = nil
     local okW, width = pcall(frame.GetWidth, frame)
