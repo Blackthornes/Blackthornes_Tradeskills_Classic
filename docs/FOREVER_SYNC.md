@@ -69,6 +69,11 @@ Copied over since, one at a time:
   the Profit and Level Up switches (from #67 to #75), the TOOLTIPS page,
   and no version line past the portrait. The drawer's view tabs are Sell,
   Buy, Lists and Auctions; Favors never shows without Merchant's Favor.
+- `41442e1` One Window steps aside for an open letter (2026-10-31): docked at
+  the mailbox it moves beside the letter and back, and tells side panels
+  when it docks, moves or undocks (`SharedWindow.Watch`, `DockedFrame`).
+  `UI/SharedWindow.lua` is FILE_VERSION 5, the same in all five Classic
+  repos. The queue's mail panel (`UI/QueueMailPanel.lua`) sits past the docked window at the mailbox, with `tools/test_queuemaildock.lua`.
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.
