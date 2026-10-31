@@ -70,6 +70,7 @@ ns.Theme = {
     AccentStripe = function() return Stub() end,
     CreateItemIcon = function() return Stub() end,
     SetItemIcon = function() end,
+    SetItemNameColor = function() return false end,
     CreateBar = function()
         return Stub({ Set = function(self, fraction) self.fraction = fraction end })
     end,

@@ -189,6 +189,7 @@ end
 local function UpdateRow(row, entry)
     entry.label = Util.GetItemLabel(entry.itemID)
     Theme.SetRowName(row.name, entry.label)
+    Theme.SetItemNameColor(row.name, entry.itemID)
     Theme.SetItemIcon(row.icon, entry.itemID)
     Theme.SetMoneyText(row.worth, entry.worth > 0 and entry.worth or nil, { short = true })
 end

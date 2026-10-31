@@ -390,7 +390,11 @@ local function UpdateRow(row, entry)
     row.star:SetItem(entry.itemID)
 
     local stale = ns.Prices:IsStale(entry.itemID)
-    row.name:SetTextColor(Theme.Unpack(stale and "muted" or "text"))
+    if stale then
+        row.name:SetTextColor(Theme.Unpack("muted"))
+    else
+        Theme.SetItemNameColor(row.name, entry.itemID)
+    end
 
     local cells = row.cells
 
