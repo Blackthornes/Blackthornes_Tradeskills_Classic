@@ -159,7 +159,12 @@ ns.Recipes = { Count = function() return 0 end }
 ns.Scanner.isScanning = false
 UI.UpdateHeader = function() end
 UI:RegisterTab({ key = "profit", text = "Profit", order = 1 })
+UI:RegisterTab({ key = "queue", text = "Queue", order = 2 })
+UI:RegisterTab({ key = "gather", text = "Gather", order = 3 })
+UI:RegisterTab({ key = "disenchanting", text = "Disenchanting", order = 4 })
+UI:RegisterTab({ key = "levelup", text = "Level Up", order = 4.5 })
 UI:RegisterTab({ key = "sales", text = "Sales", order = 5 })
+UI:RegisterTab({ key = "prices", text = "Prices", order = 8 })
 UI:RegisterTab({ key = "settings", text = "Settings", order = 9 })
 settings.windowScale = 0.8
 
@@ -253,7 +258,19 @@ Tabs:AuctionOpened()
 check("the Auction House tab shows", UI.activeTab == "auctionhouse" and strip:Shows("auctionhouse"))
 check("the drawer is laid in it", laidIn ~= nil and laidIn == UI.tabs.auctionhouse.container)
 check("only the tabs that go with it", strip:Shows("profit") and strip:Shows("settings")
-    and not strip:Shows("sales"))
+    and strip:Shows("prices") and strip:Shows("disenchanting") and strip:Shows("queue")
+    and not strip:Shows("sales") and not strip:Shows("levelup") and not strip:Shows("gather"))
+local function ShownOrder()
+    local shown = {}
+    for _, button in ipairs(strip.tabs) do
+        if strip:Shows(button.key) then shown[#shown + 1] = button end
+    end
+    table.sort(shown, function(a, b) return (a.left or 0) < (b.left or 0) end)
+    local keys = {}
+    for _, button in ipairs(shown) do keys[#keys + 1] = button.key end
+    return table.concat(keys, ",")
+end
+check("in Forever's order", ShownOrder() == "auctionhouse,prices,profit,queue,disenchanting,settings")
 check("the window narrows to it", hub.frame:GetWidth() == wide - (1120 - UI.AUCTION_TAB_WIDTH))
 check("the window's own Scan steps aside", not UI.scanButton:IsShown())
 UI:SelectTab("profit")
@@ -270,6 +287,15 @@ check("the one window stays up", hub.frame:IsShown() and Tabs:Hosted())
 
 hub.frame:Hide()
 check("closed before the visit", not hub.frame:IsShown())
+ns.db.lastTab = "gather"
+UI.activeTab = nil
+ns.Scanner.isAuctionHouseOpen = true
+Tabs:AuctionOpened()
+check("opened on a tab left out there, only the auction house row shows", UI.activeTab == "auctionhouse"
+    and strip:Shows("prices") and not strip:Shows("gather") and not strip:Shows("sales"))
+Tabs:AuctionClosed()
+ns.Scanner.isAuctionHouseOpen = false
+ns.db.lastTab = "profit"
 ns.Scanner.isAuctionHouseOpen = true
 Tabs:AuctionOpened()
 check("the auction house opens it on the Auction House tab", hub.frame:IsShown() and Tabs:Hosted()
