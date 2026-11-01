@@ -228,6 +228,31 @@ end
 check(Opener:ProfessionFor(7) == nil, "a gathering skill in German has no window")
 C_TradeSkillUI.GetProfessionInfoBySkillLineID = englishInfo
 
+-- Era has no GetProfessionInfoBySkillLineID: the name and the spell come
+-- from the client's own spell name, so a German client opens Schneiderei
+-- (a player saw "Tailoring öffnen" do nothing, 2026-11-01).
+RECIPES[8] = { recipeID = 8, name = "Linen cloak", skillLineID = 197 }
+RECIPES[9] = { recipeID = 9, name = "Copper bar", skillLineID = 186 }
+local savedTSUI, savedSpell = C_TradeSkillUI, C_Spell
+C_TradeSkillUI = nil
+C_Spell = { GetSpellName = function(id)
+  if id == 3908 then return "Schneiderei" end
+  if id == 2575 then return "Bergbau" end
+  if id == 2656 then return "Verhüttung" end
+end }
+local de = Opener:ProfessionFor(8)
+check(de and de.name == "Schneiderei" and de.spell == "Schneiderei",
+  "German tailoring casts Schneiderei, got " .. tostring(de and de.spell))
+de = Opener:ProfessionFor(9)
+check(de and de.name == "Bergbau" and de.spell == "Verhüttung", "German mining casts Verhüttung")
+C_Spell = { GetSpellName = function() return nil end }
+local savedInfo = GetSpellInfo
+GetSpellInfo = nil
+de = Opener:ProfessionFor(8)
+GetSpellInfo = savedInfo
+check(de and de.spell == "Tailoring", "with no spell name the English one stands in")
+C_TradeSkillUI, C_Spell = savedTSUI, savedSpell
+
 -- Leaving a form first (the owner said yes, 2026-10-13) ---------------------
 
 local class, form = "WARRIOR", 1

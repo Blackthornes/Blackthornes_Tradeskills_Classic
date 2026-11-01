@@ -708,7 +708,16 @@ local function BuildDetail(parent)
         label:SetText(labelText)
 
         local value = Theme.CreateLabel(summary, "small", "text", "RIGHT")
-        value:SetPoint("TOPRIGHT", 0, -(index - 1) * 16)
+        if index == 1 then
+            -- The top row can say "a material has no price", which runs past
+            -- the pane in German: it wraps and grows upwards, into the space
+            -- under the materials, so the rows below never move.
+            value:SetPoint("BOTTOM", label, "BOTTOM")
+            value:SetPoint("RIGHT", summary, "RIGHT")
+            value:SetWordWrap(true)
+        else
+            value:SetPoint("TOPRIGHT", 0, -(index - 1) * 16)
+        end
         value:SetPoint("LEFT", label, "RIGHT", 8, 0)
 
         return value, label
