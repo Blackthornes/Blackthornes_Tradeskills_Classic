@@ -23,6 +23,9 @@
 --   9. Kept beside: while a game window is open, the window docks once the
 --      game shows its window late, and is placed beside it again when the
 --      game's window moves or this one changes width; nothing else moves it.
+--  10. Closed by the player while a game window is open, it stays closed
+--      when that window goes; only an addon's close on leaving
+--      (Close(true)) lets it go back to the addon open before.
 
 local NAMES = { "CreateFrame", "UIParent", "C_Timer", "time", "BlackthornesWindow",
     "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "OpenMailFrame", "MerchantFrame", "AuctionFrame" }
@@ -229,9 +232,26 @@ SW.Open("gamma")
 SW.Open("alpha")
 SW.Arrived("vendor")
 assert(SW.Docked(), "docks when the event comes after")
-SW.Close()
+SW.Close(true)
 SW.Left("vendor")
 assert(SW.IsOpen() and BlackthornesWindow.current == c and not SW.Docked(), "reopens on the addon open before")
+
+-- 10. Up on gamma at the vendor, the player closes it (its close gem, or
+-- Escape, which closes the vendor too): it stays closed as the vendor goes.
+now = now + 5
+SW.Arrived("vendor")
+assert(SW.Docked(), "up on gamma, it docks at the vendor")
+frame:Hide()
+SW.Left("vendor")
+assert(not SW.IsOpen(), "closed by the player at the vendor, it stays closed")
+SW.Open("gamma")
+now = now + 5
+SW.Open("alpha")
+SW.Arrived("vendor")
+SW.Close()
+SW.Left("vendor")
+assert(not SW.IsOpen(), "closed without byItself, it stays closed")
+SW.Open("gamma")
 
 -- At the auction house too.
 AuctionFrame = Object()

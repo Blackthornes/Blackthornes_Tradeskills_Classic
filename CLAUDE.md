@@ -1282,6 +1282,14 @@ for the room left was pulled back over the auction house by the screen's
 edge, then narrowed to the Auction House tab where it stood. Dragged by
 hand while docked, it stays. Tested in `tools/test_sharedwindow.lua`.
 
+Closed by the player (2026-11-01, FILE_VERSION 7): closed while a game
+window is open (its close gem, or Escape, which closes the vendor too),
+it stays closed when that window goes; it never comes back by itself. Only
+an addon closing it on leaving a place, `SharedWindow.Close(true)`, lets it
+go back to the addon open before (`hub.byItself`, read in OnHide). Butler
+passes it from `UI:LeftVendor` and `LeftPlace` (`ButlerTabs:Closed(frame,
+byItself)`). Tested in `tools/test_sharedwindow.lua`.
+
 Tradeskills' tabs are in (2026-10-30, the last of the five): "One
 Window:" sits under "Combine Addon Buttons:" on the General page
 (`TSTabs:SetOneWindow`, writing every save). Tradeskills joins with `host =

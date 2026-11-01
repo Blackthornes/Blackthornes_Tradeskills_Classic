@@ -40,7 +40,7 @@ local ADDON, ns = ...
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 6
+local FILE_VERSION = 7
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -240,8 +240,14 @@ function SharedWindow.Open(key)
     return picked
 end
 
-function SharedWindow.Close()
-    if hub.frame then hub.frame:Hide() end
+--- Close the window. `byItself` is true when an addon closes it because the
+--- game's window it came up for closed; then it may go back to what was
+--- open before. Any other close (the player's) stays closed.
+function SharedWindow.Close(byItself)
+    if not hub.frame then return end
+    hub.byItself = byItself and true or nil
+    hub.frame:Hide()
+    hub.byItself = nil
 end
 
 function SharedWindow.IsOpen()
@@ -412,6 +418,14 @@ function SharedWindow.Build()
         table.insert(UISpecialFrames, "BlackthornesOneWindow")
     end
     frame:SetScript("OnHide", function()
+        -- Closed by the player while a game window is open (its close gem,
+        -- Escape, which closes the vendor too): it stays closed when that
+        -- game window goes, never coming back by itself (a player saw it
+        -- open as a vendor closed, 2026-11-01).
+        if hub.place and not hub.byItself then
+            hub.back = nil
+            hub.prior = nil
+        end
         if hub.current and type(hub.current.host) == "table" and type(hub.current.host.leave) == "function" then
             pcall(hub.current.host.leave)
         end
