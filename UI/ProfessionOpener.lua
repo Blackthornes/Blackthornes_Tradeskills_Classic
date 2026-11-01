@@ -37,6 +37,16 @@ local SKILL_LINE_NAMES = {
 -- Mining's window is opened by casting Smelting, not Mining.
 local SMELTING_SPELL_ID = 2656
 
+-- The spell that opens each profession's window, by skill line. Its name is
+-- the client's own (a German client says "Schneiderei"), so the button reads
+-- in the player's language and the cast is one the client knows. The English
+-- names above stay the fallback, and stay the keys the checks below use.
+local OPEN_SPELLS = {
+    Alchemy = 2259, Blacksmithing = 2018, Enchanting = 7411,
+    Engineering = 4036, Leatherworking = 2108, Tailoring = 3908,
+    Cooking = 2550, ["First Aid"] = 3273, Mining = 2575,
+}
+
 -- Gathering skills have no window to open. By skill line (Herbalism,
 -- Skinning), since the client names them in its own language, and by the
 -- English name as before.
@@ -83,7 +93,11 @@ function Opener:ProfessionFor(recipeID)
         end
     end
 
-    name = name or SKILL_LINE_NAMES[skillLineID]
+    local english = SKILL_LINE_NAMES[skillLineID]
+    if not name and english then
+        -- Only the English table knew it: ask the client for its own word.
+        name = OPEN_SPELLS[english] and SpellName(OPEN_SPELLS[english], english) or english
+    end
     if not name or NO_WINDOW[name] or NO_WINDOW_LINES[skillLineID] then return nil end
 
     local spell = name
