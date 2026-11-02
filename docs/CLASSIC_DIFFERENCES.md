@@ -468,6 +468,9 @@ seen in game.
   up the List It or Skip box with the reason, and List It lists it anyway
   (`Posting:RefusalOf`, `AskAnyway`, `Post`'s `anyway`; the next click at
   that price for 60 s lists straight off, for Era's two presses). List
-  Next still passes such stacks by. Forever does this with a "Bypass
-  Disallowed Postings:" tick box instead (18449eb, not taken); the box is
-  Retail's idea (68e8dbc), widened to every refusal (2026-10-31).
+  Next still passes such stacks by. The box is Retail's idea (68e8dbc),
+  widened to every refusal (2026-10-31). Forever's "Bypass Disallowed
+  Postings:" tick box came over too (34b9a6a, 2026-11-02) as "List
+  Anyway:" (`postAnyway`, off unless ticked): ticked, nothing is held back
+  or asked about (`RefusesEarly` returns before `AskAnyway`, and `Post`'s
+  `anyway` is the box's List It or the tick box).
