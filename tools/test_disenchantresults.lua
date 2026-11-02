@@ -6,6 +6,8 @@
 --   2. A character that doesn't, an item that can't be broken, or the row
 --      picked Off, gets none.
 --   3. On Shift (the usual pick) the lines wait for Shift and say so.
+--   4. Each priced material says what one is worth, as the disenchant value
+--      prices it; one never priced shows its chance alone (2026-11-02).
 
 local failures = 0
 local function check(label, got, want)
@@ -31,13 +33,16 @@ ns.Util = {
   end,
   ColorItemName = function(_, name) return name end,
   GetItemLabel = function(id) return "item" .. id end,
+  FormatMoney = function(c) return ("%dc"):format(c) end,
 }
 
 local knows = true
 ns.Disenchanter = { Knows = function() return knows end }
 
 local NAMES = { [10940] = "Strange Dust", [10939] = "Greater Magic Essence", [10978] = "Small Glimmering Shard" }
+local PRICES = { [10940] = 153, [10939] = 598 }
 ns.Disenchant = {
+  GetMaterialPrice = function(_, id) return PRICES[id] end,
   MaterialName = function(_, id) return NAMES[id] end,
   GetOutcomes = function(_, id)
     if id ~= 1 then return nil end
@@ -73,10 +78,14 @@ print("\nan enchanter")
 local lines = Lines(1)
 check("a line for each result", #lines, 3)
 check("the likeliest first, with its count", lines[1][1]:match("^%s*(.-)$"), "Strange Dust x2-3")
-check("and its chance", lines[1][2], "75%")
+check("its chance and what one is worth", lines[1][2], "75%   153c each")
+check("each material its own price", lines[2][2], "20%   598c each")
 check("a range of one and two", lines[2][1]:match("^%s*(.-)$"), "Greater Magic Essence x1-2")
 check("a single one has no count", lines[3][1]:match("^%s*(.-)$"), "Small Glimmering Shard")
-check("its chance", lines[3][2], "5%")
+check("never priced: its chance alone", lines[3][2], "5%")
+ns.Disenchant.GetMaterialPrice = function() error("boom") end
+check("a price that raises: its chance alone", Lines(1)[1][2], "75%")
+ns.Disenchant.GetMaterialPrice = function(_, id) return PRICES[id] end
 
 --------------------------------------------------------------------------------
 print("\nnone")
