@@ -1003,6 +1003,18 @@ local function Build(outer)
     end, false)
     widgets.askBeforeListing:SetPoint("TOPLEFT", CONTROL_X, -2)
 
+    -- List Anyway (Forever's Bypass Disallowed Postings, the owner, 2026-11-02): off unless ticked.
+    -- Ticked, a List click lists whatever this addon or its sisters would
+    -- hold back or refuse (Posting:PostsAnyway).
+    local anywayRow = CreateRow(pages.auction, 1, L["List Anyway:"],
+        L["List items even when it would normally wait or be held back."])
+
+    widgets.postAnyway = Widgets.CreateCheckbox(anywayRow, L["On"], function(checked)
+        Config:Set("postAnyway", checked)
+        if ns.PostPanel and ns.PostPanel.Refresh then ns.PostPanel:Refresh() end
+    end, false)
+    widgets.postAnyway:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     -- The mouse wheel (a player asked, the owner said build it, 2026-10-16):
     -- off unless ticked, and only while the auction house is open.
     local wheelRow = CreateRow(pages.auction, 1, L["Mouse Wheel:"],
@@ -2400,6 +2412,7 @@ local function Refresh()
     widgets.verifyPrice:SetChecked(Config:Get("verifyPriceBeforePosting") ~= false)
     widgets.fastListing:SetChecked(Config:Get("fastListing") ~= false)
     widgets.askBeforeListing:SetChecked(Config:Get("askBeforeListing") == true)
+    widgets.postAnyway:SetChecked(Config:Get("postAnyway") == true)
     widgets.mouseWheel:SetChecked(Config:Get("mouseWheelListing") == true)
     widgets.saleTotal:SetChecked(Config:Get("saleTotal") == true)
     widgets.overcutting:SetChecked(Config:Get("overcutting") == true)

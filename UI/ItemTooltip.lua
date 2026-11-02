@@ -742,7 +742,8 @@ function ItemTooltip:DisenchantLine(itemID)
     return { L["Disenchant value"], text }
 end
 
---- What the item can break into and the chance of each, under its
+--- What the item can break into, the chance of each and what one is
+--- worth, under its
 --- disenchant value, for a character that knows Disenchant (a player asked,
 --- 2026-10-29). The chances are the ones the Disenchanting tab shows: the
 --- built-in table, or your own results once there are enough.
@@ -768,7 +769,14 @@ function ItemTooltip:AddDisenchantResults(lines, itemID)
         if low and high and high > 1 then
             name = low == high and ("%s x%d"):format(name, low) or ("%s x%d-%d"):format(name, low, high)
         end
-        lines[#lines + 1] = { INDENT .. name, ("%s%%"):format(Util.Round((outcome.chance or 0) * 100, 1)) }
+        local right = ("%s%%"):format(Util.Round((outcome.chance or 0) * 100, 1))
+        -- What one of it is worth, as the disenchant value above prices it
+        -- (2026-11-02, a player asked to see each material's price).
+        local okPrice, price = pcall(ns.Disenchant.GetMaterialPrice, ns.Disenchant, outcome.itemID)
+        if okPrice and type(price) == "number" and price > 0 and Util.FormatMoney then
+            right = right .. "   " .. L.Format("%s each", Util.FormatMoney(price, { short = true }))
+        end
+        lines[#lines + 1] = { INDENT .. name, right }
     end
 end
 

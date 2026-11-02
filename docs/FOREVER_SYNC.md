@@ -3,7 +3,7 @@
 Where this Classic Era copy stands against Forever Tradeskills
 (`Blackthornes/Blackthornes_Tradeskills`). Forever is only ever read from here.
 
-Last Forever commit copied over: `7e928b9` (Forever main, 2026-10-29).
+Last Forever commit copied over: `0df1229` (Forever testing, 2026-11-02).
 The first copy was made from `94517cf` (Forever main, the merge of its
 PR #964, 2026-10-24). This copy was made from it with its history on
 2026-10-24.
@@ -77,6 +77,12 @@ Copied over since, one at a time:
 - `18449eb` Bypass Disallowed Postings (not taken, 2026-10-31): Classic asks
   on the List click instead, with the List It or Skip box (see
   `docs/CLASSIC_DIFFERENCES.md`).
+- `34b9a6a` Bypass Disallowed Postings, taken 2026-11-02 as "List Anyway:"
+  (`postAnyway`, off unless ticked), blended by hand into Classic's
+  `Logic/Posting.lua` beside the List It or Skip box; the label is
+  translated fresh in all five locales, `tools/test_postanyway.lua` as is.
+- `0df1229` Disenchant results on the tooltip show what one of each is
+  worth ("%s each"), kept with Classic's header and Disenchant check.
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.
