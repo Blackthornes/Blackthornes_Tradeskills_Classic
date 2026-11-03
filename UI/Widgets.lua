@@ -909,6 +909,17 @@ function Widgets.CreateNumberBox(parent, opts)
 
     editBox:SetScript("OnEnterPressed", Commit)
     editBox:SetScript("OnEditFocusLost", Commit)
+    -- Tab saves like Enter and moves to container.tabNext; Shift-Tab goes to
+    -- container.tabPrev. A box with neither just saves and keeps focus out.
+    editBox:SetScript("OnTabPressed", function()
+        local target = IsShiftKeyDown() and container.tabPrev or container.tabNext
+        Commit()
+        if target then
+            local edit = target.editBox or target
+            if edit.SetFocus then edit:SetFocus() end
+            if edit.HighlightText then edit:HighlightText() end
+        end
+    end)
     editBox:SetScript("OnEscapePressed", function(self)
         container:SetValue(container.value, true)
         self:ClearFocus()

@@ -152,6 +152,15 @@ local function MoneyBoxes(parent, onCommit)
     money.silver = Coin(30, 99, "|cffc7c7cfs|r")
     money.copper = Coin(30, 99, "|cffeda55fc|r")
 
+    -- Tab runs gold, silver, copper, then on to `after` (the next box on the
+    -- page, if any); Shift-Tab goes back. Both save like Enter.
+    money.gold.tabNext, money.silver.tabPrev = money.silver, money.gold
+    money.silver.tabNext, money.copper.tabPrev = money.copper, money.silver
+    function money:TabTo(after, before)
+        self.copper.tabNext = after
+        self.gold.tabPrev = before
+    end
+
     function money:SetPoint(...) self.gold:SetPoint(...) end
 
     function money:Get()
