@@ -301,6 +301,28 @@ check("five pins zoomed out: no names", looks[1].name, false)
 check("zoomed in: names", ns.VendorPinsUI.Looks(five, nil, true)[1].name, true)
 check("four pins: names", ns.VendorPinsUI.Looks({ five[1], five[2], five[3], five[4] }, nil, false)[4].name, true)
 
+print("\nthe pin's icon is cut round with a mask texture, not SetMask")
+do
+    local masked, setMask, maskTex
+    local icon = {
+        AddMaskTexture = function(_, m) masked = m end,
+        SetMask = function() setMask = true end,
+    }
+    local frame = {
+        CreateMaskTexture = function()
+            return { SetTexture = function(_, t) maskTex = t end, SetAllPoints = function() end }
+        end,
+    }
+    local mask = ns.VendorPinsUI.RoundIcon(frame, icon)
+    check("a mask texture is made", mask ~= nil, true)
+    check("the icon takes that mask", masked, mask)
+    check("the mask is the round shape", maskTex, [[Interface\CharacterFrame\TempPortraitAlphaMask]])
+    check("SetMask is not used", setMask, nil)
+    setMask = nil
+    check("no mask textures: SetMask is the fallback", ns.VendorPinsUI.RoundIcon({}, icon), nil)
+    check("the fallback ran", setMask, true)
+end
+
 print("\nthe pin wears its top material's icon")
 do
     local was = ns.Util.GetItemIcon
