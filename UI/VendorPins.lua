@@ -512,10 +512,19 @@ function VendorPinsUI.CreatePin(parent)
     return pin
 end
 
+--- The pin's face: the icon of the material that costs the most there
+--- (the card's top line, For sorts them so), else the plain bag.
+function VendorPinsUI.IconFor(vendor)
+    local first = vendor and vendor.items and vendor.items[1]
+    local icon = first and first.itemID and Util.GetItemIcon and Util.GetItemIcon(first.itemID)
+    return icon or BAG
+end
+
 --- Dress a pin for one vendor and its look.
 function VendorPinsUI.Dress(pin, vendor, look)
     pin.vendor = vendor
     pin.pinned = look.pinned
+    pin.icon:SetTexture(VendorPinsUI.IconFor(vendor))
     pin.count:SetText(look.count > 0 and tostring(look.count) or "")
     pin.badge:SetShown(look.count > 0)
     pin.count:SetShown(look.count > 0)

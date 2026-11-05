@@ -301,6 +301,16 @@ check("five pins zoomed out: no names", looks[1].name, false)
 check("zoomed in: names", ns.VendorPinsUI.Looks(five, nil, true)[1].name, true)
 check("four pins: names", ns.VendorPinsUI.Looks({ five[1], five[2], five[3], five[4] }, nil, false)[4].name, true)
 
+print("\nthe pin wears its top material's icon")
+do
+    local was = ns.Util.GetItemIcon
+    ns.Util.GetItemIcon = function(id) return id == 2320 and 132892 or nil end
+    check("the first item's icon", ns.VendorPinsUI.IconFor({ items = { { itemID = 2320 }, { itemID = 6260 } } }), 132892)
+    check("no icon yet: the bag", ns.VendorPinsUI.IconFor({ items = { { itemID = 6260 } } }), [[Interface\Icons\INV_Misc_Bag_10]])
+    check("no items: the bag", ns.VendorPinsUI.IconFor({ items = {} }), [[Interface\Icons\INV_Misc_Bag_10]])
+    ns.Util.GetItemIcon = was
+end
+
 print("\nwhere the game saw a vendor wins (Show the way)")
 VP.MOST_VENDORS = 300
 ns.db.vendorSpots = {}
