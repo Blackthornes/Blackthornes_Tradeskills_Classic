@@ -2374,6 +2374,9 @@ end
 function CraftPanel:WindowShown(kind)
     self.eraOpen[kind] = true
     self.eraLast = kind
+    -- "Open at Professions:" unticked (`openAtProfessions`, a player's
+    -- request, 2026-11-05): the pane waits for /bts pane.
+    if not CraftPanel.OpensWithProfession() then return end
     self:Attach()
 
     C_Timer.After(0.5, function()
@@ -2395,6 +2398,11 @@ function CraftPanel:WindowClosed(kind)
     end
 
     self:Hide()
+end
+
+--- True unless "Open at Professions:" on the Queue page is unticked.
+function CraftPanel.OpensWithProfession()
+    return ns.Config:Get("openAtProfessions") ~= false
 end
 
 function CraftPanel:OnEnable()

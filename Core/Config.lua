@@ -417,6 +417,12 @@ local DEFAULTS = {
         -- Open the window when the auction house or a vendor opens, and close
         -- it again when they close. Off: the window stays as you left it.
         openWithShops = false,
+        -- Tradeskills comes up by itself at the auction house (the one
+        -- window, or the sell list beside it), and the craft pane beside a
+        -- profession window. Off: it waits until you open it (a player's
+        -- request, 2026-11-05). Account wide; never rename either.
+        openAtAuction = true,
+        openAtProfessions = true,
 
         -- A chime when a run of crafts (two or more) finishes.
         craftDoneSound = true,

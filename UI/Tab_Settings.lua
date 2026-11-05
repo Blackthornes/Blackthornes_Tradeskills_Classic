@@ -1513,6 +1513,24 @@ local function Build(outer)
     roadOpen:SetPoint("TOPLEFT", CONTROL_X, -2)
     FitButton(roadOpen)
 
+    -- What comes up by itself (a player's request, 2026-11-05): ticked
+    -- unless unticked, so nothing changed for anyone.
+    CreateSection(pages.auction, 1, L["OPEN BY ITSELF"])
+
+    local ahRow = CreateRow(pages.auction, 1, L["Open at AH:"],
+        L["Opens Tradeskills when you open the auction house."])
+    widgets.openAtAuction = Widgets.CreateCheckbox(ahRow, L["On"], function(checked)
+        Config:Set("openAtAuction", checked)
+    end, true)
+    widgets.openAtAuction:SetPoint("TOPLEFT", CONTROL_X, -2)
+
+    local profRow = CreateRow(pages.auction, 1, L["Open at Professions:"],
+        L["Opens the craft pane beside your profession window."])
+    widgets.openAtProfessions = Widgets.CreateCheckbox(profRow, L["On"], function(checked)
+        Config:Set("openAtProfessions", checked)
+    end, true)
+    widgets.openAtProfessions:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     local shopsRow = CreateRow(pages.auction, 1, L["Open With AH and Vendors:"],
         L["Opens this window with the auction house or a vendor."])
 
@@ -2587,6 +2605,8 @@ local function Refresh()
     ShowShiftMode(widgets.disenchantTooltips)
     if widgets.crateTooltips then ShowShiftMode(widgets.crateTooltips) end
     widgets.openWithShops:SetChecked(Config:Get("openWithShops") == true)
+    widgets.openAtAuction:SetChecked(Config:Get("openAtAuction") ~= false)
+    widgets.openAtProfessions:SetChecked(Config:Get("openAtProfessions") ~= false)
     widgets.effects:SetValue(ns.Motion and ns.Motion.Level() or "full")
     local textSize = Config:Get("textSize")
     widgets.textSize:SetValue(Theme.TEXT_STEPS[textSize] and textSize or "normal", true)

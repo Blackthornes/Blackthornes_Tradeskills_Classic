@@ -994,6 +994,7 @@ end
 --------------------------------------------------------------------------------
 
 function UI:Show()
+    UI:AskedAtAuction()
     -- With "One Window:" ticked, the one window opens on Tradeskills
     -- instead, and lays this window in.
     if TSTabs:Route() then return end
@@ -1297,6 +1298,10 @@ end
 -- Scanning only works while the auction house is open, so the control belongs
 -- where the player already is rather than only inside our own window.
 function UI:AttachToAuctionHouse()
+    -- "Open at AH:" unticked: nothing comes up until the player opens
+    -- Tradeskills on this visit (UI:AskedAtAuction).
+    if not UI.AuctionWanted() then return end
+
     local auctionFrame, frameName = self:FindAuctionFrame()
     local bar = self:GetAuctionBar()
 
@@ -2285,6 +2290,35 @@ end
 --- as either opens and closes again as it closes (a player's request,
 --- 2026-10-02). Only a window opened this way is closed: one the player
 --- already had open stays open.
+--- "Open at AH:" on the Auction page (`openAtAuction`, on unless unticked;
+--- a player's request, 2026-11-05). Unticked, Tradeskills stays shut at the
+--- auction house until the player opens it there; then the sell list and
+--- the one window's Auction House tab come up as usual for that visit.
+function UI.OpensAtAuction()
+    return ns.Config:Get("openAtAuction") ~= false
+end
+
+--- True while Tradeskills may come up at the auction house: ticked, or the
+--- player opened it on this visit.
+function UI.AuctionWanted()
+    return UI.OpensAtAuction() or UI.ahAsked == true
+end
+
+--- The player opened Tradeskills (UI:Show, or its button in the one
+--- window) while the auction house is open with "Open at AH:" unticked:
+--- what it would have shown by itself comes up now, once a visit.
+function UI:AskedAtAuction()
+    if UI.ahAsked or UI.OpensAtAuction() then return end
+    if not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then return end
+    UI.ahAsked = true
+    C_Timer.After(0, function()
+        if ns.Scanner.isAuctionHouseOpen then
+            UI:AttachToAuctionHouse()
+            TSTabs:AuctionOpened()
+        end
+    end)
+end
+
 function UI:OpenWithShop(which)
     if ns.Config:Get("openWithShops") ~= true then return end
     self:Build()
@@ -2357,6 +2391,8 @@ function UI:OnEnable()
 
     ns.RegisterEvent(self, "AUCTION_HOUSE_SHOW", function()
         UI:UpdateHeader()
+        -- A new visit asks again whether Tradeskills opens by itself.
+        UI.ahAsked = false
         UI:AttachToAuctionHouse()
         -- With "One Window:" ticked, the drawer goes inside it instead.
         TSTabs:AuctionOpened()
@@ -2579,6 +2615,7 @@ function TSTabs:Enter(area)
     if not area then return end
     self.area = area
     UI:Build()
+    UI:AskedAtAuction()
     TSTabs:LayIn()
     TSTabs:Grow()
     local key = self.wanted
@@ -2660,6 +2697,9 @@ function TSTabs:AuctionOpened()
     local One = TSTabs.One()
     if not (One and One.Hosts and One.Hosts("tradeskills")) then return end
     if self.atAuction and self.area then return end
+    -- "Open at the Auction House:" unticked, the window stays shut unless
+    -- it is already up on Tradeskills.
+    if not self.area and not UI.AuctionWanted() then return end
     self.atAuction = true
     if self.area then
         self.beforeAuction = UI.activeTab
