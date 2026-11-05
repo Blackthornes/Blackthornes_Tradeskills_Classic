@@ -30,6 +30,24 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
+local function SameRealm(a, b)
+    local ka, kb = RealmKey(a), RealmKey(b)
+    return ka ~= nil and ka == kb
+end
+
 local GoldLog = ns.NewModule("GoldLog")
 
 --------------------------------------------------------------------------------
@@ -358,7 +376,7 @@ function GoldLog:IsOwnCharacter(name)
             if keyName == short
                 and (not last or not surname or surname:lower() == last:lower())
                 and (not realm or not keyRealm
-                or keyRealm:gsub("%s", "") == realm:gsub("%s", "")) then
+                or SameRealm(keyRealm, realm)) then
                 return true
             end
         end

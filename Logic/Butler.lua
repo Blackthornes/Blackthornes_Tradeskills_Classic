@@ -265,6 +265,24 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
+local function SameRealm(a, b)
+    local ka, kb = RealmKey(a), RealmKey(b)
+    return ka ~= nil and ka == kb
+end
+
 local Butler = ns.NewModule("Butler")
 
 -- Advise takes a bag copy's link as well as an item ID (2026-10-15), so a
@@ -1052,7 +1070,7 @@ local function CharacterNamed(name)
     for characterKey, record in pairs(Characters()) do
         if type(record) == "table" and not Playing(characterKey) and Matches(characterKey) then
             local score = (record.linkedFrom == nil and 2 or 0)
-                + ((realm and record.realm == realm) and 1 or 0)
+                + ((realm and SameRealm(record.realm, realm)) and 1 or 0)
             if not best or score > bestScore
                 or (score == bestScore and tostring(characterKey) < tostring(best)) then
                 best, bestScore = characterKey, score

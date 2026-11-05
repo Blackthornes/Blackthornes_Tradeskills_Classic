@@ -17,6 +17,19 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
 local Theme = ns.Theme
 local Widgets = ns.Widgets
 local Util = ns.Util
@@ -147,11 +160,11 @@ local function RestMost()
     return ns.CharacterNotes and ns.CharacterNotes.REST_MOST or 150
 end
 
---- A realm's name to compare by: case and spaces left out, as the game
---- writes some names with spaces and some without.
+--- A realm's name to compare by: case, spaces and Forever's "Realm N"
+--- server number left out (Util.RealmKey), so every account's characters
+--- on one realm list together.
 local function FoldRealm(name)
-    if type(name) ~= "string" or name == "" then return nil end
-    return (name:gsub("%s", ""):lower())
+    return RealmKey(name)
 end
 
 --- The realm of the character playing: its own record's, else the game's.
