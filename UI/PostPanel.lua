@@ -722,6 +722,16 @@ function PostPanel:Build()
     overcut:HookScript("OnLeave", function() GameTooltip:Hide() end)
     self.overcutBox = overcut
 
+    -- Hidden (2026-11-06, the owner approved the mockup): the items the
+    -- player hid with a row's x, the only ones kept off Sell. Opens the
+    -- list to bring one back; shows on Sell only while something is hidden.
+    local hiddenButton = Widgets.CreateButton(body, L.Format("Hidden (%d)", 0), function(button)
+        if ns.HiddenItemsWindow then ns.HiddenItemsWindow:Toggle(PostPanel.frame) end
+    end, { height = 20 })
+    hiddenButton:SetPoint("RIGHT", overcut, "LEFT", -10, 0)
+    hiddenButton:Hide()
+    self.hiddenButton = hiddenButton
+
     local summary = Theme.CreateLabel(body, "tiny", "muted")
     summary:SetPoint("TOPLEFT", switch, "BOTTOMLEFT", 0, -6)
     summary:SetPoint("RIGHT", overcut, "LEFT", -8, 0)
@@ -1044,7 +1054,7 @@ end
 
 --- The lines Sell shows now, Hide losses applied.
 function PostPanel:ShownLines()
-    local lines, toVendor = ns.Posting:GetPostable({ includeAll = true, showHeld = true })
+    local lines, toVendor = ns.Posting:GetPostable({ includeAll = true, showHeld = true, showNoted = true })
     local hidden = 0
     if self:HidingLosses() then lines, hidden = PostPanel.WithoutLosses(lines) end
     return lines, hidden, toVendor or 0
@@ -2044,16 +2054,32 @@ function PostPanel:Refresh()
             self.overcutBox:SetShown(showBox)
             self.overcutBox:SetChecked(ns.Config:Get("overcutting") == true)
         end
-        -- What sits at the summary line's right end: Hide losses on Sell,
-        -- Paste a list on Lists, nothing on Buy, where the summary has the
-        -- whole width rather than wrapping beside an empty space.
-        local beside = showBox and "box" or self.view == "lists" and "paste" or "none"
+        -- Hidden: the items the player hid, on Sell while there are any.
+        local hiddenCount = 0
+        if self.hiddenButton then
+            hiddenCount = showBox and ns.Posting and ns.Posting.GetIgnored and #ns.Posting:GetIgnored() or 0
+            if hiddenCount > 0 then
+                self.hiddenButton:SetText(L.Format("Hidden (%d)", hiddenCount))
+                local width = Theme.TextWidth(self.hiddenButton.label)
+                self.hiddenButton:SetWidth(math.max(70, math.ceil((width or 60) + 16)))
+            end
+            self.hiddenButton:SetShown(hiddenCount > 0)
+        end
+        if ns.HiddenItemsWindow and ns.HiddenItemsWindow.Refresh then ns.HiddenItemsWindow:Refresh() end
+        -- What sits at the summary line's right end: Hide losses on Sell
+        -- (Hidden first while there is one), Paste a list on Lists, nothing
+        -- on Buy, where the summary has the whole width rather than
+        -- wrapping beside an empty space.
+        local beside = showBox and (hiddenCount > 0 and "hidden" or "box")
+            or self.view == "lists" and "paste" or "none"
         if self.summaryBeside ~= beside then
             if self.summary and self.frame then
                 local View = ns.ShoppingListsView
                 self.summary:ClearAllPoints()
                 self.summary:SetPoint("TOPLEFT", self.switch, "BOTTOMLEFT", 0, -6)
-                if beside == "box" then
+                if beside == "hidden" then
+                    self.summary:SetPoint("RIGHT", self.hiddenButton, "LEFT", -8, 0)
+                elseif beside == "box" then
                     self.summary:SetPoint("RIGHT", self.overcutBox or self.hideLosses, "LEFT", -8, 0)
                 elseif beside == "paste" and View and View.paste then
                     self.summary:SetPoint("RIGHT", View.paste, "LEFT", -8, 0)
@@ -2182,15 +2208,21 @@ function PostPanel:Refresh()
         return
     end
 
-    local total, losses, keptBack = 0, 0, 0
+    local total, losses, keptBack, notNow = 0, 0, 0, 0
     for _, line in ipairs(lines) do
-        if line.held then
+        if line.noted then
+            notNow = notNow + 1
+        elseif line.held then
             keptBack = keptBack + 1
         else
             total = total + (line.postTotal or 0)
             if line.atALoss then losses = losses + 1 end
         end
     end
+
+    -- Rows with a note stay on the list to see, but are not counted as
+    -- ready to sell.
+    local selling = #lines - notNow
 
     -- What it would all fetch, in gold beside the title, so it is still
     -- there to see with the drawer folded away; folded, the count too.
@@ -2199,10 +2231,10 @@ function PostPanel:Refresh()
     -- With the Potential Sale Total counter on, the header has the numbers, so the
     -- title and the summary leave the worth out, folded or not.
     if banding then
-        self:SetTitle(self:IsCollapsed() and L.Format("Ready to sell (%d)", #lines) or L["Ready to sell"])
+        self:SetTitle(self:IsCollapsed() and L.Format("Ready to sell (%d)", selling) or L["Ready to sell"])
     elseif self:IsCollapsed() then
-        self:SetTitle(L.Format("Ready to sell (%d) · %s", #lines, worth),
-            L.Format("Ready to sell (%d)", #lines))
+        self:SetTitle(L.Format("Ready to sell (%d) · %s", selling, worth),
+            L.Format("Ready to sell (%d)", selling))
     else
         self:SetTitle(L.Format("Ready to sell · %s", worth), L["Ready to sell"])
     end
@@ -2212,16 +2244,16 @@ function PostPanel:Refresh()
         Util.FormatMoney(total, { noColor = true, short = true }))
     local count
     if banding then
-        count = #lines == 1 and L.Format("%d item", #lines) or L.Format("%d items", #lines)
+        count = selling == 1 and L.Format("%d item", selling) or L.Format("%d items", selling)
     else
-        count = #lines == 1 and L.Format("%d item, about %s", #lines, about)
-            or L.Format("%d items, about %s", #lines, about)
+        count = selling == 1 and L.Format("%d item, about %s", selling, about)
+            or L.Format("%d items, about %s", selling, about)
     end
     self:SetSummary(count
         .. (hidden > 0 and ("  ·  " .. L.Format("%d hidden", hidden))
             or losses > 0 and ("  ·  |c%s%s|r"):format(ns.COLORS.loss, L.Format("%d at a loss", losses)) or "")
         .. (keptBack > 0 and ("  ·  " .. L.Format("%d kept for your other addons", keptBack)) or "")
-        .. (toVendor > 0 and ("  ·  " .. L.Format("%d for the vendor", toVendor)) or ""))
+        .. (notNow > 0 and ("  ·  " .. L.Format("%d not for now", notNow)) or ""))
 end
 
 --- The Favors switch shows only while a favor goal is set.

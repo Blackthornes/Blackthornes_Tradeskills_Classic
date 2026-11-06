@@ -138,6 +138,7 @@ UI\LegacyBuyView.lua
 UI\SearchedPrice.lua
 UI\PostPanel.lua
 UI\SaleTotal.lua
+UI\HiddenItemsWindow.lua
 UI\PriceEditor.lua
 UI\ListRulesWindow.lua
 UI\KeepBox.lua
