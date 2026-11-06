@@ -1152,6 +1152,12 @@ end
 --   the Post tab wants; every caller that picks something to list on the
 --   player's behalf must not see them.
 --
+-- @param opts.showNoted  the Sell tab's whole bag (Trent, 2026-11-06: only
+--   what the player hid with the x stays off): an item it would leave out
+--   for a grey, a queued craft needing it all, no price yet or a vendor
+--   paying more stays on, dimmed, with why in line.held and line.noted set,
+--   so List all, Check Prices and the totals pass it over as a keep.
+--
 -- Items the player ignored are never offered, on any list: ignoring one
 -- means not selling it, so Post Crafted and Post ALL leave it alone too.
 function Posting:GetPostable(opts)
@@ -1201,14 +1207,21 @@ function Posting:GetPostable(opts)
         -- six Linen Cloth kept all two hundred off the whole-bag lists.
         local wanted = outputs[itemID] ~= nil or opts.includeAll
 
+        -- Why the Sell tab shows it dimmed (opts.showNoted), or nil.
+        local note
+
         if not wanted then
             skipped[itemID] = "not asked for"
         elseif self:IsIgnored(itemID) then
             wanted = false
             skipped[itemID] = "ignored (Settings, Ignored items)"
         elseif IsGrey(itemID, slots[itemID]) then
-            wanted = false
             skipped[itemID] = "grey, sells to a vendor"
+            if opts.showNoted then
+                note = L["Grey items sell best to a vendor."]
+            else
+                wanted = false
+            end
         end
 
         if wanted then
@@ -1227,6 +1240,7 @@ function Posting:GetPostable(opts)
             end
 
             local keep = not anyway and reserved[itemID]
+            local bagCount = count
             if keep and count then
                 count = count - (type(keep) == "number" and keep or count)
             end
@@ -1295,6 +1309,18 @@ function Posting:GetPostable(opts)
                 skipped[itemID] = "no price"
             end
 
+            -- The Sell tab keeps the whole of a stack the queue needs all of,
+            -- dimmed, saying so; the queue's share is never listed for it.
+            if opts.showNoted and keep and sellable and count and count <= 0
+                    and bagCount and bagCount > 0 then
+                count = bagCount
+                note = note or L.Format("Your craft queue needs all %d of these.", bagCount)
+            end
+            if opts.showNoted and not note and not heldAll and sellable and count and count > 0
+                    and not price and opts.includeAll and not opts.includeUnpriced then
+                note = L["No price yet. Click Scan to find one."]
+            end
+
             -- What it cost to make one, so a listing below that can be
             -- flagged rather than quietly recommended.
             local analysis = outputs[itemID]
@@ -1312,6 +1338,10 @@ function Posting:GetPostable(opts)
                     and not (heldAll and not opts.showHeld) then
                 vendorPile = vendorPile + 1
                 skipped[itemID] = "a vendor pays more"
+                if opts.showNoted and not note and not heldAll then
+                    note = L.Format("A vendor pays more: %s each.",
+                        Util.FormatMoney(vendorPrice or 0, { noColor = true }))
+                end
             end
 
             -- Under what the last craft of it cost, with that guard on.
@@ -1340,8 +1370,12 @@ function Posting:GetPostable(opts)
             -- that claims to show their bags.
             local needsPrice = opts.includeAll and not opts.includeUnpriced
 
-            if sellable and count > 0 and (price or not needsPrice)
-                    and (opts.showHeld or not heldAll) and not toVendor then
+            -- A note stands in for a keep: dimmed, its why on the row.
+            local noted = note ~= nil and sellable and count and count > 0
+            if noted then heldAll = note end
+
+            if sellable and count > 0 and (price or not needsPrice or noted)
+                    and (opts.showHeld or noted or not heldAll) and (not toVendor or noted) then
                 lines[#lines + 1] = {
                     itemID = itemID,
                     recipeID = outputs[itemID],
@@ -1376,6 +1410,9 @@ function Posting:GetPostable(opts)
                     -- Held only to wait (Keep Listed full, or When
                     -- Cheaper), not kept for another addon: its mark.
                     heldWaits = heldWaits or nil,
+                    -- Left out of List all for the Sell tab's own reasons
+                    -- (opts.showNoted), not another addon's keep.
+                    noted = noted or nil,
                     kept = kept,
                     keptWhy = keptWhy,
                     -- The copy itself when it has a random suffix: the item
@@ -1393,6 +1430,8 @@ function Posting:GetPostable(opts)
     end
 
     table.sort(lines, function(a, b)
+        -- Dimmed rows with a note go after the ones that would list.
+        if (a.noted and true or false) ~= (b.noted and true or false) then return not a.noted end
         local left, right = a.total or 0, b.total or 0
         if left ~= right then return left > right end
 
