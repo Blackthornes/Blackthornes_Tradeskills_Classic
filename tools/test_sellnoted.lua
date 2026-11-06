@@ -1,6 +1,7 @@
 -- The Sell list leaves off only what the player hid with the x. What it
--- would not sell (no price yet, a vendor pays more, the queue needs it all,
--- grey) stays on, dimmed, with a note saying why, and List all passes it by.
+-- would not sell (no price yet, a vendor pays more, the queue needs it all)
+-- stays on, dimmed, with a note saying why, and List all passes it by.
+-- Greys never show at all.
 
 local ns = {}
 ns.COLORS = setmetatable({}, {__index = function() return "ffffffff" end})
@@ -187,7 +188,7 @@ do
     check("leather the auction house pays for is a plain row",
         LineFor(lines, LEATHER) ~= nil and not LineFor(lines, LEATHER).noted, true)
     for _, case in ipairs({ { "no price yet", NOPRICE }, { "a vendor pays more", SCRAPS },
-                            { "the queue needs it all", QUEUED }, { "grey", GREY } }) do
+                            { "the queue needs it all", QUEUED } }) do
         local line = LineFor(lines, case[2])
         check(case[1] .. " stays on the list", line ~= nil, true)
         check(case[1] .. " is noted", line and line.noted, true)
@@ -195,6 +196,7 @@ do
     end
     check("all 22 with no price show", (LineFor(lines, NOPRICE) or {}).postCount or (LineFor(lines, NOPRICE) or {}).count, 22)
     check("an item the player hid stays off", LineFor(lines, HIDDEN), nil)
+    check("a grey never shows", LineFor(lines, GREY), nil)
     check("noted rows come after the rest", lines[1].itemID, LEATHER)
     local nextLine = Posting:GetNextPostable({ includeAll = true }, lines)
     check("List all picks the leather", nextLine and nextLine.itemID, LEATHER)

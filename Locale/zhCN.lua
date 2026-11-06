@@ -3386,7 +3386,6 @@ L["Type /bts windows reset to put every window back in its first spot."] = "输�
 L["Clear Items"] = "清除物品"
 L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] = "忘记此角色已保存的背包、银行、邮件和金币。登录该角色即可重新读取。"
 L["Cleared saved items for %s."] = "已清除%s的已保存物品。"
-L["Grey items sell best to a vendor."] = "灰色物品卖给商人最划算。"
 L["Your craft queue needs all %d of these."] = "你的制作队列需要全部 %d 个。"
 L["No price yet. Click Scan to find one."] = "还没有价格。点击扫描来查价。"
 L["A vendor pays more: %s each."] = "商人出价更高：每个 %s。"

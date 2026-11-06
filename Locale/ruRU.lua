@@ -3390,7 +3390,6 @@ L["Type /bts windows reset to put every window back in its first spot."] = "Вв
 L["Clear Items"] = "Забыть предметы"
 L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] = "Забывает сохранённые сумки, банк, почту и золото этого персонажа. Зайди за него, чтобы прочитать всё снова."
 L["Cleared saved items for %s."] = "Сохранённые предметы %s забыты."
-L["Grey items sell best to a vendor."] = "Серые предметы выгоднее продать торговцу."
 L["Your craft queue needs all %d of these."] = "Твоей очереди ремесла нужны все %d."
 L["No price yet. Click Scan to find one."] = "Цены пока нет. Нажми «Сканировать», чтобы узнать её."
 L["A vendor pays more: %s each."] = "Торговец платит больше: %s за штуку."

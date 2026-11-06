@@ -3388,7 +3388,6 @@ L["Type /bts windows reset to put every window back in its first spot."] = "Gib 
 L["Clear Items"] = "Gegenstände vergessen"
 L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] = "Vergisst die gespeicherten Taschen, Bank, Post und das Gold dieses Charakters. Logg dich mit ihm ein, um alles neu zu lesen."
 L["Cleared saved items for %s."] = "Gespeicherte Gegenstände von %s vergessen."
-L["Grey items sell best to a vendor."] = "Graue Gegenstände verkaufst du am besten beim Händler."
 L["Your craft queue needs all %d of these."] = "Deine Herstellungsliste braucht alle %d davon."
 L["No price yet. Click Scan to find one."] = "Noch kein Preis. Klick auf Scannen, um einen zu finden."
 L["A vendor pays more: %s each."] = "Ein Händler zahlt mehr: %s pro Stück."

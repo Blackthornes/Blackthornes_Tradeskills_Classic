@@ -1216,12 +1216,9 @@ function Posting:GetPostable(opts)
             wanted = false
             skipped[itemID] = "ignored (Settings, Ignored items)"
         elseif IsGrey(itemID, slots[itemID]) then
+            -- Greys never show, not even dimmed (Trent, 2026-11-06).
             skipped[itemID] = "grey, sells to a vendor"
-            if opts.showNoted then
-                note = L["Grey items sell best to a vendor."]
-            else
-                wanted = false
-            end
+            wanted = false
         end
 
         if wanted then
