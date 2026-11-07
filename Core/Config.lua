@@ -553,6 +553,10 @@ local DEFAULTS = {
         -- and Stats tabs. Off unless ticked (the owner, 2026-11-07); never
         -- rename it.
         linkShareSales = false,
+        -- This account's shopping lists and craft queue list, shown read only
+        -- on the other account. Off unless ticked (the owner, 2026-11-07);
+        -- never rename it.
+        linkShareLists = false,
         -- Share scans with guildmates and fill gaps with theirs. On by
         -- default (the owner, 2026-10-07). See Logic/GuildPrices.lua.
         guildPrices = true,

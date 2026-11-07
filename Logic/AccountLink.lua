@@ -68,6 +68,20 @@ AccountLink.MAX_SALES = 200
 AccountLink.SALE_KINDS = { sold = true, expired = true, removed = true }
 AccountLink.salesVersion = 0
 
+-- Share Shopping Lists (the owner, 2026-11-07): this account's shopping
+-- lists and its craft queue's list, item IDs and counts only (how many are
+-- wanted and how many this account has), so the other account can buy for
+-- it at the auction house. Off unless ticked on both sides
+-- (`linkShareLists`, never rename it). Only this account's own lists go
+-- out, never one taken from a partner, so nothing is passed on. The
+-- receiver keeps them apart in `linkedShoppingLists[partner key]` (never
+-- rename it), replaced whole each time, and shows them read only.
+-- The manifest carries `lists`: the hash of what would be sent, or "off".
+-- U (table) is the lists themselves, V asks for them.
+AccountLink.LISTS_SETTING = "linkShareLists"
+AccountLink.LISTS_KEY = "lists"
+AccountLink.MAX_LIST_ITEMS = 1000
+
 -- How often partners are said hello to, or told what changed.
 AccountLink.CHECK_SECONDS = 600
 -- A change that should not wait for the next check (a new sale) goes to
@@ -276,7 +290,45 @@ function AccountLink:Manifest(only)
             if ok then manifest[guid] = Comm.Hash(text) end
         end
     end
+    if not only or only[self.LISTS_KEY] then manifest[self.LISTS_KEY] = self:ListsHash() end
     return manifest
+end
+
+--- This account's own shopping lists and its craft queue's list, as sent:
+--- { lists = { { n = name, i = { { id, want, have }, ... } }, ... },
+---   queue = { { id, want, have }, ... } }. Never a list from a partner.
+function AccountLink:OwnLists()
+    local out = { lists = {}, queue = {} }
+    local lists = ns.ShoppingLists
+    if not lists then return out end
+    local total = 0
+    local function Take(into, id, want, have)
+        if total >= self.MAX_LIST_ITEMS then return end
+        id, want, have = tonumber(id), tonumber(want), tonumber(have) or 0
+        if not id or not want or want < 1 then return end
+        total = total + 1
+        into[#into + 1] = { math.floor(id), math.floor(want), math.max(0, math.floor(have)) }
+    end
+    local ok, queue = pcall(lists.QueueLines, lists)
+    for _, line in ipairs(ok and type(queue) == "table" and queue or {}) do
+        Take(out.queue, line.itemID, line.want, line.have)
+    end
+    for _, held in ipairs(lists:Readable()) do
+        local list = { n = held.list.name, i = {} }
+        local okLines, lines = pcall(lists.Lines, lists, held.index)
+        for _, line in ipairs(okLines and type(lines) == "table" and lines or {}) do
+            Take(list.i, line.itemID, line.want, line.have)
+        end
+        out.lists[#out.lists + 1] = list
+    end
+    return out
+end
+
+--- The hash of what OwnLists would send, or "off" while not sharing them.
+function AccountLink:ListsHash()
+    if Setting(self.LISTS_SETTING) ~= true then return "off" end
+    local ok, text = pcall(ns.Serialize.EncodeCanonical, self:OwnLists())
+    return ok and Comm.Hash(text) or "off"
 end
 
 --------------------------------------------------------------------------------
@@ -498,6 +550,71 @@ local function CleanSales(value, guid)
     return out
 end
 
+--- A partner's shopping lists, as OwnLists sends them, checked: numbers
+--- in range and a name with no chat codes, nothing else.
+local function CleanListItems(value, budget)
+    local out = {}
+    if type(value) ~= "table" then return out end
+    local MAX = ns.ShoppingLists and ns.ShoppingLists.MAX_WANT or 99999
+    for _, item in ipairs(value) do
+        if budget.left <= 0 then break end
+        if type(item) == "table" then
+            local id, want, have = CleanNumber(item[1]), CleanNumber(item[2]), CleanNumber(item[3]) or 0
+            if id and want and id >= 1 and id < 10000000 and want >= 1 then
+                budget.left = budget.left - 1
+                out[#out + 1] = { math.floor(id), math.min(MAX, math.floor(want)),
+                                  math.max(0, math.min(MAX * 10, math.floor(have))) }
+            end
+        end
+    end
+    return out
+end
+
+local function CleanLists(value)
+    if type(value) ~= "table" then return nil end
+    local budget = { left = AccountLink.MAX_LIST_ITEMS }
+    local out = { queue = CleanListItems(value.queue, budget), lists = {} }
+    local maxLists = ns.ShoppingLists and ns.ShoppingLists.MAX_LISTS or 50
+    local maxName = ns.ShoppingLists and ns.ShoppingLists.MAX_NAME or 40
+    for _, list in ipairs(type(value.lists) == "table" and value.lists or {}) do
+        if #out.lists >= maxLists then break end
+        local name = type(list) == "table" and CleanString(list.n)
+        name = name and name:gsub("^%s+", ""):gsub("%s+$", ""):sub(1, maxName)
+        if name and name ~= "" then
+            out.lists[#out.lists + 1] = { n = name, i = CleanListItems(list.i, budget) }
+        end
+    end
+    return out
+end
+AccountLink.CleanLists = CleanLists
+
+--- Keep a partner's shopping lists, replacing what it sent before. nil lets
+--- them go. Only while this side shares lists too.
+function AccountLink:KeepLists(state, lists, hash)
+    local key = state and Comm.NameKey(state.name)
+    if not key or not ns.db then return end
+    local all = ns.db.linkedShoppingLists
+    if lists == nil then
+        if type(all) == "table" and all[key] ~= nil then
+            all[key] = nil
+            if next(all) == nil then ns.db.linkedShoppingLists = nil end
+            if ns.ShoppingLists then ns.ShoppingLists:Touch() end
+        end
+        return
+    end
+    if type(all) ~= "table" then all = {}; ns.db.linkedShoppingLists = all end
+    all[key] = { from = state.name, at = time(), hash = hash, lists = lists.lists, queue = lists.queue }
+    if ns.ShoppingLists then ns.ShoppingLists:Touch() end
+end
+
+--- Let every partner's lists go (this side unticked Share Shopping Lists).
+function AccountLink:DropLists()
+    if ns.db and ns.db.linkedShoppingLists ~= nil then
+        ns.db.linkedShoppingLists = nil
+        if ns.ShoppingLists then ns.ShoppingLists:Touch() end
+    end
+end
+
 --- Keep a partner character's sales apart, replacing what it sent before.
 --- Empty (or this side unticked) drops it everywhere.
 function AccountLink:KeepSales(guid, sales)
@@ -594,6 +711,12 @@ function AccountLink:Forget(name)
         ns.Recipes:ForgetCharacter(guid)
         if ns.db then self:KeepSales(guid, {}) end
     end
+    local lists = ns.db and ns.db.linkedShoppingLists
+    if type(lists) == "table" then
+        for partnerKey in pairs(lists) do
+            if not key or partnerKey == key then self:KeepLists({ name = partnerKey }, nil) end
+        end
+    end
     if #gone > 0 then self:Changed() end
     return #gone
 end
@@ -658,6 +781,7 @@ end
 -- M (table) manifest: guid -> hash of each character it would send.
 -- W (table) want: the guids whose hash differs from the copy held.
 -- C (table) character: { hash = ..., data = payload }.
+-- V ask for the shopping lists, U (table) the lists: { hash, data }.
 
 local function Whisper(kind, text, target)
     return Comm:Send(kind, text, "WHISPER", target)
@@ -678,7 +802,7 @@ end
 --- burst goes as one, but never longer than SOON_MOST_WAIT. Any shared
 --- feature can call it once it has checked its own setting.
 function AccountLink:SendSoon(guid)
-    if not IsGUID(guid) or not C_Timer or not C_Timer.After then return end
+    if not (IsGUID(guid) or guid == self.LISTS_KEY) or not C_Timer or not C_Timer.After then return end
     local now = GetTime and GetTime() or time()
     self.soonDirty = self.soonDirty or {}
     self.soonDirty[guid] = true
@@ -717,6 +841,26 @@ function AccountLink:SalesChanged(guid)
     if Setting(self.SALES_SETTING) == true then self:SendSoon(guid) end
 end
 
+--- A shopping list or the craft queue just changed. With Share Shopping
+--- Lists ticked, partners hear soon.
+function AccountLink:ListsChanged()
+    if Setting(self.LISTS_SETTING) == true then self:SendSoon(self.LISTS_KEY) end
+end
+
+--- Share Shopping Lists was ticked or unticked here. Ticked, online
+--- partners are asked for theirs; unticked, theirs go and they are told.
+function AccountLink:ListsTicked(on)
+    if on then
+        for _, partner in ipairs(self:GetPartners()) do
+            local state = self.partners[partner.key]
+            if state and state.online then Whisper("V", "", state.name) end
+        end
+    else
+        self:DropLists()
+    end
+    self:SendSoon(self.LISTS_KEY)
+end
+
 --- Say hello to every partner not yet heard from, and tell the ones who
 --- are what changed. Called at login, every CHECK_SECONDS, and by Sync now.
 function AccountLink:Check()
@@ -752,6 +896,8 @@ function AccountLink:OnManifest(sender, manifest, channel)
     -- unless it went out a moment ago (which is what stops the two
     -- answering each other for ever).
     if not state.manifestAt or time() - state.manifestAt > 60 then self:SendManifest(state) end
+
+    self:OnListsHash(state, manifest[self.LISTS_KEY])
 
     local characters = (ns.db and ns.db.characters) or {}
     local want = {}
@@ -798,6 +944,38 @@ function AccountLink:OnCharacter(sender, value, channel)
     else
         ns.Debug("share: a character from", tostring(sender), "was not taken:", tostring(why))
     end
+end
+
+--- A partner's manifest said what its lists hash to ("off" when it does
+--- not share them). Ask for them when they changed and this side shares.
+function AccountLink:OnListsHash(state, hash)
+    if type(hash) ~= "string" then return end
+    if hash == "off" or Setting(self.LISTS_SETTING) ~= true then
+        self:KeepLists(state, nil)
+        return
+    end
+    local held = ns.db and type(ns.db.linkedShoppingLists) == "table"
+        and ns.db.linkedShoppingLists[Comm.NameKey(state.name)]
+    if type(held) ~= "table" or held.hash ~= hash:sub(1, 16) then Whisper("V", "", state.name) end
+end
+
+function AccountLink:OnListsWanted(sender, _, channel)
+    if channel ~= "WHISPER" then return end
+    local state = self:PartnerFor(sender)
+    if not state or Setting(self.LISTS_SETTING) ~= true then return end
+    local data = self:OwnLists()
+    local ok, text = pcall(ns.Serialize.EncodeCanonical, data)
+    if ok then Comm:SendTable("U", { hash = Comm.Hash(text), data = data }, "WHISPER", state.name) end
+end
+
+function AccountLink:OnLists(sender, value, channel)
+    if channel ~= "WHISPER" then return end
+    local state = self:PartnerFor(sender)
+    if not state or Setting(self.LISTS_SETTING) ~= true or type(value) ~= "table" then return end
+    local lists = CleanLists(value.data)
+    if not lists then return end
+    local hash = type(value.hash) == "string" and value.hash:sub(1, 16) or nil
+    self:KeepLists(state, lists, hash)
 end
 
 function AccountLink:OnOffline(key)
@@ -847,6 +1025,8 @@ function AccountLink:OnEnable()
     Comm:OnTable("M", function(...) AccountLink:OnManifest(...) end)
     Comm:OnTable("W", function(...) AccountLink:OnWant(...) end)
     Comm:OnTable("C", function(...) AccountLink:OnCharacter(...) end)
+    Comm:On("V", function(...) AccountLink:OnListsWanted(...) end)
+    Comm:OnTable("U", function(...) AccountLink:OnLists(...) end)
     Comm.onOffline = function(key)
         AccountLink:OnOffline(key)
         if ns.GuildCrafters and ns.GuildCrafters.OnOffline then ns.GuildCrafters:OnOffline(key) end

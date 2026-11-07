@@ -38,12 +38,15 @@ ShoppingLists.version = 0
 
 local function Changed()
     ShoppingLists.version = ShoppingLists.version + 1
+    -- With Share Shopping Lists ticked, the other account hears soon.
+    if ns.AccountLink and ns.AccountLink.ListsChanged then pcall(ns.AccountLink.ListsChanged, ns.AccountLink) end
 end
 
 --- Something about a list changed outside this file (its rules,
---- Logic/ListRules.lua): move the version so views and lookups redraw.
+--- Logic/ListRules.lua, or the other account's lists coming in): move the
+--- version so views and lookups redraw. Nothing is sent for it.
 function ShoppingLists:Touch()
-    Changed()
+    ShoppingLists.version = ShoppingLists.version + 1
 end
 
 --------------------------------------------------------------------------------
@@ -241,12 +244,14 @@ end
 
 --- One item of a list as a row: how many are wanted, owned (bags, bank and
 --- mail, as the craft queue counts) and still needed, and what one costs.
-function ShoppingLists:Line(itemID, want)
-    local have = 0
-    if ns.Inventory and ns.Inventory.GetOwnedCount then
+--- `have`, when given, is used as it is (the other account's own count).
+function ShoppingLists:Line(itemID, want, have)
+    if type(have) ~= "number" and ns.Inventory and ns.Inventory.GetOwnedCount then
+        have = 0
         local ok, owned = pcall(ns.Inventory.GetOwnedCount, ns.Inventory, itemID)
         if ok and type(owned) == "number" then have = owned end
     end
+    have = type(have) == "number" and have or 0
 
     local vendor = ns.Vendor and ns.Vendor:GetUnitPrice(itemID) or nil
     local auction = ns.Prices and ns.Prices:GetValue(itemID, "lowest") or nil
@@ -298,6 +303,69 @@ function ShoppingLists:QueueLines()
                 vendorLimited = line.vendorLimited,
             }
         end
+    end
+    return lines
+end
+
+--------------------------------------------------------------------------------
+-- The other account's lists (Share Shopping Lists, Logic/AccountLink.lua)
+--------------------------------------------------------------------------------
+
+local LINK_PREFIX = "link:"
+
+--- Is this key one of the other account's lists?
+function ShoppingLists.IsLinkedKey(key)
+    return type(key) == "string" and key:sub(1, #LINK_PREFIX) == LINK_PREFIX
+end
+
+--- The other account's lists, read only, while Share Shopping Lists is
+--- ticked here: { { key, name, from, queue, items }, ... }, each partner's
+--- craft queue first, partners by name.
+function ShoppingLists:Linked()
+    local out = {}
+    if not (ns.Config and ns.Config:Get("linkShareLists") == true) then return out end
+    local all = ns.db and ns.db.linkedShoppingLists
+    if type(all) ~= "table" then return out end
+    local keys = {}
+    for key, held in pairs(all) do
+        if type(key) == "string" and type(held) == "table" then keys[#keys + 1] = key end
+    end
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+        local held = all[key]
+        local from = type(held.from) == "string" and held.from or key
+        if type(held.queue) == "table" and #held.queue > 0 then
+            out[#out + 1] = { key = LINK_PREFIX .. key .. ":q", queue = true, from = from, items = held.queue,
+                              name = L.Format("Craft queue (%s)", from) }
+        end
+        for index, list in ipairs(type(held.lists) == "table" and held.lists or {}) do
+            if type(list) == "table" and type(list.n) == "string" and type(list.i) == "table" then
+                out[#out + 1] = { key = LINK_PREFIX .. key .. ":" .. index, from = from, items = list.i,
+                                  name = L.Format("%s (%s)", list.n, from) }
+            end
+        end
+    end
+    return out
+end
+
+--- One of the other account's lists by key, or nil once it is gone.
+function ShoppingLists:LinkedList(key)
+    if not ShoppingLists.IsLinkedKey(key) then return nil end
+    for _, list in ipairs(self:Linked()) do
+        if list.key == key then return list end
+    end
+    return nil
+end
+
+--- The rows of one of the other account's lists: how many it wants and
+--- has, with this side's prices.
+function ShoppingLists:LinkedLines(key)
+    local lines = {}
+    local list = self:LinkedList(key)
+    if not list then return lines end
+    for _, item in ipairs(list.items) do
+        local id, want = tonumber(item[1]), tonumber(item[2])
+        if id and want then lines[#lines + 1] = self:Line(id, want, tonumber(item[3]) or 0) end
     end
     return lines
 end

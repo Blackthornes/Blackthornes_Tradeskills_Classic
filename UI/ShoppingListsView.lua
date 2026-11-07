@@ -51,24 +51,38 @@ local function Lists() return ns.ShoppingLists end
 
 local function LinesFor(key)
     if key == QUEUE_KEY then return Lists():QueueLines() end
+    -- The other account's lists (Share Shopping Lists), read only.
+    if Lists().IsLinkedKey(key) then return Lists():LinkedLines(key) end
     return Lists():Lines(key)
+end
+
+--- Is this list still there to show? A list deleted here, or one the other
+--- account took away or stopped sharing, is not.
+local function StillThere(key)
+    if type(key) == "number" then return Lists():Get(key) ~= nil end
+    if Lists().IsLinkedKey(key) then return Lists():LinkedList(key) ~= nil end
+    return true
 end
 
 --- Every row to draw, in order: each list, and the open one's tools and items.
 function View:Entries()
     local entries = {}
-    local function AddList(key, name, lines, auto, rules)
+    local function AddList(key, name, lines, auto, rules, linked)
         local total, unpriced = Lists().Total(lines)
         local open = self.open == key
         entries[#entries + 1] = {
             kind = "list", key = key, name = name, auto = auto, open = open,
-            count = #lines, total = total, unpriced = unpriced,
+            count = #lines, total = total, unpriced = unpriced, linked = linked,
             searchable = Lists().Searchable(lines), lines = lines, rules = rules or 0,
         }
         if not open then return end
-        entries[#entries + 1] = { kind = "tools", key = key, auto = auto }
+        -- The other account's lists are read only: no tools to change them.
+        if not linked then
+            entries[#entries + 1] = { kind = "tools", key = key, auto = auto }
+        end
         for _, line in ipairs(lines) do
-            entries[#entries + 1] = { kind = "item", key = key, auto = auto, line = line, itemID = line.itemID }
+            entries[#entries + 1] = { kind = "item", key = key, auto = auto, linked = linked,
+                line = line, itemID = line.itemID }
         end
     end
 
@@ -76,6 +90,9 @@ function View:Entries()
     for _, held in ipairs(Lists():Readable()) do
         AddList(held.index, held.list.name, LinesFor(held.index), false,
             ns.ListRules and ns.ListRules.Count(held.list) or 0)
+    end
+    for _, list in ipairs(Lists():Linked()) do
+        AddList(list.key, list.name, LinesFor(list.key), true, 0, true)
     end
     return entries
 end
@@ -151,7 +168,7 @@ function View:SearchAgain()
     local last = lists.lastSearch
     if not last then return end
     if not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then lists.lastSearch = nil; return end
-    if type(last.owner) == "number" and not lists:Get(last.owner) then lists.lastSearch = nil; return end
+    if not StillThere(last.owner) then lists.lastSearch = nil; return end
 
     local ids, counts = {}, {}
     for _, line in ipairs(LinesFor(last.owner)) do
@@ -390,8 +407,15 @@ local function UpdateRow(row, entry)
     end
     row.name:Show()
 
-    local have = line.need > 0 and L.Format("You have %d, need %d", line.have, line.need)
-        or L.Format("You have %d", line.have)
+    local have
+    if entry.linked then
+        -- What the other account has, as it last said.
+        have = line.need > 0 and L.Format("Other account has %d, needs %d", line.have, line.need)
+            or L.Format("Other account has %d", line.have)
+    else
+        have = line.need > 0 and L.Format("You have %d, need %d", line.have, line.need)
+            or L.Format("You have %d", line.have)
+    end
     local price
     if line.fromVendor and line.unit then
         price = L.Format("|c%svendor|r %s each", ns.COLORS.profit, Money(line.unit))
@@ -400,6 +424,12 @@ local function UpdateRow(row, entry)
     else
         price = L["no price"]
     end
+    -- Got everything the list wants: said plainly and dimmed.
+    if line.need <= 0 and line.want and line.want > 0 then
+        have = entry.linked and L["Other account has all it needs"] or L["Got all you need"]
+    end
+    row.icon:SetAlpha(line.need <= 0 and 0.5 or 1)
+    row.name:SetAlpha(line.need <= 0 and 0.5 or 1)
     -- Whole: a long line wraps and the row grows to hold it.
     if Theme.SetRowLine then
         Theme.SetRowLine(row.sub, have .. "  ·  " .. price, 17)
@@ -445,7 +475,9 @@ local function ShowTooltip(row, entry)
     elseif entry.kind == "list" then
         GameTooltip:SetOwner(row, "ANCHOR_LEFT")
         GameTooltip:SetText(entry.name)
-        if entry.auto then
+        if entry.linked then
+            GameTooltip:AddLine(L["From your other account. It changes when theirs does."], 1, 1, 1, true)
+        elseif entry.auto then
             GameTooltip:AddLine(L["What your craft queue still needs. It changes with the queue."], 1, 1, 1, true)
         end
         if entry.unpriced > 0 then
@@ -933,7 +965,7 @@ function View:Refresh(force)
     end
     self.drawnVersion, self.drawnAt = version, now
 
-    if type(self.open) == "number" and not Lists():Get(self.open) then self.open = nil end
+    if self.open ~= nil and not StillThere(self.open) then self.open = nil end
     local entries = self:Entries()
     self.entries = entries
     self.list:SetData(entries)

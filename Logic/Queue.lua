@@ -1269,6 +1269,11 @@ function Queue:Notify()
     if ns.FarmerGoals and ns.FarmerGoals.QueueChanged then
         ns.FarmerGoals:QueueChanged()
     end
+    -- The other account's copy of the craft queue list (Logic/AccountLink.lua,
+    -- Share Shopping Lists) follows it a few seconds later.
+    if ns.AccountLink and ns.AccountLink.ListsChanged then
+        pcall(ns.AccountLink.ListsChanged, ns.AccountLink)
+    end
 end
 
 --------------------------------------------------------------------------------
