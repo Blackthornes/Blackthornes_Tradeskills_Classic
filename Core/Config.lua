@@ -549,6 +549,10 @@ local DEFAULTS = {
         -- Each character's queued crafts' needs, for the other account's mail
         -- suggestions. Off unless ticked (Trent, 2026-11-07); never rename it.
         linkShareQueue = false,
+        -- Each character's own auction sales, for the other account's Sales
+        -- and Stats tabs. Off unless ticked (the owner, 2026-11-07); never
+        -- rename it.
+        linkShareSales = false,
         -- Share scans with guildmates and fill gaps with theirs. On by
         -- default (the owner, 2026-10-07). See Logic/GuildPrices.lua.
         guildPrices = true,

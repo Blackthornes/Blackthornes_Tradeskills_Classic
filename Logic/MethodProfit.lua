@@ -287,12 +287,13 @@ function MethodProfit:Summary(from, to)
 
     -- Auction sales, from the ledger.
     local mail = ns.Mail
-    if mail and mail.GetLedger then
+    if mail and (mail.Entries or mail.GetLedger) then
         local names = mail.NameIndex and mail:NameIndex() or {}
         local costs = ns.CraftedCost and ns.CraftedCost:NewSaleCache()
         local farmed = {}
 
-        for _, entry in ipairs(mail:GetLedger().entries) do
+        local entries = mail.Entries and mail:Entries() or mail:GetLedger().entries
+        for _, entry in ipairs(entries) do
             local t = tonumber(entry.t) or 0
             if entry.kind == "sold" and t >= from and t < to then
                 local itemID = entry.itemID or names[entry.name]

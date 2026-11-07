@@ -88,11 +88,24 @@ end
 
 --- itemID -> saved name for what you craft, starred and sold. Read from
 --- saved data only.
+--- This realm's ledger entries, with the other account's shared sales
+--- when Share Sales is on (Mail:Entries), else the ledger alone.
+local function LedgerEntries()
+    local mail = ns.Mail
+    if not mail then return {} end
+    if mail.Entries then
+        local ok, entries = pcall(mail.Entries, mail)
+        if ok and type(entries) == "table" then return entries end
+    end
+    local ok, ledger = pcall(function() return mail:GetLedger() end)
+    return ok and type(ledger) == "table" and type(ledger.entries) == "table" and ledger.entries or {}
+end
+
 local function Candidates()
     local names, picked = {}, {}
 
-    local ledger = ns.Mail and ns.Mail.GetLedger and select(2, pcall(ns.Mail.GetLedger, ns.Mail))
-    for _, entry in ipairs(type(ledger) == "table" and type(ledger.entries) == "table" and ledger.entries or {}) do
+    local entries = LedgerEntries()
+    for _, entry in ipairs(entries) do
         if type(entry) == "table" and entry.itemID and entry.kind == "sold" then
             picked[entry.itemID] = true
             if type(entry.name) == "string" then names[entry.itemID] = entry.name end
@@ -123,8 +136,8 @@ end
 --- What you sold of each item in the last 30 days, in copper.
 local function RecentNet(now)
     local net = {}
-    local ledger = ns.Mail and ns.Mail.GetLedger and select(2, pcall(ns.Mail.GetLedger, ns.Mail))
-    for _, entry in ipairs(type(ledger) == "table" and type(ledger.entries) == "table" and ledger.entries or {}) do
+    local entries = LedgerEntries()
+    for _, entry in ipairs(entries) do
         if type(entry) == "table" and entry.kind == "sold" and entry.itemID
             and type(entry.t) == "number" and now - entry.t <= 30 * DAY then
             net[entry.itemID] = (net[entry.itemID] or 0) + (tonumber(entry.net) or 0)
@@ -1160,8 +1173,7 @@ end
 --- craft, a post) keeps the rows it has: the search, the ledger, the
 --- prices, the stars and every character's recipes.
 local function ListKey()
-    local ledger = ns.Mail and ns.Mail.GetLedger and select(2, pcall(ns.Mail.GetLedger, ns.Mail))
-    local entries = type(ledger) == "table" and type(ledger.entries) == "table" and ledger.entries or {}
+    local entries = LedgerEntries()
     local last = entries[#entries]
     local stars = 0
     local favourites = ns.Prices and ns.Prices.GetFavourites and ns.Prices:GetFavourites() or {}

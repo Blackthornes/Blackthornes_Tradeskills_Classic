@@ -55,6 +55,19 @@ AccountLink.SECTIONS = {
 AccountLink.QUEUE_SETTING = "linkShareQueue"
 AccountLink.MAX_NEEDS = 200
 
+-- Share Sales (the owner, 2026-11-07): each own character's own auction
+-- sales, expiries and cancellations from this account's mail ledger, so the
+-- other account's Sales and Stats tabs show both. Off unless ticked on both
+-- sides (`linkShareSales`, never rename it). Only entries this account wrote
+-- itself go out, never one taken from a partner (`linked`), and never who
+-- bought it. The receiver keeps them apart in `linkedSales[realm][guid]`
+-- (never rename it), replaced whole each time, so a sale sent again is
+-- never counted twice. Data/Mail.lua's `Entries` reads them in.
+AccountLink.SALES_SETTING = "linkShareSales"
+AccountLink.MAX_SALES = 200
+AccountLink.SALE_KINDS = { sold = true, expired = true, removed = true }
+AccountLink.salesVersion = 0
+
 -- How often partners are said hello to, or told what changed.
 AccountLink.CHECK_SECONDS = 600
 local MAX_CHARACTERS = 60
@@ -175,6 +188,39 @@ function AccountLink:QueueNeeds(guid)
     return next(needs) and needs or nil
 end
 
+--- One of this account's characters' own ledger entries, by realm key:
+--- { [realmKey] = { entry, ... } }, oldest first, at most MAX_SALES all
+--- told (the newest kept). nil when there are none. Only the fields the
+--- Sales and Stats tabs read; never the buyer.
+local SALE_FIELDS = { "t", "kind", "itemID", "name", "quantity", "net", "gross",
+    "cut", "deposit", "estimated", "cost", "bought" }
+
+function AccountLink:OwnSales(guid)
+    local found = {}
+    for realmKey, ledger in pairs((ns.db and ns.db.mailLedger) or {}) do
+        local entries = type(realmKey) == "string" and type(ledger) == "table"
+            and type(ledger.entries) == "table" and ledger.entries
+        for _, entry in ipairs(entries or {}) do
+            if type(entry) == "table" and entry.who == guid and not entry.linked
+                and self.SALE_KINDS[entry.kind] and type(entry.t) == "number" then
+                found[#found + 1] = { realm = realmKey, entry = entry }
+            end
+        end
+    end
+    if #found == 0 then return nil end
+    table.sort(found, function(a, b) return a.entry.t > b.entry.t end)
+
+    local sales = {}
+    for index = math.min(#found, self.MAX_SALES), 1, -1 do
+        local one = found[index]
+        local copy = {}
+        for _, field in ipairs(SALE_FIELDS) do copy[field] = one.entry[field] end
+        sales[one.realm] = sales[one.realm] or {}
+        table.insert(sales[one.realm], copy)
+    end
+    return sales
+end
+
 --- One character as it goes out, with only what the Share settings allow.
 function AccountLink:Payload(guid, record)
     local payload = { guid = guid }
@@ -193,6 +239,10 @@ function AccountLink:Payload(guid, record)
     if Setting(self.QUEUE_SETTING) == true then
         payload.queueNeeds = self:QueueNeeds(guid)
         payload.mailAt = record.mailAt
+    end
+
+    if Setting(self.SALES_SETTING) == true then
+        payload.sales = self:OwnSales(guid)
     end
 
     if Setting("linkShareAuctions") ~= false then
@@ -362,6 +412,104 @@ local function CleanReading(reading)
     }
 end
 
+--- One key for a realm, the same on every account of one player: case,
+--- spaces and Forever's "Realm N" part dropped. The same few lines are in
+--- Queue, QueueMail, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
+--- A partner's realm key as this account files it: our own key when it is
+--- the same realm and side, else as sent.
+local function OurRealmKey(theirs)
+    local ours = ns.Config and ns.Config.GetRealmKey and ns.Config:GetRealmKey()
+    if type(ours) == "string" and theirs ~= ours and RealmKey(theirs) and RealmKey(theirs) == RealmKey(ours) then
+        return ours
+    end
+    return theirs
+end
+AccountLink.OurRealmKey = OurRealmKey
+
+--- One partner sale, or nil: a known kind, a time and an item.
+local function CleanSale(value)
+    if type(value) ~= "table" or not AccountLink.SALE_KINDS[value.kind] then return nil end
+    local t = CleanNumber(value.t)
+    local itemID = CleanNumber(value.itemID)
+    if itemID and itemID <= 0 then itemID = nil end
+    local name = CleanString(value.name)
+    if not t or t <= 0 or not (itemID or (name and name ~= "")) then return nil end
+    local function Money(field)
+        local n = CleanNumber(value[field])
+        return n and n >= 0 and math.floor(n) or nil
+    end
+    local quantity = CleanNumber(value.quantity)
+    return {
+        t = math.floor(t), kind = value.kind,
+        itemID = itemID and math.floor(itemID) or nil,
+        name = name ~= "" and name or nil,
+        quantity = quantity and quantity >= 1 and math.floor(quantity) or nil,
+        net = Money("net"), gross = Money("gross"), cut = Money("cut"),
+        deposit = Money("deposit"), cost = Money("cost"),
+        estimated = value.estimated == true or nil,
+        bought = value.bought == true or nil,
+        linked = true,
+    }
+end
+
+--- A partner character's sales, cleaned: { [realmKey] = entries } filed
+--- under our own realm key, each list oldest first, at most MAX_SALES all
+--- told, the same sale only once.
+local function CleanSales(value, guid)
+    if type(value) ~= "table" then return {} end
+    local out, count, seen = {}, 0, {}
+    for realmKey, list in pairs(value) do
+        if type(realmKey) == "string" and #realmKey <= 80 and type(list) == "table" then
+            local ours = AccountLink.OurRealmKey(realmKey)
+            for _, raw in ipairs(list) do
+                local sale = count < AccountLink.MAX_SALES and CleanSale(raw)
+                if sale then
+                    sale.who = guid
+                    local key = table.concat({ ours, sale.t, sale.kind, tostring(sale.itemID or sale.name),
+                        tostring(sale.quantity), tostring(sale.net) }, "|")
+                    if not seen[key] then
+                        seen[key] = true
+                        out[ours] = out[ours] or {}
+                        table.insert(out[ours], sale)
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+    for _, list in pairs(out) do
+        table.sort(list, function(a, b) return a.t < b.t end)
+    end
+    return out
+end
+
+--- Keep a partner character's sales apart, replacing what it sent before.
+--- Empty (or this side unticked) drops it everywhere.
+function AccountLink:KeepSales(guid, sales)
+    if type(ns.db.linkedSales) ~= "table" and next(sales) == nil then return end
+    ns.db.linkedSales = type(ns.db.linkedSales) == "table" and ns.db.linkedSales or {}
+    local all = ns.db.linkedSales
+    for realmKey, realm in pairs(all) do
+        if type(realm) == "table" and realm[guid] ~= nil and not sales[realmKey] then
+            realm[guid] = nil
+            if next(realm) == nil then all[realmKey] = nil end
+        end
+    end
+    for realmKey, list in pairs(sales) do
+        if type(all[realmKey]) ~= "table" then all[realmKey] = {} end
+        all[realmKey][guid] = { at = time(), entries = list }
+    end
+    self.salesVersion = (self.salesVersion or 0) + 1
+end
+AccountLink.CleanSales = CleanSales
+
 --- Store a character a partner sent.
 -- @return true, or nil and why it was refused
 function AccountLink:Accept(sender, payload, hash)
@@ -412,6 +560,11 @@ function AccountLink:Accept(sender, payload, hash)
         end
     end
 
+    -- Its sales, apart from this account's own ledger, only while this side
+    -- shares sales too.
+    local sales = Setting(self.SALES_SETTING) == true and CleanSales(payload.sales, guid) or {}
+    self:KeepSales(guid, sales)
+
     characters[guid] = record
     self.changed = true
     return true
@@ -429,7 +582,10 @@ function AccountLink:Forget(name)
             gone[#gone + 1] = guid
         end
     end
-    for _, guid in ipairs(gone) do ns.Recipes:ForgetCharacter(guid) end
+    for _, guid in ipairs(gone) do
+        ns.Recipes:ForgetCharacter(guid)
+        if ns.db then self:KeepSales(guid, {}) end
+    end
     if #gone > 0 then self:Changed() end
     return #gone
 end
@@ -456,6 +612,16 @@ function AccountLink:SetAsideFriends()
     end
     self:Changed()
     return #moved
+end
+
+--- Ask every partner for each of its characters again, the next time
+--- they swap: the sales a partner sent while this side was unticked were
+--- let go, and an unchanged character is never sent twice by itself.
+function AccountLink:AskAgain()
+    for _, record in pairs((ns.db and ns.db.characters) or {}) do
+        if type(record) == "table" and record.linkedFrom ~= nil then record.linkHash = nil end
+    end
+    if self.Check then pcall(self.Check, self) end
 end
 
 --- How many characters each partner has sent: { [name] = count }.

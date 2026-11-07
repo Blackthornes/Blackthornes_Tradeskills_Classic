@@ -534,6 +534,11 @@ function Recipes:ForgetCharacter(characterKey)
         end
     end
 
+    -- And a linked character's shared sales leave the Sales tab.
+    if ns.AccountLink and ns.AccountLink.KeepSales then
+        pcall(ns.AccountLink.KeepSales, ns.AccountLink, characterKey, {})
+    end
+
     ns.Cost:InvalidateIndex()
     return true
 end

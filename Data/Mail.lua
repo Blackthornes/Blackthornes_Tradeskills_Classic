@@ -1076,6 +1076,9 @@ end
 
 --- Is this ledger entry already inside the carried-over history?
 function Mail:IsRolledUp(entry, realmKey)
+    -- The other account's sales were never in this account's carried-over
+    -- history.
+    if entry.linked then return false end
     local cutoff = self:LedgerCutoff(realmKey)
     return cutoff ~= nil and entry.t ~= nil and entry.t <= cutoff
 end
@@ -1094,6 +1097,61 @@ end
 -- Reading the ledger back
 --------------------------------------------------------------------------------
 
+--- This realm's ledger entries, oldest first, with the sales your other
+--- account shares (Account Link's Share Sales, ticked here; 2026-11-07)
+--- read in among them. What the Sales and Stats tabs read; anything that
+--- writes keeps to GetLedger. The other account's entries carry `linked`
+--- and their character in `who`, and count only while that character is
+--- still one of the linked ones. Kept until the ledger, the shared sales
+--- or the setting move, so a redraw costs nothing.
+function Mail:Entries()
+    local own = self:GetLedger().entries
+    local shared = ns.db and ns.db.linkedSales
+    local on = ns.Config and ns.Config:Get("linkShareSales") == true
+    if not on or type(shared) ~= "table" then return own end
+
+    local realmKey = ns.Config:GetRealmKey()
+    local realm = shared[realmKey]
+    if type(realm) ~= "table" or next(realm) == nil then return own end
+
+    local last = own[#own]
+    local key = table.concat({ realmKey, #own, tostring(last and last.t or 0),
+        tostring(last and last.net or 0),
+        tostring(ns.AccountLink and ns.AccountLink.salesVersion or 0) }, "|")
+    local kept = self.mergedEntries
+    if kept and kept.key == key then return kept.entries end
+
+    local merged = {}
+    for _, entry in ipairs(own) do merged[#merged + 1] = entry end
+    local characters = ns.db.characters or {}
+    for guid, held in pairs(realm) do
+        local record = characters[guid]
+        if type(record) == "table" and record.linkedFrom ~= nil
+            and type(held) == "table" and type(held.entries) == "table" then
+            for _, entry in ipairs(held.entries) do
+                if type(entry) == "table" and type(entry.t) == "number" then
+                    merged[#merged + 1] = entry
+                end
+            end
+        end
+    end
+    if #merged == #own then
+        self.mergedEntries = { key = key, entries = own }
+        return own
+    end
+
+    -- Stable by time: equal times keep their order (own first).
+    for index, entry in ipairs(merged) do merged[index] = { entry, index } end
+    table.sort(merged, function(a, b)
+        if a[1].t ~= b[1].t then return a[1].t < b[1].t end
+        return a[2] < b[2]
+    end)
+    for index, pair in ipairs(merged) do merged[index] = pair[1] end
+
+    self.mergedEntries = { key = key, entries = merged }
+    return merged
+end
+
 --- What the ledger says about one item, or about everything.
 --
 -- @param itemID optional; nil totals the lot
@@ -1108,7 +1166,7 @@ end
 -- with the sales and one with the expiries, each with the wrong sell-through.
 function Mail:NameIndex()
     local index = {}
-    for _, entry in ipairs(self:GetLedger().entries) do
+    for _, entry in ipairs(self:Entries()) do
         if entry.itemID and entry.name and not index[entry.name] then
             index[entry.name] = entry.itemID
         end
@@ -1135,7 +1193,7 @@ function Mail:GetSummary(itemID)
 
     -- An entry from before the restored history was rolled up is already in
     -- that history, added below; counting it here as well was the bug.
-    for _, entry in ipairs(self:GetLedger().entries) do
+    for _, entry in ipairs(self:Entries()) do
         local rolled = self:IsRolledUp(entry)
         local entryItemID = entry.itemID or names[entry.name]
 
@@ -1208,7 +1266,7 @@ end
 
 --- The most recent ledger entries, newest first.
 function Mail:GetRecent(limit, itemID)
-    local entries = self:GetLedger().entries
+    local entries = self:Entries()
     local out = {}
 
     for i = #entries, 1, -1 do
@@ -1270,7 +1328,7 @@ function Mail:GetItems()
     local names = self:NameIndex()
     local costs = ns.CraftedCost and ns.CraftedCost:NewSaleCache()
 
-    for _, entry in ipairs(self:GetLedger().entries) do
+    for _, entry in ipairs(self:Entries()) do
         local bucket = Bucket(entry.itemID or names[entry.name], entry.name)
 
         -- Already inside the restored history added below. The row is still

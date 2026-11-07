@@ -1035,7 +1035,7 @@ local function Refresh()
             return (a.lastAt or 0) > (b.lastAt or 0)
         end)
     else
-        local entries = ns.Mail:GetLedger().entries
+        local entries = ns.Mail:Entries()
         local salesOnly = state.view == "sales"
 
         -- Walked backwards: the ledger is appended to, so the end of it is the
