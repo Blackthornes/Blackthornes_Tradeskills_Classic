@@ -40,7 +40,7 @@ local ADDON, ns = ...
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 7
+local FILE_VERSION = 8
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -652,6 +652,22 @@ function SharedWindow.RowShown()
     return true
 end
 
+--- The size the window has, or while folded (the fold gem) the size it
+--- opens back up to. Sizes worked out from the folded strip's height made
+--- the window open squashed after docking or undocking while folded
+--- (2026-11-05); set while folded, FoldWindow keeps them for the unfold.
+function SharedWindow.FullSize(frame)
+    local state = rawget(frame, "blackthornesFold")
+    if type(state) == "table" and state.folded
+        and type(state.width) == "number" and type(state.full) == "number" then
+        return state.width, state.full
+    end
+    local okW, width = pcall(frame.GetWidth, frame)
+    local okH, height = pcall(frame.GetHeight, frame)
+    return (okW and type(width) == "number") and width or nil,
+        (okH and type(height) == "number") and height or nil
+end
+
 local function RowRoom()
     return SharedWindow.ROW_HEIGHT + EDGE
 end
@@ -664,8 +680,8 @@ function SharedWindow.Refit()
     if not (frame and hub.docked) then return end
     local row = SharedWindow.RowShown()
     if row == hub.row then return end
-    local ok, height = pcall(frame.GetHeight, frame)
-    if ok and type(height) == "number" then
+    local _, height = SharedWindow.FullSize(frame)
+    if height then
         frame:SetHeight(height + (row and RowRoom() or -RowRoom()))
     end
     hub.row = row
@@ -715,9 +731,8 @@ function SharedWindow.Dock(again)
     if not hub.docked then
         hub.docked = true
         hub.row = SharedWindow.RowShown()
-        local okW, width = pcall(frame.GetWidth, frame)
-        local okH, height = pcall(frame.GetHeight, frame)
-        if okW and okH and type(width) == "number" and type(height) == "number" then
+        local width, height = SharedWindow.FullSize(frame)
+        if width and height then
             frame:SetSize(width - SharedWindow.RAIL_WIDTH - EDGE,
                 height + (hub.row and RowRoom() or 0))
         end
@@ -755,9 +770,8 @@ function SharedWindow.Undock()
     hub.spot = nil
     local row = hub.row ~= false
     hub.row = nil
-    local okW, width = pcall(frame.GetWidth, frame)
-    local okH, height = pcall(frame.GetHeight, frame)
-    if okW and okH and type(width) == "number" and type(height) == "number" then
+    local width, height = SharedWindow.FullSize(frame)
+    if width and height then
         frame:SetSize(width + SharedWindow.RAIL_WIDTH + EDGE,
             height - (row and RowRoom() or 0))
     end

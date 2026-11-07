@@ -1290,6 +1290,12 @@ go back to the addon open before (`hub.byItself`, read in OnHide). Butler
 passes it from `UI:LeftVendor` and `LeftPlace` (`ButlerTabs:Closed(frame,
 byItself)`). Tested in `tools/test_sharedwindow.lua`.
 
+Folded and docked (2026-11-07, FILE_VERSION 8, from Forever): docked or
+undocked while folded with the fold gem, the sizes are worked from the
+size it opens back up to (`SharedWindow.FullSize`, FoldWindow's
+`state.width`/`state.full`), never the folded strip's, so it never opens
+squashed.
+
 Tradeskills' tabs are in (2026-10-30, the last of the five): "One
 Window:" sits under "Combine Addon Buttons:" on the General page
 (`TSTabs:SetOneWindow`, writing every save). Tradeskills joins with `host =
