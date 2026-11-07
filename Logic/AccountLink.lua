@@ -891,6 +891,7 @@ function AccountLink:OnManifest(sender, manifest, channel)
     local state = self:PartnerFor(sender)
     if not state then return end
     state.online, state.heardAt = true, time()
+    self:NoteSynced(sender)
 
     -- Either side's check syncs both ways: answered with this side's own,
     -- unless it went out a moment ago (which is what stops the two
@@ -940,6 +941,7 @@ function AccountLink:OnCharacter(sender, value, channel)
     if ok then
         local state = self:PartnerFor(sender)
         if state then state.receivedAt = time() end
+        self:NoteSynced(sender)
         self:Changed()
     else
         ns.Debug("share: a character from", tostring(sender), "was not taken:", tostring(why))
@@ -986,6 +988,38 @@ end
 --------------------------------------------------------------------------------
 -- Status, for Settings and /bts share
 --------------------------------------------------------------------------------
+
+--- When each partner last told us what it has (a manifest) or sent a
+--- character, kept account wide in `linkSyncedAt[name key]` so it lasts
+--- past a reload. Never rename it.
+function AccountLink:NoteSynced(sender)
+    local key = Comm.NameKey(sender)
+    if not key or not ns.db then return end
+    ns.db.linkSyncedAt = ns.db.linkSyncedAt or {}
+    ns.db.linkSyncedAt[key] = time()
+end
+
+--- The time a partner (by name) last synced, or nil.
+function AccountLink:LastSynced(name)
+    local key = Comm.NameKey(name)
+    local saved = ns.db and ns.db.linkSyncedAt
+    local at = key and type(saved) == "table" and saved[key]
+    return type(at) == "number" and at or nil
+end
+
+--- "Last Synced: Ana Smith, 2 minutes ago", one line a partner, or nil
+--- when no other account is named.
+function AccountLink:LastSyncedText()
+    local partners = self:GetPartners()
+    if #partners == 0 then return nil end
+    local lines = {}
+    for _, partner in ipairs(partners) do
+        local at = self:LastSynced(partner.name)
+        local when = at and ns.Util.FormatAgeAgo(math.max(0, time() - at)) or L["Not yet"]
+        lines[#lines + 1] = L.Format("Last Synced: %s, %s", partner.name, when)
+    end
+    return table.concat(lines, "\n")
+end
 
 function AccountLink:Describe()
     local partners = self:GetPartners()
@@ -1084,6 +1118,8 @@ ns.RegisterCommand("share", L["share with your other account and guild: with <na
             ns.Contribute:Command(rest)
         else
             ns.Print(AccountLink:Describe())
+            local synced = AccountLink:LastSyncedText()
+            if synced then ns.PrintRaw("  " .. (synced:gsub("\n", "\n  "))) end
             if ns.GuildPrices then ns.PrintRaw("  " .. ns.GuildPrices:Describe()) end
             if ns.RealmPrices and ns.RealmPrices:IsOn() then ns.PrintRaw("  " .. ns.RealmPrices:Describe()) end
         end

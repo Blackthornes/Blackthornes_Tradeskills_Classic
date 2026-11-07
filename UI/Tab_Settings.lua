@@ -1968,6 +1968,11 @@ local function Build(outer)
     -- Forget their characters is a typed command now (the owner,
     -- 2026-10-15): /bts forgetlinked confirm. Settings never deletes data.
 
+    widgets.linkSynced = Theme.CreateLabel(pages.sharing.content, "tiny", "text")
+    Place(pages.sharing, 1, widgets.linkSynced, -8)
+    widgets.linkSynced:SetWidth(COLUMN_WIDTH)
+    widgets.linkSynced:SetWordWrap(true)
+
     widgets.linkStatus = Theme.CreateLabel(pages.sharing.content, "tiny", "muted")
     Place(pages.sharing, 1, widgets.linkStatus, -8)
     widgets.linkStatus:SetWidth(COLUMN_WIDTH)
@@ -2681,6 +2686,7 @@ local function Refresh()
         local saved = Config:Get("friendNames") or ""
         if widgets.friendNames:GetText() ~= saved then widgets.friendNames:SetText(saved) end
     end
+    widgets.linkSynced:SetText(ns.AccountLink and ns.AccountLink:LastSyncedText() or "")
     widgets.linkStatus:SetText(ns.AccountLink and ns.AccountLink:Describe() or "")
     widgets.guildPrices:SetChecked(Config:Get("guildPrices") == true)
     widgets.guildCrafters:SetChecked(Config:Get("guildCrafters") == true)

@@ -658,7 +658,13 @@ local function ShowRowTooltip(row, entry)
     if character.class then about[#about + 1] = character.class end
     if #about > 0 then GameTooltip:AddLine(table.concat(about, " "), 0.7, 0.7, 0.7) end
     if character.realm then GameTooltip:AddLine(character.realm, 0.7, 0.7, 0.7) end
-    if character.linkedFrom then GameTooltip:AddLine(L["Other account"], 0.7, 0.7, 0.7) end
+    if character.linkedFrom then
+        GameTooltip:AddLine(L["Other account"], 0.7, 0.7, 0.7)
+        local at = ns.AccountLink and ns.AccountLink.LastSynced and ns.AccountLink:LastSynced(character.linkedFrom)
+        if at then
+            GameTooltip:AddLine(L.Format("Synced %s", Util.FormatAgeAgo(math.max(0, time() - at))), 0.7, 0.7, 0.7)
+        end
+    end
 
     local learned = Learned(character)
     if #learned > 0 then
