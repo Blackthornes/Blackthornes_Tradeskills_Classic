@@ -3407,3 +3407,4 @@ L["Other account has %d, needs %d"] = "另一个账号有 %d 个，需要 %d 个
 L["Other account has %d"] = "另一个账号有 %d 个"
 L["Other account has all it needs"] = "另一个账号需要的都齐了"
 L["From your other account. It changes when theirs does."] = "来自你的另一个账号。那边变了，这里也会跟着变。"
+L["%d prices from their scan %s"] = "来自对方扫描的 %d 个价格（%s）"

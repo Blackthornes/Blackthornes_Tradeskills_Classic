@@ -871,6 +871,23 @@ function Prices:GetValue(itemID, which)
     -- Only asked when it could be used: their answer is sorted out of every
     -- guildmate's, and prices are read many times a redraw.
     local filled = preferred and true or nil
+
+    -- Your other account's newest scan (Logic/AccountLink.lua, whenever the
+    -- two accounts are linked) comes first: it is your own play,
+    -- so it wins whenever it saw the item after this account last did.
+    local link = ns.AccountLink
+    if not filled and link and link.PriceFor then
+        local shared, sharedAt = link:PriceFor(itemID, which)
+        if shared then
+            local record = self:GetTable()[itemID]
+            local seen = type(record) == "table" and tonumber(record.seen) or 0
+            if not scanned or (sharedAt or 0) > seen then
+                scanned = shared
+                filled = true
+            end
+        end
+    end
+
     local guild = ns.GuildPrices
     if not filled and guild and guild.IsOn and guild:IsOn() and (not scanned or self:IsStale(itemID)) then
         local shared, sharedAt = guild:GetValue(itemID, which)

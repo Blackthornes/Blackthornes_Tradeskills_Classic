@@ -82,6 +82,31 @@ AccountLink.LISTS_SETTING = "linkShareLists"
 AccountLink.LISTS_KEY = "lists"
 AccountLink.MAX_LIST_ITEMS = 1000
 
+-- Share Prices (the owner, 2026-11-07): this account's own auction scan
+-- prices (market value, cheapest listing and when each was seen) for its
+-- realm and side, so the other account's prices stay as fresh as the
+-- newest scan on either. No tick box of its own (the owner, 2026-11-07:
+-- "If they are sharing accounts thats enough already"): it runs whenever
+-- the two accounts name each other. Only prices this account scanned
+-- itself go out, never ones taken from a partner, the guild or the realm,
+-- so nothing is passed on. The receiver keeps them apart in
+-- `linkedPrices[realm key][partner key] = { at, count, items = { [itemID]
+-- = { market, lowest, seen } } }` (never rename it), and Prices:GetValue
+-- uses one where it was seen after this account's own (PriceFor).
+-- The manifest carries `prices`: "<last scan, base 36>@<realm key>", or
+-- "off". E asks for what was seen after a time; O is one batch of prices,
+-- "<scan time>:id,market,lowest,age;..." in base 36, each batch complete
+-- in itself, so a lost one only loses its own prices.
+AccountLink.PRICES_KEY = "prices"
+AccountLink.PRICES_USE_FOR = 3 * 24 * 3600   -- a price older than this is not sent or used
+AccountLink.PRICES_KEEP = 7 * 24 * 3600      -- and is let go after this
+AccountLink.PRICES_MAX_ITEMS = 5000          -- the most sent at a time
+AccountLink.PRICES_MAX_STORED = 20000        -- the most kept from one partner
+AccountLink.PRICES_ASK_WAIT = 10 * 60        -- an ask unanswered this long may go again
+AccountLink.PRICES_TAKE_FOR = 30 * 60        -- batches are taken this long after an ask
+AccountLink.PRICES_ANSWER_GAP = 60           -- at most one answer a partner a minute
+AccountLink.PRICES_MAX_ITEM_ID = 10000000
+
 -- How often partners are said hello to, or told what changed.
 AccountLink.CHECK_SECONDS = 600
 -- A change that should not wait for the next check (a new sale) goes to
@@ -291,6 +316,7 @@ function AccountLink:Manifest(only)
         end
     end
     if not only or only[self.LISTS_KEY] then manifest[self.LISTS_KEY] = self:ListsHash() end
+    if not only or only[self.PRICES_KEY] then manifest[self.PRICES_KEY] = self:PricesHash() end
     return manifest
 end
 
@@ -782,6 +808,7 @@ end
 -- W (table) want: the guids whose hash differs from the copy held.
 -- C (table) character: { hash = ..., data = payload }.
 -- V ask for the shopping lists, U (table) the lists: { hash, data }.
+-- E ask for prices seen after a time, O one batch of prices.
 
 local function Whisper(kind, text, target)
     return Comm:Send(kind, text, "WHISPER", target)
@@ -802,7 +829,7 @@ end
 --- burst goes as one, but never longer than SOON_MOST_WAIT. Any shared
 --- feature can call it once it has checked its own setting.
 function AccountLink:SendSoon(guid)
-    if not (IsGUID(guid) or guid == self.LISTS_KEY) or not C_Timer or not C_Timer.After then return end
+    if not (IsGUID(guid) or guid == self.LISTS_KEY or guid == self.PRICES_KEY) or not C_Timer or not C_Timer.After then return end
     local now = GetTime and GetTime() or time()
     self.soonDirty = self.soonDirty or {}
     self.soonDirty[guid] = true
@@ -899,6 +926,7 @@ function AccountLink:OnManifest(sender, manifest, channel)
     if not state.manifestAt or time() - state.manifestAt > 60 then self:SendManifest(state) end
 
     self:OnListsHash(state, manifest[self.LISTS_KEY])
+    self:OnPricesHash(state, manifest[self.PRICES_KEY])
 
     local characters = (ns.db and ns.db.characters) or {}
     local want = {}
@@ -986,6 +1014,277 @@ function AccountLink:OnOffline(key)
 end
 
 --------------------------------------------------------------------------------
+-- Share Prices
+--------------------------------------------------------------------------------
+
+--- Prices go across whenever accounts are linked: no tick box of their own.
+function AccountLink:PricesOn()
+    return #self:GetPartners() > 0
+end
+
+local function OurRealm()
+    local key = ns.Config and ns.Config.GetRealmKey and ns.Config:GetRealmKey()
+    return type(key) == "string" and key or nil
+end
+
+--- When this account last scanned its realm, or nil.
+local function LastScan()
+    local prices = ns.Prices
+    if not (prices and prices.GetLastScan) then return nil end
+    local ok, at = pcall(prices.GetLastScan, prices)
+    return ok and type(at) == "number" and at or nil
+end
+
+--- "<last scan>@<realm key>" for the manifest, or "off" while not sharing
+--- prices or with no scan recent enough to share.
+function AccountLink:PricesHash(now)
+    if not self:PricesOn() then return "off" end
+    local at, realm = LastScan(), RealmKey(OurRealm())
+    now = now or time()
+    if not at or not realm or now - at > self.PRICES_USE_FOR then return "off" end
+    return Comm.ToBase36(math.floor(at)) .. "@" .. realm
+end
+
+--- This account's own prices seen after `since`, as O message bodies:
+--- newest first, at most PRICES_MAX_ITEMS. Never a price taken from anyone.
+function AccountLink:PriceBatches(since, now)
+    local prices = ns.Prices
+    if not (prices and prices.GetTable and prices.IsCredible) then return {} end
+    local table_ = prices:GetTable()
+    if type(table_) ~= "table" then return {} end
+    now = now or time()
+    local floor = math.max(tonumber(since) or 0, now - self.PRICES_USE_FOR)
+
+    local ids = {}
+    for itemID, record in pairs(table_) do
+        -- As Guild Prices: an item searched with nothing listed keeps a seen
+        -- time but no market value, and a sold out one an old value.
+        if type(itemID) == "number" and type(record) == "table" and type(record.seen) == "number"
+            and record.seen > floor and record.seen <= now + 3600 and type(record.market) == "number"
+            and prices.IsCredible(record.market) and (tonumber(record.quantity) or 1) > 0 then
+            ids[#ids + 1] = itemID
+        end
+    end
+    table.sort(ids, function(a, b)
+        local sa, sb = table_[a].seen, table_[b].seen
+        if sa ~= sb then return sa > sb end
+        return a < b
+    end)
+
+    local head = "O" .. Comm.ToBase36(math.floor(now)) .. ":"
+    local batches, parts, length = {}, {}, #head
+    for index = 1, math.min(#ids, self.PRICES_MAX_ITEMS) do
+        local record = table_[ids[index]]
+        local market = math.floor(record.market + 0.5)
+        local lowest = prices.LowestListed and prices.LowestListed(record)
+        local lowText = ""
+        if lowest and prices.IsCredible(lowest) and math.floor(lowest + 0.5) ~= market then
+            lowText = Comm.ToBase36(math.floor(lowest + 0.5))
+        end
+        local age = math.max(0, math.floor(now - record.seen))
+        local entry = Comm.ToBase36(ids[index]) .. "," .. Comm.ToBase36(market) .. "," .. lowText
+            .. "," .. (age > 0 and Comm.ToBase36(age) or "") .. ";"
+        if length + #entry > Comm.MAX_MESSAGE then
+            batches[#batches + 1] = head:sub(2) .. table.concat(parts)
+            parts, length = {}, #head
+        end
+        parts[#parts + 1] = entry
+        length = length + #entry
+    end
+    if #parts > 0 then batches[#batches + 1] = head:sub(2) .. table.concat(parts) end
+    return batches, #ids
+end
+
+--- What this realm holds from each partner: { [partner key] = held }.
+local function PriceStore(create)
+    local realm = OurRealm()
+    if not realm or not ns.db then return nil end
+    local all = ns.db.linkedPrices
+    if type(all) ~= "table" then
+        if not create then return nil end
+        all = {}
+        ns.db.linkedPrices = all
+    end
+    local mine = all[realm]
+    if type(mine) ~= "table" then
+        if not create then return nil end
+        mine = {}
+        all[realm] = mine
+    end
+    return mine
+end
+
+--- Ask a partner for the prices seen since what is held from it.
+function AccountLink:AskPrices(state)
+    local store = PriceStore(false)
+    local held = store and store[Comm.NameKey(state.name)]
+    local since = type(held) == "table" and tonumber(held.at) or 0
+    state.pricesAskedAt = time()
+    Whisper("E", Comm.ToBase36(math.floor(since)), state.name)
+end
+
+--- A partner's manifest said when it last scanned and where ("off" when
+--- it does not share prices). Ask when that is newer than what is held.
+function AccountLink:OnPricesHash(state, value)
+    if type(value) ~= "string" or not self:PricesOn() then return end
+    if value == "off" then
+        self:DropPrices(Comm.NameKey(state.name))
+        return
+    end
+    local atText, realm = value:match("^(%w+)@(.+)$")
+    local at = Comm.FromBase36(atText)
+    if not at or realm ~= RealmKey(OurRealm()) then return end
+    local store = PriceStore(false)
+    local held = store and store[Comm.NameKey(state.name)]
+    if type(held) == "table" and tonumber(held.at) and held.at >= at then return end
+    if state.pricesAskedAt and time() - state.pricesAskedAt < self.PRICES_ASK_WAIT then return end
+    self:AskPrices(state)
+end
+
+--- E: a partner asks for this account's prices seen after a time.
+function AccountLink:OnPricesWanted(sender, body, channel)
+    if channel ~= "WHISPER" then return end
+    local state = self:PartnerFor(sender)
+    if not state or not self:PricesOn() then return end
+    local now = time()
+    if state.pricesSentAt and now - state.pricesSentAt < self.PRICES_ANSWER_GAP then return end
+    state.pricesSentAt = now
+    local since = Comm.FromBase36(type(body) == "string" and body or "") or 0
+    for _, batch in ipairs(self:PriceBatches(since, now)) do Whisper("O", batch, state.name) end
+end
+
+--- O: one batch of a partner's prices, taken only after asking for them.
+function AccountLink:OnPrices(sender, body, channel)
+    if channel ~= "WHISPER" or type(body) ~= "string" then return end
+    local state = self:PartnerFor(sender)
+    if not state or not self:PricesOn() then return end
+    local now = time()
+    if not state.pricesAskedAt or now - state.pricesAskedAt > self.PRICES_TAKE_FOR then return end
+    local key = Comm.NameKey(state.name)
+    local prices = ns.Prices
+    if not key or not (prices and prices.IsCredible) then return end
+
+    local atText, list = body:match("^(%w+):(.*)$")
+    local at = Comm.FromBase36(atText)
+    if not at or at > now + 3600 or now - at > self.PRICES_KEEP then return end
+
+    local store = PriceStore(true)
+    if not store then return end
+    local held = store[key]
+    if type(held) ~= "table" or type(held.items) ~= "table" then
+        held = { items = {}, count = 0 }
+        store[key] = held
+    end
+    held.count = tonumber(held.count) or 0
+
+    local taken = 0
+    for idText, marketText, lowText, ageText in list:gmatch("(%w+),(%w+),(%w*),(%w*);") do
+        local itemID, market = Comm.FromBase36(idText), Comm.FromBase36(marketText)
+        local lowest = lowText ~= "" and Comm.FromBase36(lowText) or market
+        local age = ageText ~= "" and Comm.FromBase36(ageText) or 0
+        local seen = age and at - age
+        if itemID and itemID > 0 and itemID <= self.PRICES_MAX_ITEM_ID and itemID == math.floor(itemID)
+            and prices.IsCredible(market) and prices.IsCredible(lowest)
+            and seen and now - seen <= self.PRICES_USE_FOR then
+            local old = held.items[itemID]
+            if type(old) ~= "table" then
+                if held.count < self.PRICES_MAX_STORED then
+                    held.items[itemID] = { market, lowest, seen }
+                    held.count = held.count + 1
+                    taken = taken + 1
+                end
+            elseif (tonumber(old[3]) or 0) < seen then
+                old[1], old[2], old[3] = market, lowest, seen
+                taken = taken + 1
+            end
+            if ns.PriceHistory and ns.PriceHistory.Fill then pcall(ns.PriceHistory.Fill, ns.PriceHistory, itemID, lowest, seen) end
+        end
+    end
+    if not tonumber(held.at) or held.at < at then held.at = at end
+    if taken > 0 then prices.changes = (prices.changes or 0) + 1 end
+end
+
+--- A partner's price for an item and when it was seen, or nil: the newest
+--- any partner sent within PRICES_USE_FOR. `which` as Prices:GetValue:
+--- "min" or "lowest" read the cheapest listing, "rival" is never answered.
+function AccountLink:PriceFor(itemID, which, now)
+    if which == "rival" or not self:PricesOn() then return nil end
+    local store = PriceStore(false)
+    if not store then return nil end
+    now = now or time()
+    local value, newest
+    for _, held in pairs(store) do
+        local item = type(held) == "table" and type(held.items) == "table" and held.items[itemID]
+        local seen = type(item) == "table" and tonumber(item[3])
+        if seen and now - seen <= self.PRICES_USE_FOR and (not newest or seen > newest) then
+            local price = (which == "min" or which == "lowest") and item[2] or item[1]
+            if type(price) == "number" then value, newest = price, seen end
+        end
+    end
+    return value, newest
+end
+
+--- How many prices are held from a partner (by name) and when it last
+--- scanned, or nil.
+function AccountLink:PricesHeld(name)
+    local store = PriceStore(false)
+    local held = store and store[Comm.NameKey(name)]
+    if type(held) ~= "table" or (tonumber(held.count) or 0) <= 0 then return nil end
+    return held.count, tonumber(held.at)
+end
+
+--- Let a partner's prices go (by key), or every partner's on every realm.
+function AccountLink:DropPrices(key)
+    local all = ns.db and ns.db.linkedPrices
+    if type(all) ~= "table" then return end
+    local dropped = false
+    if key then
+        for _, realm in pairs(all) do
+            if type(realm) == "table" and realm[key] ~= nil then realm[key] = nil; dropped = true end
+        end
+    else
+        ns.db.linkedPrices = nil
+        dropped = true
+    end
+    if dropped and ns.Prices then ns.Prices.changes = (ns.Prices.changes or 0) + 1 end
+end
+
+--- Let prices older than PRICES_KEEP go, and partners left with none.
+function AccountLink:PrunePrices(now)
+    local all = ns.db and ns.db.linkedPrices
+    if type(all) ~= "table" then return end
+    now = now or time()
+    for realmKey, realm in pairs(all) do
+        if type(realm) == "table" then
+            for key, held in pairs(realm) do
+                local count = 0
+                if type(held) == "table" and type(held.items) == "table" then
+                    for itemID, item in pairs(held.items) do
+                        local seen = type(item) == "table" and tonumber(item[3])
+                        if not seen or now - seen > self.PRICES_KEEP then
+                            held.items[itemID] = nil
+                        else
+                            count = count + 1
+                        end
+                    end
+                    held.count = count
+                end
+                if count == 0 then realm[key] = nil end
+            end
+            if next(realm) == nil then all[realmKey] = nil end
+        else
+            all[realmKey] = nil
+        end
+    end
+    if next(all) == nil then ns.db.linkedPrices = nil end
+end
+
+--- A scan wrote prices. While linked, partners hear soon.
+function AccountLink:PricesChanged()
+    if self:PricesOn() then self:SendSoon(self.PRICES_KEY) end
+end
+
+--------------------------------------------------------------------------------
 -- Status, for Settings and /bts share
 --------------------------------------------------------------------------------
 
@@ -1039,6 +1338,11 @@ function AccountLink:Describe()
         else
             parts[#parts + 1] = L.Format("%s: %s, %d characters held", partner.name, status, held)
         end
+        local priceCount, scanAt = self:PricesHeld(partner.name)
+        if priceCount and scanAt and self:PricesOn() then
+            parts[#parts + 1] = L.Format("%d prices from their scan %s", priceCount,
+                ns.Util.FormatAgeAgo(math.max(0, time() - scanAt)))
+        end
     end
     local pending = Comm:Pending()
     if pending == 1 then
@@ -1061,6 +1365,13 @@ function AccountLink:OnEnable()
     Comm:OnTable("C", function(...) AccountLink:OnCharacter(...) end)
     Comm:On("V", function(...) AccountLink:OnListsWanted(...) end)
     Comm:OnTable("U", function(...) AccountLink:OnLists(...) end)
+    Comm:On("E", function(...) AccountLink:OnPricesWanted(...) end)
+    Comm:On("O", function(...) AccountLink:OnPrices(...) end)
+    pcall(self.PrunePrices, self)
+    -- A scan that wrote prices: partners hear a few seconds later.
+    if ns.Prices and ns.Prices.WatchScans then
+        ns.Prices:WatchScans(function() AccountLink:PricesChanged() end)
+    end
     Comm.onOffline = function(key)
         AccountLink:OnOffline(key)
         if ns.GuildCrafters and ns.GuildCrafters.OnOffline then ns.GuildCrafters:OnOffline(key) end

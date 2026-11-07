@@ -3411,3 +3411,4 @@ L["Other account has %d, needs %d"] = "У другого аккаунта %d, н
 L["Other account has %d"] = "У другого аккаунта %d"
 L["Other account has all it needs"] = "У другого аккаунта есть всё нужное"
 L["From your other account. It changes when theirs does."] = "С другого аккаунта. Меняется, когда меняется там."
+L["%d prices from their scan %s"] = "%d цен из их сканирования %s"
