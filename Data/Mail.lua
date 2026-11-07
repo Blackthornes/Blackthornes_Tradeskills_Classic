@@ -944,6 +944,7 @@ function Mail:Reconcile(mails, complete)
     -- A newer look-alike counted in its place would leave the next reading
     -- numbering them differently, and one sale written down twice.
     local deferred = {}
+    local wrote = false
 
     for _, mail in ipairs(walk) do
         -- A mail whose attachments have not arrived yet would fingerprint as a
@@ -1001,6 +1002,7 @@ function Mail:Reconcile(mails, complete)
                 elseif kind then
                     local entry = Describe(mail, kind, itemName, invoice)
                     ledger.entries[#ledger.entries + 1] = entry
+                    wrote = true
                     -- A sale first seen now can top the stock up
                     -- (SaleAlarm:RestockFromMail); not on a character's
                     -- first reading, which writes down every old mail.
@@ -1023,6 +1025,7 @@ function Mail:Reconcile(mails, complete)
                 -- was held. The gold has now been released, so the entry takes
                 -- the real amount and stops saying "gold still held".
                 self:SettleHeldSale(mail)
+                wrote = true
             end
         end
     end
@@ -1054,6 +1057,11 @@ function Mail:Reconcile(mails, complete)
 
     while #ledger.entries > MAX_LEDGER do
         table.remove(ledger.entries, 1)
+    end
+
+    -- With Share Sales ticked, the other account hears in a few seconds.
+    if wrote and ns.AccountLink and ns.AccountLink.SalesChanged then
+        pcall(ns.AccountLink.SalesChanged, ns.AccountLink, who)
     end
 end
 

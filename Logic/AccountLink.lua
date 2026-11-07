@@ -70,6 +70,10 @@ AccountLink.salesVersion = 0
 
 -- How often partners are said hello to, or told what changed.
 AccountLink.CHECK_SECONDS = 600
+-- A change that should not wait for the next check (a new sale) goes to
+-- online partners this many seconds later (SendSoon), at most this late.
+AccountLink.SOON_DELAY = 5
+AccountLink.SOON_MOST_WAIT = 30
 local MAX_CHARACTERS = 60
 local MAX_STRING = 120
 
@@ -260,13 +264,17 @@ end
 
 --- guid -> hash of what would be sent, so the other side asks only for the
 --- characters that changed.
-function AccountLink:Manifest()
+--- With `only` (a set of guids), just those characters: the other side asks
+--- only for what is listed, and leaves the rest as it holds them.
+function AccountLink:Manifest(only)
     local manifest, count = {}, 0
     for guid, record in pairs(self:OwnCharacters()) do
-        count = count + 1
-        if count > MAX_CHARACTERS then break end
-        local ok, text = pcall(ns.Serialize.EncodeCanonical, self:Payload(guid, record))
-        if ok then manifest[guid] = Comm.Hash(text) end
+        if not only or only[guid] then
+            count = count + 1
+            if count > MAX_CHARACTERS then break end
+            local ok, text = pcall(ns.Serialize.EncodeCanonical, self:Payload(guid, record))
+            if ok then manifest[guid] = Comm.Hash(text) end
+        end
     end
     return manifest
 end
@@ -662,6 +670,51 @@ end
 function AccountLink:SendManifest(state)
     state.manifestAt = time()
     Comm:SendTable("M", self:Manifest(), "WHISPER", state.name)
+end
+
+--- Something shared about one of this account's characters just changed.
+--- Online partners hear about that character SOON_DELAY seconds later
+--- rather than at the next check. More changes meanwhile wait with it, so a
+--- burst goes as one, but never longer than SOON_MOST_WAIT. Any shared
+--- feature can call it once it has checked its own setting.
+function AccountLink:SendSoon(guid)
+    if not IsGUID(guid) or not C_Timer or not C_Timer.After then return end
+    local now = GetTime and GetTime() or time()
+    self.soonDirty = self.soonDirty or {}
+    self.soonDirty[guid] = true
+    self.soonFirst = self.soonFirst or now
+    if self.soonToken and now - self.soonFirst >= self.SOON_MOST_WAIT then return end
+    local token = (self.soonToken or 0) + 1
+    self.soonToken = token
+    C_Timer.After(self.SOON_DELAY, function()
+        if AccountLink.soonToken == token then AccountLink:SendChanged() end
+    end)
+end
+
+--- Tell every online partner about the characters waiting in SendSoon.
+--- Returns how many partners were told.
+function AccountLink:SendChanged()
+    local dirty = self.soonDirty
+    self.soonDirty, self.soonFirst, self.soonToken = nil, nil, nil
+    if not dirty then return 0 end
+    local manifest = self:Manifest(dirty)
+    if next(manifest) == nil then return 0 end
+    local sent = 0
+    for _, partner in ipairs(self:GetPartners()) do
+        local state = self.partners[partner.key]
+        if state and state.online then
+            state.manifestAt = time()
+            Comm:SendTable("M", manifest, "WHISPER", state.name)
+            sent = sent + 1
+        end
+    end
+    return sent
+end
+
+--- A character's ledger just changed (Data/Mail.lua: a sale written down or
+--- its gold released). With Share Sales ticked, partners hear soon.
+function AccountLink:SalesChanged(guid)
+    if Setting(self.SALES_SETTING) == true then self:SendSoon(guid) end
 end
 
 --- Say hello to every partner not yet heard from, and tell the ones who

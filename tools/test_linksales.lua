@@ -241,4 +241,82 @@ check("forgetting Loom lets go of the sales", forgotten[LOOM]
     and (ns.db.linkedSales[BOB_REALM] == nil or ns.db.linkedSales[BOB_REALM][LOOM] == nil))
 check("and Bob's own stay", #Mail:Entries() == 2)
 
+print("\na new sale goes out within seconds")
+
+loomAccount()
+local savedTimer = C_Timer
+local savedSerialize = ns.Serialize
+ns.Serialize = ns.Serialize or { EncodeCanonical = function(value) return tostring(value and value.name or "x") end }
+local timers, sentTo = {}, {}
+C_Timer = { After = function(delay, fn) timers[#timers + 1] = { delay = delay, fn = fn } end }
+ns.Comm.SendTable = function(_, kind, value, channel, target)
+    sentTo[#sentTo + 1] = { kind = kind, value = value, channel = channel, target = target }
+end
+local function RunTimers()
+    local pending = timers
+    timers = {}
+    for _, timer in ipairs(pending) do timer.fn() end
+end
+
+AccountLink.partners = {}
+for _, partner in ipairs(AccountLink:GetPartners()) do
+    AccountLink.partners[partner.key] = { name = partner.name, online = true }
+end
+
+settings.linkShareSales = false
+AccountLink:SalesChanged(LOOM)
+check("unticked, nothing waits to go", #timers == 0)
+settings.linkShareSales = true
+
+AccountLink:SalesChanged(LOOM)
+AccountLink:SalesChanged(LOOM)
+check("it waits about 5 seconds", #timers == 2 and timers[1].delay == AccountLink.SOON_DELAY)
+RunTimers()
+check("a burst goes as one", #sentTo == 1)
+check("as a manifest to the partner", sentTo[1] and sentTo[1].kind == "M"
+    and sentTo[1].channel == "WHISPER" and sentTo[1].target == "Loom")
+check("naming only the character that changed", sentTo[1] and sentTo[1].value[LOOM] ~= nil
+    and sentTo[1].value[FAR] == nil)
+
+sentTo = {}
+AccountLink:SalesChanged(LOOM)
+clock = clock + AccountLink.SOON_MOST_WAIT
+AccountLink:SalesChanged(LOOM)
+check("a long burst never waits past the most wait", #timers == 1)
+RunTimers()
+check("and still goes once", #sentTo == 1)
+
+sentTo = {}
+for _, state in pairs(AccountLink.partners) do state.online = false end
+AccountLink:SalesChanged(LOOM)
+RunTimers()
+check("a partner not online is left to the usual check", #sentTo == 0)
+
+do
+    local called, calls = nil, 0
+    local real, realClassify, realInvoice = AccountLink.SalesChanged, Mail.Classify, Mail.ReadInvoice
+    local realResolve = Mail.ResolveItemName
+    Mail.ResolveItemName = function() return 2589 end
+    AccountLink.SalesChanged = function(_, guid) called, calls = guid, calls + 1 end
+    Mail.Classify = function() return "sold", "Linen Cloth" end
+    Mail.ReadInvoice = function() return nil end
+    ns.db.mailLedger[LOOM_REALM].seenBy = { [LOOM] = {} }
+
+    Mail:Reconcile({}, true)
+    check("an empty mailbox sends nothing", calls == 0)
+
+    local before = #ns.db.mailLedger[LOOM_REALM].entries
+    Mail:Reconcile({ { index = 1, sender = "Auction House", subject = "Sold: Linen Cloth",
+        money = 77, attachments = {}, daysLeft = 30 } }, true)
+    check("a sale written down at the mailbox sends it", called == LOOM and calls == 1
+        and #ns.db.mailLedger[LOOM_REALM].entries == before + 1)
+
+    AccountLink.SalesChanged, Mail.Classify, Mail.ReadInvoice = real, realClassify, realInvoice
+    Mail.ResolveItemName = realResolve
+end
+
+C_Timer = savedTimer
+ns.Serialize = savedSerialize
+ns.Comm.SendTable = nil
+
 print(("\n%d checks passed"):format(checks))
