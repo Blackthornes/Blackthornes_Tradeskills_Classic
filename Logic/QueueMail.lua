@@ -256,6 +256,24 @@ local function OwnOutputs()
     return outputs
 end
 
+--- The linked characters this one can mail whose queues need something,
+--- by key. Empty unless Share Craft Queue is ticked here.
+function QueueMail:LinkedNeeders(selfKey)
+    local list = {}
+    if not (ns.Config and ns.Config:Get("linkShareQueue") == true) then return list end
+    selfKey = selfKey or SelfKey()
+    for key, record in pairs((ns.db and ns.db.characters) or {}) do
+        if type(record) == "table" and record.linkedFrom ~= nil
+            and type(record.queueNeeds) == "table" and next(record.queueNeeds)
+            and key ~= selfKey and not self:IsPlaying(key)
+            and ns.Queue:CanMail(selfKey, key) then
+            list[#list + 1] = key
+        end
+    end
+    table.sort(list)
+    return list
+end
+
 --- What the character logged in can send to whom, right now.
 --
 -- For each other character the queue gives crafts to: what those crafts
@@ -352,6 +370,20 @@ function QueueMail:GetDeliveries()
             local left = uses[toKey][itemID] - (theirMake[itemID] or 0)
                 - Queue:HeldBy(toKey, itemID)
             Give(toKey, itemID, left, (myMake[itemID] or 0) > 0 or canMake[itemID] == true)
+        end
+    end
+
+    -- A linked account's characters, for what their own queues still need
+    -- (Account Link's Share Craft Queue, both sides ticked; 2026-11-07). The
+    -- other account worked out the need against its own bags and mail, so
+    -- only what this account mailed since and has not seen arrive comes off.
+    for _, toKey in ipairs(self:LinkedNeeders(selfKey)) do
+        local needs = CharacterRecord(toKey).queueNeeds
+        local items = {}
+        for itemID in pairs(needs) do items[#items + 1] = itemID end
+        table.sort(items)
+        for _, itemID in ipairs(items) do
+            Give(toKey, itemID, needs[itemID] - self:InFlight(toKey, itemID), canMake[itemID] == true)
         end
     end
 

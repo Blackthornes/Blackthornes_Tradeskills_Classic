@@ -46,6 +46,15 @@ AccountLink.SECTIONS = {
     { setting = "linkShareGold", fields = { "gold" } },
 }
 
+-- Share Craft Queue (Trent, 2026-11-07, a player with three accounts):
+-- each own character's queued crafts' materials it still needs, item IDs
+-- and counts only, so the other account's mail suggestions can send them.
+-- Off unless ticked on both sides (`linkShareQueue`); never relayed, since
+-- only this account's own characters go out. `mailAt` rides along so a
+-- mail sent to one clears once it reads its mailbox, bags shared or not.
+AccountLink.QUEUE_SETTING = "linkShareQueue"
+AccountLink.MAX_NEEDS = 200
+
 -- How often partners are said hello to, or told what changed.
 AccountLink.CHECK_SECONDS = 600
 local MAX_CHARACTERS = 60
@@ -137,6 +146,35 @@ local function CopyRecipes(recipes)
     return out
 end
 
+--- What one of this account's characters still needs for its queued crafts:
+--- what they use, less what it makes itself and what it holds or has on its
+--- way. { [itemID] = count }, never empty; nil when it needs nothing.
+function AccountLink:QueueNeeds(guid)
+    local QueueMail, Queue = ns.QueueMail, ns.Queue
+    if not (QueueMail and QueueMail.GetPlan and Queue and Queue.HeldBy) then return nil end
+
+    -- The plan is the same for every character in one manifest.
+    local now = (type(GetTime) == "function" and GetTime()) or 0
+    if not self.plan or self.plan.at ~= now then
+        local ok, uses, makes = pcall(QueueMail.GetPlan, QueueMail)
+        self.plan = { at = now, uses = ok and uses or {}, makes = ok and makes or {} }
+    end
+
+    local uses = self.plan.uses[guid]
+    if type(uses) ~= "table" then return nil end
+    local makes = self.plan.makes[guid] or {}
+    local needs, count = {}, 0
+    for itemID, used in pairs(uses) do
+        local ok, held = pcall(Queue.HeldBy, Queue, guid, itemID)
+        local left = used - (makes[itemID] or 0) - ((ok and tonumber(held)) or 0)
+        if left > 0 and count < self.MAX_NEEDS then
+            needs[itemID] = left
+            count = count + 1
+        end
+    end
+    return next(needs) and needs or nil
+end
+
 --- One character as it goes out, with only what the Share settings allow.
 function AccountLink:Payload(guid, record)
     local payload = { guid = guid }
@@ -150,6 +188,11 @@ function AccountLink:Payload(guid, record)
                 payload[field] = value
             end
         end
+    end
+
+    if Setting(self.QUEUE_SETTING) == true then
+        payload.queueNeeds = self:QueueNeeds(guid)
+        payload.mailAt = record.mailAt
     end
 
     if Setting("linkShareAuctions") ~= false then
@@ -271,6 +314,19 @@ local function CleanLines(value)
     return out
 end
 
+--- Queue needs: counts, at most MAX_NEEDS of them.
+local function CleanNeeds(value)
+    local out = CleanCounts(value)
+    if not out then return nil end
+    local kept, count = {}, 0
+    for itemID, n in pairs(out) do
+        count = count + 1
+        if count > AccountLink.MAX_NEEDS then break end
+        kept[itemID] = n
+    end
+    return next(kept) and kept or nil
+end
+
 local CLEANERS = {
     name = CleanString, realm = CleanString, faction = CleanString, class = CleanString,
     surname = CleanString, level = CleanNumber, gold = CleanNumber,
@@ -280,6 +336,7 @@ local CLEANERS = {
     race = CleanString, classFile = CleanString, zone = CleanString,
     xp = CleanNumber, xpMax = CleanNumber, restXP = CleanNumber, played = CleanNumber, seenAt = CleanNumber,
     resting = function(value) if type(value) == "boolean" then return value end end,
+    queueNeeds = CleanNeeds,
 }
 
 --- One auction reading: { items = counts, updatedAt, listings }.
@@ -327,6 +384,8 @@ function AccountLink:Accept(sender, payload, hash)
         local value = clean(payload[field])
         if value ~= nil then record[field] = value end
     end
+    -- Kept only while this side shares queues too.
+    if Setting(self.QUEUE_SETTING) ~= true then record.queueNeeds = nil end
     record.name = record.name or "?"
     record.recipes = record.recipes or {}
     record.inventory = record.inventory or {}
