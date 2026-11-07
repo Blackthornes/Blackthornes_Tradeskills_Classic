@@ -83,9 +83,9 @@ Copied over since, one at a time:
   translated fresh in all five locales, `tools/test_postanyway.lua` as is.
 - `0df1229` Disenchant results on the tooltip show what one of each is
   worth ("%s each"), kept with Classic's header and Disenchant check.
-
-Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
-brings Forever commits over updates the line above to the newest one it took.
 - Picked fix (2026-11-07, the owner said yes): the folded One Window opens
   full after docking (Forever's shared `UI/SharedWindow.lua` fix, here at
   FILE_VERSION 8, the same in all five Classic repos).
+
+Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
+brings Forever commits over updates the line above to the newest one it took.
