@@ -1464,27 +1464,57 @@ function Queue:Ensure(recipeID, quantity)
 
     local _, existing = self:Find(recipeID, true)
     if existing then
-        if existing.quantity >= quantity then return true end
+        if existing.quantity >= quantity then
+            self:DropBoughtFor(recipeID, quantity)
+            return true
+        end
         if not self:SetQuantity(recipeID, quantity) then return nil, L["the queue would not take it"] end
+        self:DropBoughtFor(recipeID, quantity)
         return true
     end
     if not self:Add(recipeID, quantity) then return nil, L["the queue would not take it"] end
+    self:DropBoughtFor(recipeID, quantity)
     return true
+end
+
+--- A craft is queued now: lines put on the list to buy for that recipe
+--- (Equipment's Queue It lists a pattern's materials before it is learned)
+--- come off, since the queue's own shopping list counts them. Lines for
+--- more crafts than queued, and lines with no count (Learn next's), stay.
+--- Lines for the gear itself already went in Add (DropBuysFor).
+function Queue:DropBoughtFor(recipeID, quantity)
+    local buys, selfKey, dropped = Buys(false), SelfKey(), false
+    for index = #buys, 1, -1 do
+        local line = buys[index]
+        if type(line) == "table" and MineToSee(line, selfKey) and line.forRecipe == recipeID then
+            local crafts = tonumber(line.forRecipeCrafts)
+            if crafts and crafts <= quantity then
+                table.remove(buys, index)
+                dropped = true
+            end
+        end
+    end
+    if dropped then self:Notify() end
+    return dropped
 end
 
 --- What the queue holds for a piece of gear: "craft" when a craft of it is
 --- queued, "buy" when it or its materials are on the list to buy, else nil.
-function Queue:ForUpgrade(itemID)
-    itemID = tonumber(itemID)
+--- `recipeID` (optional, Equipment's since 2026-11-07) also finds materials
+--- listed for the recipe that makes it, before anyone knows it.
+function Queue:ForUpgrade(itemID, recipeID)
+    itemID, recipeID = tonumber(itemID), tonumber(recipeID)
     if not itemID then return nil end
     for _, entry in ipairs(self:GetAll()) do
         if not entry.isDependency then
+            if recipeID and entry.recipeID == recipeID then return "craft" end
             local recipe = ns.Recipes:GetAny(entry.recipeID)
             if recipe and recipe.outputItemID == itemID then return "craft" end
         end
     end
     for _, line in ipairs(self:GetBuys()) do
         if line.forItem == itemID then return "buy" end
+        if recipeID and line.forRecipe == recipeID then return "buy" end
     end
     return nil
 end
