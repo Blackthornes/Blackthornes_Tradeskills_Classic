@@ -323,6 +323,36 @@ SW.Left("auction")
 assert(not SW.Docked() and SW.Keep() == false, "nothing to keep once it closes")
 SW.Open("gamma")
 
+-- 10. Folded with the gem, it docks and undocks and opens back at its size.
+do
+    local fullW, fullH = frame:GetWidth(), frame:GetHeight()
+    local state = { folded = true, width = fullW, full = fullH }
+    rawset(frame, "blackthornesFold", state)
+    local setSize, setHeight = frame.SetSize, frame.SetHeight
+    -- What FoldWindow's hooks do: keep the size for the unfold, stay a strip.
+    frame.SetSize = function(self, w, h)
+        if state.folded then state.width, state.full = w, h; return setHeight(self, 38) end
+        return setSize(self, w, h)
+    end
+    frame.SetHeight = function(self, h)
+        if state.folded then state.full = h; return setHeight(self, 38) end
+        return setHeight(self, h)
+    end
+    setHeight(frame, 38)
+    now = now + 5
+    SW.Arrived("mail")
+    assert(SW.Docked() and state.width == fullW - SW.RAIL_WIDTH - 8 and state.full == fullH + SW.ROW_HEIGHT + 8,
+        "docked while folded, it keeps the docked size to open to")
+    assert(frame:GetHeight() == 38, "and stays folded")
+    SW.Left("mail")
+    assert(not SW.Docked() and state.width == fullW and state.full == fullH,
+        "undocked while folded, it opens back at its own size")
+    state.folded = false
+    frame.SetSize, frame.SetHeight = setSize, setHeight
+    rawset(frame, "blackthornesFold", nil)
+    frame:SetSize(fullW, fullH)
+end
+
 SW.SetOn(false)
 assert(not SW.IsOpen(), "unticking closes it")
 assert(not SW.Hosts("gamma"), "nothing is hosted while off")
