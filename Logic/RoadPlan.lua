@@ -413,13 +413,57 @@ end
 --- The crafting professions the character playing has, each { name (the
 --- client's), line (Classic), skill, max }, the ones picked on the Welcome
 --- card first (Logic/Welcome.lua), then by name.
+-- The classic skill line for a profession's English name, for a line the
+-- client gives that ClassicLine does not know (Cooking and First Aid have a
+-- second ID on Forever too, and only the classic one is in RANKS).
+local function LineByName(profession)
+    local recipes = ns.Recipes
+    if not (recipes and recipes.EnglishProfessionName and recipes.SKILL_LINE_PROFESSIONS) then return nil end
+    local ok, english = pcall(recipes.EnglishProfessionName, profession)
+    if not ok or not english then return nil end
+    for line, name in pairs(recipes.SKILL_LINE_PROFESSIONS) do
+        if name == english and RoadPlan.RANKS[line] then return line end
+    end
+end
+
+-- Cooking and First Aid from the Professions book, for a client whose
+-- trade skill lines leave the secondary professions out.
+local function FromBook()
+    local found = {}
+    local getAll, getInfo = rawget(_G, "GetProfessions"), rawget(_G, "GetProfessionInfo")
+    if type(getAll) ~= "function" or type(getInfo) ~= "function" then return found end
+    local ok, indexes = pcall(function() return { getAll() } end)
+    if not ok then return found end
+    for i = 1, 6 do
+        local index = indexes[i]
+        if type(index) == "number" then
+            local read, entry = pcall(function()
+                local name, _, rank, maxRank, _, _, skillLine = getInfo(index)
+                if type(name) ~= "string" or name == "" then return nil end
+                return {
+                    name = name .. "",
+                    skillLineID = type(skillLine) == "number" and skillLine + 0 or nil,
+                    skillLevel = type(rank) == "number" and rank + 0 or 0,
+                    maxSkillLevel = type(maxRank) == "number" and maxRank + 0 or 0,
+                }
+            end)
+            if read and entry and entry.maxSkillLevel > 0 then found[#found + 1] = entry end
+        end
+    end
+    return found
+end
+
 function RoadPlan:Professions()
     local list, seen = {}, {}
     local recipes = ns.Recipes
     local ok, learned = pcall(function() return recipes and recipes:GetLearnedProfessions() end)
-    for _, profession in ipairs(ok and type(learned) == "table" and learned or {}) do
+    local all = {}
+    for _, profession in ipairs(ok and type(learned) == "table" and learned or {}) do all[#all + 1] = profession end
+    for _, profession in ipairs(FromBook()) do all[#all + 1] = profession end
+    for _, profession in ipairs(all) do
         local line = Classic(profession.skillLineID)
-        if RoadPlan.RANKS[line] and not seen[line] then
+        if not RoadPlan.RANKS[line] then line = LineByName(profession) end
+        if line and RoadPlan.RANKS[line] and not seen[line] then
             seen[line] = true
             list[#list + 1] = {
                 name = profession.name, line = line,

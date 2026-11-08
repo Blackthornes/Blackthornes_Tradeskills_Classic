@@ -18,7 +18,7 @@
 --   8. The list shows the steps left first, the done ones after.
 
 local GLOBALS = { "time", "GetTime", "UnitFactionGroup", "GetRealZoneText", "GetLocale",
-  "UnitLevel", "C_Timer", "C_Map", "C_QuestLog" }
+  "UnitLevel", "C_Timer", "C_Map", "C_QuestLog", "GetProfessions", "GetProfessionInfo" }
 local saved = {}
 for _, key in ipairs(GLOBALS) do saved[key] = _G[key] end
 
@@ -460,6 +460,37 @@ end
 check("gathering left out, by name", #Road:Professions(), 2)
 ns.Welcome:SetPicks({ 197 })
 check("a pick comes first", Road:Professions()[1].name, "Tailoring")
+
+print("\nCooking and First Aid in the list")
+ns.Welcome:SetPicks({})
+ns.Recipes.SKILL_LINE_PROFESSIONS = { [2938] = "Blacksmithing", [164] = "Blacksmithing",
+  [185] = "Cooking", [129] = "First Aid" }
+ns.Recipes.EnglishProfessionName = function(p)
+  return ns.Recipes.SKILL_LINE_PROFESSIONS[p.skillLineID] or p.name
+end
+ns.Recipes.GetLearnedProfessions = function()
+  return {
+    { name = "Blacksmithing", skillLineID = 2938, skillLevel = 62, maxSkillLevel = 75, learned = true },
+    { name = "Cooking", skillLineID = 2950, skillLevel = 40, maxSkillLevel = 75, learned = true },
+  }
+end
+local function HasLine(list, line)
+  for _, p in ipairs(list) do if p.line == line then return p end end
+end
+local cooking = HasLine(Road:Professions(), 185)
+check("Cooking under a second ID, by name", cooking and cooking.skill, 40)
+GetProfessions = function() return nil, nil, nil, nil, 5, 6 end
+GetProfessionInfo = function(index)
+  if index == 5 then return "Cooking", nil, 40, 75, nil, nil, 185 end
+  if index == 6 then return "First Aid", nil, 120, 150, nil, nil, 129 end
+end
+local list = Road:Professions()
+check("First Aid from the Professions book", HasLine(list, 129) and HasLine(list, 129).skill, 120)
+check("Cooking listed once", #list, 3)
+GetProfessionInfo = function(index)
+  if index == 6 then return "First Aid", nil, 0, 0, nil, nil, 129 end
+end
+check("an unlearned one is left out", HasLine(Road:Professions(), 129), nil)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
