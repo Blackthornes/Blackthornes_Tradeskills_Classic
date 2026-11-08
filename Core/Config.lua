@@ -529,6 +529,8 @@ local DEFAULTS = {
         -- shows the graph where the materials list goes.
         priceGraphWindow = "day",
         profitShowsGraph = false,
+        recipeShowsGraph = false,
+        yourTimeShowsGraph = false,
 
         -- The Profit tab's TIME and GOLD/HR columns (asked 2026-10-09),
         -- from its "Per hour" tick box.

@@ -59,6 +59,57 @@ ns.Columns:Register("recipes", L["Recipes to learn"], COLUMNS)
 --   levelling; otherwise the most profit comes first
 -- @param opts.showSkill  the picked profession's skill at the top right, as
 --   Road to 300 shows it (every profession you have under All professions)
+--- What one craft would bring in, sold at `price` each: the auction house
+--- after its cut, or a vendor when that pays more.
+function RecipeBookView.BackAt(itemID, price, yield, vendor)
+    local net
+    if ns.Profit and ns.Profit.NetFromListing then
+        local ok, value = pcall(ns.Profit.NetFromListing, ns.Profit, itemID, price)
+        if ok and type(value) == "number" then net = value end
+    end
+    if not net then net = price * (1 - ((ns.Config and ns.Config:Get("auctionCut")) or 0.05)) end
+    local back = math.max(0, net) * (yield or 1)
+    if type(vendor) == "number" and vendor > back then back = vendor end
+    return back
+end
+
+--- How many crafts pay for the recipe at the average price, or nil when a
+--- craft makes nothing then.
+function RecipeBookView.PaybackAt(info, average)
+    if type(info) ~= "table" or type(average) ~= "number" or average <= 0 then return nil end
+    if type(info.price) ~= "number" or info.price <= 0 or type(info.cost) ~= "number" then return nil end
+    local profit = RecipeBookView.BackAt(info.outputItemID, average, info.yield, info.vendor) - info.cost
+    if profit <= 0 then return nil end
+    return math.max(1, math.ceil(info.price / profit))
+end
+
+--- The lines under the graph, once it has drawn: the average shown, when
+--- the recipe pays for itself at that price (for the craft's own graph),
+--- and a hint to star an item that has only its daily prices.
+function RecipeBookView.GraphLines(detail, graph)
+    local info = rawget(detail, "graphInfo")
+    if not info then return end
+    local text = ns.PriceGraph.AverageText(graph)
+    detail.average.value:SetText(text or "--")
+    detail.average.value:SetTextColor(Theme.Unpack(text and "text" or "dim"))
+
+    local crafts = rawget(graph, "selected") == info.outputItemID
+        and RecipeBookView.PaybackAt(info, rawget(graph, "average")) or nil
+    if crafts then
+        detail.payback:SetText(L.Format("At the average price, it pays for itself after %d crafts.", crafts))
+        detail.payback:Show()
+    else
+        detail.payback:SetText("")
+        detail.payback:Hide()
+    end
+    detail.average:ClearAllPoints()
+    detail.average:SetPoint("BOTTOMLEFT", crafts and detail.payback or detail.note, "TOPLEFT", 0, crafts and 4 or 6)
+    detail.average:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+
+    detail.note:SetText(rawget(graph, "kind") == "market"
+        and L["Star this item to save its cheapest price every hour."] or "")
+end
+
 local function NewView(opts)
     opts = opts or {}
     local instance = {}
@@ -275,6 +326,41 @@ local function NewView(opts)
         detail.note:SetPoint("BOTTOMRIGHT", -12, 12)
         detail.note:SetWordWrap(true)
 
+        -- The price graph in place of the materials (asked 2026-11-08), as
+        -- the My Crafts pane has it, with the average and when the recipe
+        -- pays for itself at that price under it.
+        if ns.PriceGraph then
+            detail.graphButton = ns.PriceGraph.AddButton(detail, detail.materialsHeading, function()
+                ns.Config:Set("recipeShowsGraph", not ns.Config:Get("recipeShowsGraph"))
+                instance.Refresh()
+            end)
+
+            detail.payback = Theme.CreateLabel(detail, "small", "text")
+            detail.payback:SetPoint("BOTTOMLEFT", detail.note, "TOPLEFT", 0, 6)
+            detail.payback:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+            detail.payback:SetWordWrap(true)
+            detail.payback:Hide()
+
+            detail.average = CreateFrame("Frame", nil, detail)
+            detail.average:SetHeight(16)
+            detail.average:SetPoint("BOTTOMLEFT", detail.note, "TOPLEFT", 0, 6)
+            detail.average:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+            detail.average.label = Theme.CreateLabel(detail.average, "small", "muted")
+            detail.average.label:SetPoint("LEFT", 0, 0)
+            detail.average.label:SetText(L["Average for these days:"])
+            detail.average.value = Theme.CreateLabel(detail.average, "small", "text", "RIGHT")
+            detail.average.value:SetPoint("RIGHT", 0, 0)
+            detail.average.value:SetPoint("LEFT", detail.average.label, "RIGHT", 6, 0)
+            detail.average.value:SetWordWrap(false)
+            detail.average:Hide()
+
+            detail.graph = ns.PriceGraph.Create(detail, { picker = true, ticks = true,
+                onRefresh = function(graph) RecipeBookView.GraphLines(detail, graph) end })
+            detail.graph:SetPoint("TOPLEFT", detail.materialsHeading, "BOTTOMLEFT", 0, -8)
+            detail.graph:SetPoint("BOTTOMRIGHT", detail.average, "TOPRIGHT", 0, 8)
+            detail.graph:Hide()
+        end
+
         return detail
     end
 
@@ -307,6 +393,13 @@ local function NewView(opts)
         detail.materialsHeading:Hide()
         detail.learnHeading:Hide()
         detail.learn:SetText("")
+        detail.graphInfo = nil
+        if type(rawget(detail, "graph")) == "table" then
+            detail.graphButton:Hide()
+            detail.graph:Hide()
+            detail.average:Hide()
+            detail.payback:Hide()
+        end
         detail.note:SetText(L["Values use the prices you have scanned. Recipes come from Classic's data, corrected by what your profession windows and recipe tooltips show."])
     end
 
@@ -333,22 +426,23 @@ local function NewView(opts)
         detail.worthHeading:Show()
         local rows = {}
         rows[#rows + 1] = { L["Cost to make"], value.cost and Money(value.cost) or L["not scanned"],
-            value.cost and "text" or "dim" }
+            value.cost and "text" or "dim", main = true }
         if record.outputItemID then
             rows[#rows + 1] = { L["Sells for, after the cut"],
-                returns.auction and Money(returns.auction) or L["not scanned"], returns.auction and "text" or "dim" }
+                returns.auction and Money(returns.auction) or L["not scanned"], returns.auction and "text" or "dim",
+                main = true }
             if returns.disenchant then rows[#rows + 1] = { L["Disenchants for"], Money(returns.disenchant) } end
             if returns.vendor then rows[#rows + 1] = { L["Vendors for"], Money(returns.vendor) } end
             if value.profit then
                 rows[#rows + 1] = { value.backWay and value.backWay ~= "auction"
                         and (BACK_WAY[value.backWay] or L["Profit"]) or L["Profit"],
-                    Money(value.profit), value.profit >= 0 and "profit" or "loss" }
+                    Money(value.profit), value.profit >= 0 and "profit" or "loss", main = true }
             end
         else
             rows[#rows + 1] = { L["Makes"], L["no item to sell"], "dim" }
         end
         if value.price then
-            rows[#rows + 1] = { PRICE_HOW[value.priceHow] or L["Recipe"], Money(value.price) }
+            rows[#rows + 1] = { PRICE_HOW[value.priceHow] or L["Recipe"], Money(value.price), main = true }
         end
         if value.payback then
             rows[#rows + 1] = { L["Pays for itself after"], value.payback == 1 and L["1 craft"]
@@ -356,12 +450,47 @@ local function NewView(opts)
         elseif value.profit and value.profit <= 0 then
             rows[#rows + 1] = { L["Pays for itself"], L["not at today's prices"], "warn" }
         end
+        local hasGraph = type(rawget(detail, "graph")) == "table" and entry.outputItemID ~= nil
+        local showGraph = hasGraph and ns.Config:Get("recipeShowsGraph") == true
+        if showGraph then
+            -- Only the main rows, so the graph has room to be read.
+            local main = {}
+            for _, row in ipairs(rows) do
+                if row.main then main[#main + 1] = row end
+            end
+            rows = main
+        end
         for index, line in ipairs(detail.values) do
             local row = rows[index]
             SetLine(line, row and row[1], row and row[2], row and row[3])
         end
 
         detail.materialsHeading:Show()
+        detail.materialsHeading:SetText(showGraph and L["PRICE HISTORY"] or L["MATERIALS"])
+        if type(rawget(detail, "graph")) == "table" then
+            detail.graphButton:SetShown(hasGraph)
+            ns.PriceGraph.SetButton(detail.graphButton, showGraph)
+            detail.graph:SetShown(showGraph)
+            detail.average:SetShown(showGraph)
+            if not showGraph then detail.payback:Hide() end
+        end
+        if showGraph then
+            for _, line in ipairs(detail.materials) do line:Hide() end
+            detail.learnHeading:Hide()
+            detail.learn:SetText("")
+            detail.note:SetText("")
+            local returns = value.returns or {}
+            detail.graphInfo = { outputItemID = entry.outputItemID, cost = value.cost, price = value.price,
+                yield = (value.costDetail and value.costDetail.yield) or 1, vendor = returns.vendor }
+            local items = { entry.outputItemID }
+            for _, reagent in ipairs((value.costDetail and value.costDetail.reagents) or {}) do
+                if reagent.itemID then items[#items + 1] = reagent.itemID end
+            end
+            detail.graph:SetItems(items, entry.outputItemID)
+            return
+        end
+        detail.graphInfo = nil
+
         local reagents = (value.costDetail and value.costDetail.reagents) or {}
         for index, line in ipairs(detail.materials) do
             local reagent = reagents[index]
