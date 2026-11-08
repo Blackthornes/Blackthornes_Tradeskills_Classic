@@ -722,19 +722,35 @@ function PostPanel:Build()
     overcut:HookScript("OnLeave", function() GameTooltip:Hide() end)
     self.overcutBox = overcut
 
+    -- Crafted Only (a player asked, the owner said build it, 2026-11-08):
+    -- Sell shows only items your characters can make, and List Next and
+    -- List All follow it. Off unless ticked, kept between sessions.
+    local craftedOnly = Widgets.CreateCheckbox(body, L["Crafted Only"], function(checked)
+        ns.Config:Set("postCraftedOnly", checked and true or false)
+        PostPanel:Refresh()
+    end, PostPanel:CraftedOnly())
+    craftedOnly:SetPoint("TOPRIGHT", overcut, "TOPLEFT", -10, 0)
+    craftedOnly:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["Shows only things your characters can make. List Next lists only these too."], 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    craftedOnly:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    self.craftedOnlyBox = craftedOnly
+
     -- Hidden (2026-11-06, the owner approved the mockup): the items the
     -- player hid with a row's x, the only ones kept off Sell. Opens the
     -- list to bring one back; shows on Sell only while something is hidden.
     local hiddenButton = Widgets.CreateButton(body, L.Format("Hidden (%d)", 0), function(button)
         if ns.HiddenItemsWindow then ns.HiddenItemsWindow:Toggle(PostPanel.frame) end
     end, { height = 20 })
-    hiddenButton:SetPoint("RIGHT", overcut, "LEFT", -10, 0)
+    hiddenButton:SetPoint("RIGHT", craftedOnly, "LEFT", -10, 0)
     hiddenButton:Hide()
     self.hiddenButton = hiddenButton
 
     local summary = Theme.CreateLabel(body, "tiny", "muted")
     summary:SetPoint("TOPLEFT", switch, "BOTTOMLEFT", 0, -6)
-    summary:SetPoint("RIGHT", overcut, "LEFT", -8, 0)
+    summary:SetPoint("RIGHT", craftedOnly, "LEFT", -8, 0)
     summary:SetWordWrap(true)
     if summary.SetJustifyV then summary:SetJustifyV("TOP") end
     self.summary = summary
@@ -1057,6 +1073,7 @@ function PostPanel:ShownLines()
     local lines, toVendor = ns.Posting:GetPostable({ includeAll = true, showHeld = true, showNoted = true })
     local hidden = 0
     if self:HidingLosses() then lines, hidden = PostPanel.WithoutLosses(lines) end
+    if self:CraftedOnly() then lines = PostPanel.CraftedLines(lines) end
     return lines, hidden, toVendor or 0
 end
 
@@ -1794,6 +1811,20 @@ end
 PostPanel.view = "sell"
 
 --- Is Hide losses ticked? Off until the player ticks it.
+--- Crafted Only: true while Sell shows only items a recipe makes.
+function PostPanel:CraftedOnly()
+    return ns.Config ~= nil and ns.Config:Get("postCraftedOnly") == true
+end
+
+--- The lines whose item one of your characters' recipes makes.
+function PostPanel.CraftedLines(lines)
+    local kept = {}
+    for _, line in ipairs(lines or {}) do
+        if line.isCrafted then kept[#kept + 1] = line end
+    end
+    return kept
+end
+
 function PostPanel:HidingLosses()
     return ns.Config ~= nil and ns.Config:Get("postHideLosses") == true
 end
@@ -2054,6 +2085,10 @@ function PostPanel:Refresh()
             self.overcutBox:SetShown(showBox)
             self.overcutBox:SetChecked(ns.Config:Get("overcutting") == true)
         end
+        if self.craftedOnlyBox then
+            self.craftedOnlyBox:SetShown(showBox)
+            self.craftedOnlyBox:SetChecked(self:CraftedOnly())
+        end
         -- Hidden: the items the player hid, on Sell while there are any.
         local hiddenCount = 0
         if self.hiddenButton then
@@ -2080,7 +2115,7 @@ function PostPanel:Refresh()
                 if beside == "hidden" then
                     self.summary:SetPoint("RIGHT", self.hiddenButton, "LEFT", -8, 0)
                 elseif beside == "box" then
-                    self.summary:SetPoint("RIGHT", self.overcutBox or self.hideLosses, "LEFT", -8, 0)
+                    self.summary:SetPoint("RIGHT", self.craftedOnlyBox or self.overcutBox or self.hideLosses, "LEFT", -8, 0)
                 elseif beside == "paste" and View and View.paste then
                     self.summary:SetPoint("RIGHT", View.paste, "LEFT", -8, 0)
                 else
