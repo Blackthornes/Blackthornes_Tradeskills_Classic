@@ -81,6 +81,25 @@ RoadPlan.RANKS = {
                   { 6622, "Triage", "Doctor Gregory Victor", "Arathi Highlands", 73.4, 36.9 } },
         } } },
     },
+    -- Fishing (the owner said build it, 2026-11-08): Apprentice and
+    -- Journeyman at a trainer, Expert from a book sold in Booty Bay (the
+    -- 5th field is the town the words name), Artisan from Nat Pagle's
+    -- quest. A step between them is a zone to fish, not a craft
+    -- (RoadPlan.FishPlan). Book 16083 and quest 6607 are in the Forever
+    -- client's game tables (build 70862); the spots are Classic's until a
+    -- spot the game saw (VendorPins) takes over.
+    [356] = {
+        { 1, 1, 10, 75 },
+        { 50, 10, 500, 150 },
+        { 125, 20, 10000, 225, how = { kind = "book", item = 16083, title = "Expert Fishing - The Bass and You", sellers = {
+            A = { "Old Man Heming", "Stranglethorn Vale", 27.4, 77.2, "Booty Bay" },
+            H = { "Old Man Heming", "Stranglethorn Vale", 27.4, 77.2, "Booty Bay" },
+        } } },
+        { 225, 35, nil, 300, how = { kind = "quest", chain = {
+            A = { { 6607, "Nat Pagle, Angler Extreme", "Nat Pagle", "Dustwallow Marsh", 58.4, 60.2 } },
+            H = { { 6607, "Nat Pagle, Angler Extreme", "Nat Pagle", "Dustwallow Marsh", 58.4, 60.2 } },
+        } } },
+    },
 }
 
 -- Another recipe takes over a step only when it is this much cheaper a
@@ -267,6 +286,7 @@ end
 -- @param opts.pickBy      "lowest" (the default) or "real"
 -- @return { steps, current, total, saved, back, stuck, skill, max, pickBy }
 function RoadPlan:Plan(opts)
+    if opts.line == RoadPlan.FISHING then return RoadPlan.FishPlan(opts) end
     local line, now = opts.line, opts.skill or 0
     local ranks = RoadPlan.RANKS[line] or {}
     local candidates = opts.candidates or {}
@@ -503,6 +523,7 @@ function RoadPlan:Professions()
     for _, profession in ipairs(all) do
         local line = Classic(profession.skillLineID)
         if not RoadPlan.RANKS[line] then line = LineByName(profession) end
+        if not line and RoadPlan.IsFishingName(profession.name) then line = RoadPlan.FISHING end
         if line and RoadPlan.RANKS[line] and not seen[line] then
             seen[line] = true
             list[#list + 1] = {
@@ -542,6 +563,8 @@ local function Key(profession, level)
         tostring(ns.Prices and ns.Prices.scanCount or 0),
         tostring(ns.Queue and ns.Queue.version or 0),
         RoadPlan.PickBy(),
+        -- Farmer's fishing pace moves with every cast it counts.
+        profession.line == RoadPlan.FISHING and tostring(RoadPlan.FarmerPaceVersion()) or "",
     }, "|")
 end
 
@@ -717,6 +740,8 @@ end
 --- trainer or vendor that teaches a recipe still to learn.
 function RoadPlan:PlaceFor(step, line)
     if not step then return nil end
+    -- A zone to fish: only your own best spot there, never a made up one.
+    if step.kind == "fish" then return step.best and step.best.place or nil end
     if step.kind == "trainer" and step.how then
         local now = RoadPlan.HowNow(step.how)
         return now and now.place
@@ -732,8 +757,347 @@ function RoadPlan:ShowTheWay(step, line, professionName)
     local place = self:PlaceFor(step, line)
     if not (place and ns.LearnNext) then return false end
     local name = step.kind == "trainer" and professionName or step.name
+    if step.kind == "fish" then name = place.name end
     if step.how then name = place.name end
     return ns.LearnNext:ShowTheWay({ place = place, record = step.record, name = name or "" })
+end
+
+--------------------------------------------------------------------------------
+-- Fishing (the owner said build it, 2026-11-08, from a mockup)
+--
+-- Nothing is crafted, so a step between the ranks is a zone to fish in,
+-- "Fish in ZONE", from one skill to the next. A catch below 75 gives a
+-- point; past it a point takes (skill - 50) / 25 catches, Classic's rule.
+-- Where Farmer is loaded, its own count of your casts gives your pace and
+-- the spot you fished most in that zone, read only and in a pcall;
+-- without it a catch is FISH_SECONDS. Fish get away in a zone until your
+-- skill (lure included) reaches its level, so a step whose zone is above
+-- you names a lure: the smallest in your bags that covers the gap, else
+-- the best one a vendor sells that your skill can use. A lure lasts
+-- LURE_MINUTES. No Queue Step, Queue All or Pick By: nothing is made.
+--------------------------------------------------------------------------------
+
+RoadPlan.FISHING = 356
+RoadPlan.FISH_SECONDS = 18
+RoadPlan.LURE_MINUTES = 10
+-- From a zone's level plus this, no fish gets away there without a lure.
+RoadPlan.FISH_COVER = 95
+
+-- The two zones near home to fish first, by race, else by side.
+RoadPlan.FISH_HOMES = {
+    Human = { "Elwynn Forest", "Westfall" },
+    Dwarf = { "Dun Morogh", "Loch Modan" },
+    Gnome = { "Dun Morogh", "Loch Modan" },
+    NightElf = { "Teldrassil", "Darkshore" },
+    Orc = { "Durotar", "The Barrens" },
+    Troll = { "Durotar", "The Barrens" },
+    Tauren = { "Mulgore", "The Barrens" },
+    Scourge = { "Tirisfal Glades", "Silverpine Forest" },
+    A = { "Elwynn Forest", "Westfall" },
+    H = { "Durotar", "The Barrens" },
+}
+RoadPlan.FISH_FAR = { "Stranglethorn Vale", "Feralas" }
+
+-- The skill each zone's fish need before none get away (Classic's).
+RoadPlan.FISH_LEVELS = {
+    ["Elwynn Forest"] = -70, ["Dun Morogh"] = -70, ["Teldrassil"] = -70,
+    ["Durotar"] = -70, ["Mulgore"] = -70, ["Tirisfal Glades"] = -70,
+    ["Westfall"] = -20, ["Loch Modan"] = -20, ["Darkshore"] = -20,
+    ["The Barrens"] = -20, ["Silverpine Forest"] = -20,
+    ["Stranglethorn Vale"] = 130, ["Feralas"] = 205,
+}
+
+-- Lures, best first: { item, bonus, skill to use it, vendor sells it }.
+-- Each is in the Forever client's game tables; vendors of both sides sell
+-- the three marked (ForeverVendorSpots).
+RoadPlan.LURES = {
+    { 6533, 100, 100 },
+    { 6532, 75, 100, true },
+    { 7307, 75, 100 },
+    { 6530, 50, 50, true },
+    { 6811, 50, 50 },
+    { 6529, 25, 0, true },
+}
+
+--- Is this the client's name for Fishing? (A client that gives no skill
+--- line for it in the Professions book.)
+function RoadPlan.IsFishingName(name)
+    if type(name) ~= "string" or name == "" then return false end
+    if name == "Fishing" then return true end
+    local ok, spell = pcall(function()
+        local api = rawget(_G, "C_Spell")
+        local value = api and api.GetSpellName and api.GetSpellName(7620)
+        if not value then
+            local fn = rawget(_G, "GetSpellInfo")
+            value = fn and fn(7620)
+        end
+        if type(value) == "string" and value ~= "" then return value .. "" end
+    end)
+    return ok and spell == name or false
+end
+
+--- Catches from one skill to another.
+function RoadPlan.FishCatches(from, to)
+    local catches = 0
+    for skill = from, to - 1 do
+        catches = catches + (skill < 75 and 1 or (skill - 50) / 25)
+    end
+    return math.max(0, math.ceil(catches - 1e-9))
+end
+
+local function Farmer()
+    local farmer = rawget(_G, "BlackthornesFarmer")
+    local fishing = type(farmer) == "table" and rawget(farmer, "Fishing")
+    if type(fishing) == "table" and type(fishing.Spots) == "function"
+        and type(fishing.SecondsPerCast) == "function" then
+        return fishing
+    end
+end
+
+function RoadPlan.FarmerPaceVersion()
+    local fishing = Farmer()
+    return fishing and tonumber(rawget(fishing, "paceVersion")) or 0
+end
+
+--- Your pace and best spot from Farmer: { seconds (a cast, or nil), best =
+--- { name, place } or nil }, or nil without Farmer. A zone's own spots give
+--- its pace, else every spot you fished.
+function RoadPlan.FarmerFishing(zone)
+    local fishing = Farmer()
+    if not fishing then return nil end
+    local function Pace(spots)
+        local seconds, casts = 0, 0
+        for _, summary in ipairs(spots or {}) do
+            local ok, each = pcall(fishing.SecondsPerCast, fishing, summary.key)
+            local count = tonumber(summary.casts) or 0
+            if ok and type(each) == "number" and each > 0 and count > 0 then
+                seconds, casts = seconds + each * count, casts + count
+            end
+        end
+        if casts > 0 then return seconds / casts end
+    end
+    local ok, here = pcall(fishing.Spots, fishing, zone)
+    here = ok and type(here) == "table" and here or {}
+    local seconds = Pace(here)
+    if not seconds then
+        local okAll, all = pcall(fishing.Spots, fishing, nil)
+        seconds = okAll and type(all) == "table" and Pace(all) or nil
+    end
+    local best
+    for _, summary in ipairs(here) do
+        local spot = type(summary.spot) == "table" and summary.spot or {}
+        local name = type(spot.location) == "string" and spot.location ~= "" and spot.location
+            or type(spot.school) == "string" and spot.school ~= "" and spot.school or nil
+        local coords = type(spot.coords) == "table" and spot.coords
+        if name then
+            best = { name = name }
+            if coords and tonumber(coords[1]) and tonumber(coords[2]) then
+                best.place = { kind = "spot", name = name, zone = zone,
+                    x = tonumber(coords[1]), y = tonumber(coords[2]) }
+            end
+            break
+        end
+    end
+    return { seconds = seconds, best = best }
+end
+
+local function Race()
+    local ok, token = pcall(function()
+        local fn = rawget(_G, "UnitRace")
+        local _, value = fn and fn("player")
+        if type(value) == "string" then return value .. "" end
+    end)
+    return ok and token or nil
+end
+
+local function LurePrice(item)
+    local vendor = ns.Vendor
+    if vendor and vendor.GetUnitPrice then
+        local ok, price = pcall(vendor.GetUnitPrice, vendor, item)
+        if ok and type(price) == "number" and price > 0 then return price end
+    end
+    local prices = ns.VENDOR_PRICES
+    return prices and tonumber(prices[item]) or nil
+end
+
+local function BagCount(item, owned)
+    if owned then
+        local given = owned[item]
+        return given and (given[1] or 0) or 0
+    end
+    local inv = ns.Inventory
+    local ok, bags = pcall(function() return inv:GetBagCount(item) end)
+    return ok and tonumber(bags) or 0
+end
+
+--- The lure for a gap at a skill: { item, bonus, have, price }.
+function RoadPlan.PickLure(gap, skill, owned)
+    local mine
+    for i = #RoadPlan.LURES, 1, -1 do
+        local lure = RoadPlan.LURES[i]
+        if lure[2] >= gap and lure[3] <= skill then
+            local have = BagCount(lure[1], owned)
+            if have > 0 then mine = { item = lure[1], bonus = lure[2], have = have } break end
+        end
+    end
+    if not mine then
+        for _, lure in ipairs(RoadPlan.LURES) do
+            if lure[4] and lure[3] <= skill then
+                mine = { item = lure[1], bonus = lure[2], have = BagCount(lure[1], owned) }
+                break
+            end
+        end
+    end
+    if not mine then return nil end
+    for _, lure in ipairs(RoadPlan.LURES) do
+        if lure[1] == mine.item and lure[4] then mine.price = LurePrice(lure[1]) end
+    end
+    return mine
+end
+
+--- The road for Fishing; the same shape as Plan's, with `fishing` and
+--- `hours` added.
+function RoadPlan.FishPlan(opts)
+    local ranks = RoadPlan.RANKS[RoadPlan.FISHING]
+    local now, max, level = opts.skill or 0, opts.max or 0, opts.level or 0
+    local side = opts.side or Side()
+    local homes = RoadPlan.FISH_HOMES[opts.race or Race() or ""] or RoadPlan.FISH_HOMES[side or "A"]
+        or RoadPlan.FISH_HOMES.A
+    local zones = { homes[1], homes[2], RoadPlan.FISH_FAR[1], RoadPlan.FISH_FAR[2] }
+    local bounds = { { 1, 75 }, { 75, 125 }, { 125, 225 }, { 225, 300 } }
+    local farmer = opts.farmer
+    local steps = {}
+
+    for index, rank in ipairs(ranks) do
+        local done = max >= rank[4]
+        steps[#steps + 1] = {
+            kind = "trainer", rank = rank, at = rank[1], cap = rank[4], level = rank[2],
+            cost = rank[3], how = rank.how, from = rank[1], to = rank[1], done = done or nil,
+            locked = not done and level < rank[2] or nil,
+        }
+        local zone, span = zones[index], bounds[index]
+        local fish = { kind = "fish", zone = zone, from = span[1], to = span[2], reach = RoadPlan.FISH_LEVELS[zone] }
+        if now >= span[2] then
+            fish.done = true
+        else
+            fish.from = math.max(span[1], now)
+            local read = farmer
+            if read == nil then read = RoadPlan.FarmerFishing(zone) or false end
+            fish.catches = RoadPlan.FishCatches(fish.from, fish.to)
+            fish.paced = read and read.seconds and true or nil
+            fish.each = read and read.seconds or RoadPlan.FISH_SECONDS
+            fish.seconds = fish.catches * fish.each
+            fish.best = read and read.best or nil
+        end
+        steps[#steps + 1] = fish
+    end
+
+    local total, seconds, current = 0, 0, nil
+    for index, step in ipairs(steps) do
+        if not step.done then
+            current = current or index
+            if step.kind == "fish" then
+                seconds = seconds + step.seconds
+                local reach = step.reach
+                if reach and step.from < reach + RoadPlan.FISH_COVER then
+                    if step.from >= reach then
+                        step.lure = { cover = true }
+                    else
+                        local lure = RoadPlan.PickLure(reach - step.from, step.from, opts.owned)
+                        if lure then
+                            local short = RoadPlan.FishCatches(step.from, math.min(reach, step.to)) * step.each
+                            lure.need = math.max(1, math.ceil(short / 60 / RoadPlan.LURE_MINUTES - 1e-9))
+                            lure.cost = lure.price and math.max(0, lure.need - lure.have) * lure.price or 0
+                            total = total + lure.cost
+                            step.lure = lure
+                        end
+                    end
+                    if step.lure then step.lure.reach = reach end
+                end
+            else
+                total = total + (step.cost or 0)
+            end
+        end
+    end
+
+    if current then steps[current].current = true end
+    return {
+        steps = steps, current = current, total = total, saved = 0, back = 0,
+        skill = now, max = max, line = RoadPlan.FISHING, pickBy = "lowest",
+        fishing = true, seconds = seconds,
+    }
+end
+
+--- The footer's time: about N hours of fishing, at least 1.
+function RoadPlan.FishHours(plan)
+    return math.max(1, math.floor((plan and plan.seconds or 0) / 3600 + 0.5))
+end
+
+--- The words on a Fishing step: { title, chip, range, lines, tip }.
+function RoadPlan.FishTexts(step, professionName, level, current)
+    local texts = { lines = {} }
+    if step.kind == "fish" then
+        texts.title = L.Format("Fish in %s", ns.Spots and ns.Spots.Show and ns.Spots.Show(step.zone) or step.zone)
+        texts.range = L.Format("%d to %d", step.from, step.to)
+        if step.done then return texts end
+        if current then texts.chip = L["Now"] end
+        local count = current and L.Format("About %d more catches.", step.catches)
+            or L.Format("About %d catches.", step.catches)
+        if step.paced then
+            count = count .. " " .. L.Format("At your pace, about %d minutes.",
+                math.max(1, math.floor(step.seconds / 60 + 0.5)))
+        end
+        texts.lines[1] = count
+        if step.best then texts.lines[2] = L.Format("Best spot you've fished here: %s.", step.best.name) end
+        local lure = step.lure
+        if lure then
+            local tip = { L.Format("Fish get away here until you reach %d.", lure.reach) }
+            if lure.cover then
+                tip[2] = L["Your skill and lure cover it."]
+            else
+                tip[2] = L.Format("Put on a %s (+%d) first.", RoadPlan.ItemName(lure.item), lure.bonus)
+                if lure.have > 0 then tip[3] = L.Format("You have %d.", lure.have) end
+            end
+            texts.tip = table.concat(tip, " ")
+        end
+        return texts
+    end
+
+    local index = 1
+    for i, rank in ipairs(RoadPlan.RANKS[RoadPlan.FISHING]) do
+        if rank == step.rank then index = i end
+    end
+    texts.range = tostring(step.at)
+    if index == 1 then
+        texts.title = L.Format("Train Apprentice %s", professionName)
+    elseif index == 2 then
+        texts.title = L.Format("Train Journeyman %s", professionName)
+    elseif index == 3 then
+        texts.title = L.Format("Buy %s", RoadPlan.ItemName(step.how.item, step.how.title))
+    else
+        local chain = step.how.chain[Side() or "A"] or step.how.chain.A
+        texts.title = L.Format("Do the quest %s", QuestTitle(chain[1][1], chain[1][2]))
+    end
+    if index == 4 and not step.done then texts.chip = L.Format("Level %d", step.level)
+    elseif step.locked then texts.chip = L.Format("Level %d", step.level) end
+    if step.done then return texts end
+
+    if index <= 2 then
+        local place = not step.locked and RoadPlan:PlaceFor(step, RoadPlan.FISHING)
+        if place and place.zone then texts.lines[1] = L.Format("%s trainer in %s", professionName, place.zone) end
+    elseif index == 3 then
+        local seller = step.how.sellers[Side() or "A"] or step.how.sellers.A
+        texts.lines[1] = L.Format("%s sells it in %s. Read it to learn Expert %s.",
+            seller[1], seller[5] or seller[2], professionName)
+    else
+        local now = RoadPlan.HowNow(step.how)
+        local giver = now and now.place or {}
+        local chain = step.how.chain[Side() or "A"] or step.how.chain.A
+        texts.lines[1] = L.Format("Start with %s in %s. Catch the four rare fish he asks for. Then he teaches you Artisan %s.",
+            giver.name or chain[1][3], giver.zone or chain[1][4], professionName)
+    end
+    if step.locked then texts.lines[#texts.lines + 1] = L.Format("You're level %d.", level or 0) end
+    return texts
 end
 
 --------------------------------------------------------------------------------
@@ -794,6 +1158,9 @@ end
 -- @param professionName  the profession's name as the client gives it
 -- @param level           the character's level
 function RoadPlan.Texts(step, professionName, level, line)
+    if line == RoadPlan.FISHING then
+        return RoadPlan.FishTexts(step, professionName, level, step.current)
+    end
     local texts = { lines = {} }
     if step.kind == "trainer" then
         local index = 1
