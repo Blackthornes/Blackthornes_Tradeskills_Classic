@@ -53,11 +53,12 @@ ns.Util = {
     return names[id] or ("item " .. id)
   end,
   Uncolored = function(text) return text end,
+  GetVendorSellPrice = function(id) return ({ [5467] = 9, [6889] = 2 })[id] end,
 }
 
 local BAR, ROUGH, COARSE = 2840, 2835, 2836
 ns.RECIPE_BOOK = {
-  PROFESSIONS = { [164] = "Blacksmithing" },
+  PROFESSIONS = { [164] = "Blacksmithing", [185] = "Cooking" },
   RECIPES = {
     -- Rough Sharpening Stone, a starter: orange to 15, grey at 45.
     [1] = { 164, 1, 2862, 1, 1, { ROUGH, 1 }, "Rough Sharpening Stone", s = 1 },
@@ -69,6 +70,12 @@ ns.RECIPE_BOOK = {
     [4] = { 164, 75, 3478, 1, 1, { COARSE, 2 }, "Coarse Grinding Stone", t = 200 },
     -- Taught by nobody: never on the road.
     [5] = { 164, 30, 9999, 1, 1, { BAR, 1 }, "Dropped Thing" },
+    -- Cooking: Classic's Basic Campfire, Forever's remade one (grey at 5)
+    -- and Roasted Kodo Meat, known, from meat nobody lists.
+    [818] = { 185, 1, 0, 1, 1, { 4470, 1 }, "Basic Campfire", s = 1 },
+    [1229737] = { 185, 1, 279981, 1, 1, { 4470, 1 }, "Basic Campfire", f = 1, y = 1, g = 5, s = 1 },
+    [6414] = { 185, 35, 5474, 2, 2, { 5467, 1, 2678, 1 }, "Roasted Kodo Meat" },
+    [8604] = { 185, 1, 6888, 1, 1, { 6889, 1, 2678, 1 }, "Herb Baked Egg", s = 1 },
   },
   ITEMS = {},
 }
@@ -79,6 +86,9 @@ ns.LEARN_SPOTS = {
     [3] = { 35, 120, 150 },
     [4] = { 75, 300, 310 },
     [5] = { 30, 300, 310 },
+    [818] = { 1, 25, 75 },
+    [6414] = { 35, 75, 115 },
+    [8604] = { 1, 45, 85 },
   },
   TRAINERS = {
     [164] = {
@@ -93,7 +103,7 @@ ns.LEARN_SPOTS = {
   VENDORS = {},
 }
 
-local prices = { [BAR] = 20, [ROUGH] = 5, [COARSE] = 3 }
+local prices = { [BAR] = 20, [ROUGH] = 5, [COARSE] = 3, [4470] = 1, [2678] = 1 }
 ns.Prices = { GetValue = function(_, id) return prices[id] end, scanCount = 1 }
 ns.Vendor = {
   GetUnitPrice = function() return nil end,
@@ -112,7 +122,7 @@ ns.Recipes = {
   GetAny = function() return nil end,
   GetAll = function() return {} end,
   GetAccountWide = function()
-    return { [1] = { knownBy = { "me" } }, [2] = { knownBy = { "me" } } }
+    return { [1] = { knownBy = { "me" } }, [2] = { knownBy = { "me" } }, [6414] = { knownBy = { "me" } } }
   end,
   GetShortCharacterName = function(_, key) return key end,
   GetLearnedProfessions = function()
@@ -491,6 +501,22 @@ GetProfessionInfo = function(index)
   if index == 6 then return "First Aid", nil, 0, 0, nil, nil, 129 end
 end
 check("an unlearned one is left out", HasLine(Road:Professions(), 129), nil)
+
+print("\nthe Cooking road uses real recipes")
+Road:Forget()
+local cookPlan = Road:Get({ line = 185, skill = 74, max = 150, name = "Cooking" })
+local usesOld, kodo, campfires = false, false, 0
+for _, step in ipairs(cookPlan.steps) do
+  if step.recipeID == 818 then usesOld = true end
+  if step.kind == "craft" and step.name == "Basic Campfire" and not step.done then campfires = campfires + 1 end
+  if step.name == "Roasted Kodo Meat" and not step.done then kodo = true end
+end
+check("Classic's Basic Campfire left out", usesOld, false)
+check("no campfire steps from 74", campfires, 0)
+check("Roasted Kodo Meat from meat nobody lists", kodo, true)
+check("goes past 75", (cookPlan.stuck or 300) > 75, true)
+local kodoPrice = Road.Price(ns.RecipeBook:Get(6414))
+check("unlisted meat priced at what a vendor pays", kodoPrice and kodoPrice.cost, 10)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

@@ -119,6 +119,15 @@ function RoadPlan.Chance(record, skill)
     return (grey - skill) / math.max(1, grey - yellow)
 end
 
+--- What a vendor pays for one of an item, or nil.
+function RoadPlan.SellValue(itemID)
+    local util = ns.Util
+    if not (itemID and util and util.GetVendorSellPrice) then return nil end
+    local ok, value = pcall(util.GetVendorSellPrice, itemID)
+    if ok and type(value) == "number" and value > 0 then return value end
+    return nil
+end
+
 --- What one craft of a recipe takes and what it makes back: { cost (one
 --- craft, copper), reagents = { { itemID, quantity, unit } }, sells (one
 --- item made, copper, or nil), back (one craft, copper, or nil) }, or nil
@@ -127,11 +136,16 @@ function RoadPlan.Price(record)
     if not (ns.Cost and record and record.reagents and #record.reagents > 0) then return nil end
     local ok, detail = pcall(ns.Cost.GetCraftCost, ns.Cost, record.recipeID, nil, nil,
         { valueOwned = true, recipe = record })
-    if not ok or type(detail) ~= "table" or not detail.priceable then return nil end
+    if not ok or type(detail) ~= "table" or type(detail.reagents) ~= "table" then return nil end
 
+    -- A material nobody lists or sells (raw meat, clams) is worth what a
+    -- vendor pays for it: that is what using it costs you. Only a material
+    -- with neither leaves the recipe unpriced.
     local reagents, cost = {}, 0
-    for _, line in ipairs(detail.reagents or {}) do
-        local unit = line.unitCost or 0
+    for _, line in ipairs(detail.reagents) do
+        local unit = line.unitCost
+        if not unit then unit = RoadPlan.SellValue(line.itemID) end
+        if not unit then return nil end
         reagents[#reagents + 1] = { itemID = line.itemID, quantity = line.quantity or 1, unit = unit }
         cost = cost + unit * (line.quantity or 1)
     end
@@ -154,9 +168,20 @@ function RoadPlan:Candidates(line)
     local list = {}
     local book = ns.RecipeBook
     if not book then return list end
-    for _, record in pairs((book:GetAll())) do
+    local all = book:GetAll()
+    -- A recipe Forever remade under the same name (Basic Campfire, grey at
+    -- 5 on Forever) takes the place of the Classic one, whose colours are
+    -- no longer the game's.
+    local remade = {}
+    for _, record in pairs(all) do
+        if record.forever and record.name and Classic(record.skillLineID) == line then
+            remade[record.name:lower()] = true
+        end
+    end
+    for _, record in pairs(all) do
         if Classic(record.skillLineID) == line and record.yellow and record.grey
-            and record.reagents and #record.reagents > 0 then
+            and record.reagents and #record.reagents > 0
+            and not (not record.forever and record.name and remade[record.name:lower()]) then
             local known = record.starter or book:KnowsIt(record)
             local place
             if not known and (record.trainerCost or record.recipeItems) and ns.LearnNext then
