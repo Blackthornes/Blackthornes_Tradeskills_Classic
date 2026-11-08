@@ -27,6 +27,14 @@ local state = { line = nil }
 local CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
 local widgets = {}
 
+-- Fishing's rows: the pole for a fish row, the lure line in the warn yellow.
+local FISHING_POLE = 6256
+local function WarnCode()
+    local c = Theme.colors and Theme.colors.warn or { 0.910, 0.757, 0.353 }
+    return ("|cff%02x%02x%02x"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
+        math.floor(c[3] * 255 + 0.5))
+end
+
 local function TierColorCode(tier)
     local skillUp = ns.SkillUp
     if skillUp and skillUp.GetTierColorCode then
@@ -130,6 +138,12 @@ local function UpdateRow(row, step)
     if step.kind == "craft" and step.outputItemID then
         Theme.SetItemIcon(row.icon, step.outputItemID)
         row.icon:Show()
+    elseif step.kind == "fish" then
+        Theme.SetItemIcon(row.icon, FISHING_POLE)
+        row.icon:Show()
+    elseif step.how and step.how.kind == "book" and step.how.item then
+        Theme.SetItemIcon(row.icon, step.how.item)
+        row.icon:Show()
     else
         row.icon:Hide()
     end
@@ -158,7 +172,10 @@ local function UpdateRow(row, step)
         row.cost:SetTextColor(Theme.Unpack("dim"))
     else
         row.cost:SetTextColor(Theme.Unpack("text"))
-        if step.how and step.cost == nil then
+        if step.kind == "fish" then
+            -- Fishing costs time, not gold: the lures go in the footer.
+            row.cost:SetText("")
+        elseif step.how and step.cost == nil then
             -- A rank taught at the end of a quest: its price isn't known.
             row.cost:SetText("")
         else
@@ -166,7 +183,10 @@ local function UpdateRow(row, step)
         end
     end
 
-    local text = table.concat(texts.lines, "\n")
+    local shown = {}
+    for i, line in ipairs(texts.lines) do shown[i] = line end
+    if texts.tip then shown[#shown + 1] = WarnCode() .. texts.tip .. "|r" end
+    local text = table.concat(shown, "\n")
     local lines = row.cells.lines
     lines:SetText(text)
     local ok, height = pcall(lines.GetStringHeight, lines)
@@ -328,6 +348,10 @@ function RoadView:Refresh()
 
     widgets.heading:SetText(("%s  %d / %d"):format(profession.name:upper(), profession.skill, profession.max))
     widgets.pickBy:SetValue(ns.RoadPlan.PickBy())
+    local fishing = profession.line == ns.RoadPlan.FISHING
+    widgets.pickBy:SetShown(not fishing)
+    widgets.pickByLabel:SetShown(not fishing)
+    widgets.queueAll:SetShown(not fishing)
 
     local plan = ns.RoadPlan:Get(profession, function()
         if widgets.list and widgets.list:IsVisible() then RoadView:Refresh() end
@@ -354,8 +378,20 @@ function RoadView:Refresh()
         widgets.empty:Hide()
     end
 
-    Theme.SetMoneyText(widgets.total, plan.total or 0, { short = true })
+    if plan.fishing then
+        widgets.total:SetText(RoadView.FishFoot(plan))
+    else
+        Theme.SetMoneyText(widgets.total, plan.total or 0, { short = true })
+    end
     widgets.saved:SetText(RoadView.FootText(plan))
+end
+
+--- Fishing's footer: "about 4 hours of fishing, 1g 25s".
+function RoadView.FishFoot(plan)
+    local hours = ns.RoadPlan.FishHours(plan)
+    local money = Util.FormatMoney(plan.total or 0, { short = true })
+    if hours == 1 then return L.Format("about 1 hour of fishing, %s", money) end
+    return L.Format("about %d hours of fishing, %s", hours, money)
 end
 
 --- The footer's second line: what you own takes off, or where it stops,
