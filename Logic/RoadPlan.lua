@@ -162,6 +162,34 @@ function RoadPlan.Price(record)
     return { cost = cost, reagents = reagents, sells = sells, back = back }
 end
 
+-- The classic skill line for a profession's English name, for a line the
+-- client gives that ClassicLine does not know (Cooking and First Aid have a
+-- second ID on Forever too, and only the classic one is in RANKS).
+local function LineByName(profession)
+    local recipes = ns.Recipes
+    if not (recipes and recipes.EnglishProfessionName and recipes.SKILL_LINE_PROFESSIONS) then return nil end
+    local ok, english = pcall(recipes.EnglishProfessionName, profession)
+    if not ok or not english then return nil end
+    for line, name in pairs(recipes.SKILL_LINE_PROFESSIONS) do
+        if name == english and RoadPlan.RANKS[line] then return line end
+    end
+end
+
+-- The Classic line a recipe belongs to. A recipe a profession window showed
+-- carries the window's skill line, which for Cooking and First Aid is a
+-- second ID ClassicLine does not know, so it goes by its profession's name.
+local function LineOf(record, memo)
+    local line = Classic(record.skillLineID)
+    if RoadPlan.RANKS[line] then return line end
+    local key = tostring(record.skillLineID) .. "|" .. tostring(record.profession)
+    local found = memo[key]
+    if found == nil then
+        found = LineByName({ skillLineID = record.skillLineID, name = record.profession }) or false
+        memo[key] = found
+    end
+    return found or line
+end
+
 --- The recipes that could level a profession: known, or taught by a trainer
 --- or vendor of the player's side. Each { record, known, place }.
 function RoadPlan:Candidates(line)
@@ -172,14 +200,14 @@ function RoadPlan:Candidates(line)
     -- A recipe Forever remade under the same name (Basic Campfire, grey at
     -- 5 on Forever) takes the place of the Classic one, whose colours are
     -- no longer the game's.
-    local remade = {}
+    local memo, remade = {}, {}
     for _, record in pairs(all) do
-        if record.forever and record.name and Classic(record.skillLineID) == line then
+        if record.forever and record.name and LineOf(record, memo) == line then
             remade[record.name:lower()] = true
         end
     end
     for _, record in pairs(all) do
-        if Classic(record.skillLineID) == line and record.yellow and record.grey
+        if LineOf(record, memo) == line and record.yellow and record.grey
             and record.reagents and #record.reagents > 0
             and not (not record.forever and record.name and remade[record.name:lower()]) then
             local known = record.starter or book:KnowsIt(record)
@@ -438,19 +466,6 @@ end
 --- The crafting professions the character playing has, each { name (the
 --- client's), line (Classic), skill, max }, the ones picked on the Welcome
 --- card first (Logic/Welcome.lua), then by name.
--- The classic skill line for a profession's English name, for a line the
--- client gives that ClassicLine does not know (Cooking and First Aid have a
--- second ID on Forever too, and only the classic one is in RANKS).
-local function LineByName(profession)
-    local recipes = ns.Recipes
-    if not (recipes and recipes.EnglishProfessionName and recipes.SKILL_LINE_PROFESSIONS) then return nil end
-    local ok, english = pcall(recipes.EnglishProfessionName, profession)
-    if not ok or not english then return nil end
-    for line, name in pairs(recipes.SKILL_LINE_PROFESSIONS) do
-        if name == english and RoadPlan.RANKS[line] then return line end
-    end
-end
-
 -- Cooking and First Aid from the Professions book, for a client whose
 -- trade skill lines leave the secondary professions out.
 local function FromBook()

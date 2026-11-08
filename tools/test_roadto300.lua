@@ -518,6 +518,32 @@ check("goes past 75", (cookPlan.stuck or 300) > 75, true)
 local kodoPrice = Road.Price(ns.RecipeBook:Get(6414))
 check("unlisted meat priced at what a vendor pays", kodoPrice and kodoPrice.cost, 10)
 
+print("\nthe Cooking road after the cooking window was open")
+-- The window gives Cooking's second skill line, which ClassicLine does not
+-- know: the recipes it showed still belong on the Cooking road.
+ns.db.seenRecipes = {
+  [1229737] = { name = "Basic Campfire", skillLineID = 2950, reagents = { { itemID = 4470, quantity = 1 } } },
+  [6414] = { name = "Roasted Kodo Meat", outputItemID = 5474, skillLineID = 2950,
+    reagents = { { itemID = 5467, quantity = 1 }, { itemID = 2678, quantity = 1 } } },
+  [8604] = { name = "Herb Baked Egg", outputItemID = 6888, skillLineID = 2950,
+    reagents = { { itemID = 6889, quantity = 1 }, { itemID = 2678, quantity = 1 } } },
+}
+ns.RecipeBook:Invalidate()
+Road:Forget()
+cookPlan = Road:Get({ line = 185, skill = 74, max = 150, name = "Cooking" })
+usesOld, kodo, campfires = false, false, 0
+for _, step in ipairs(cookPlan.steps) do
+  if step.recipeID == 818 then usesOld = true end
+  if step.kind == "craft" and step.name == "Basic Campfire" and not step.done then campfires = campfires + 1 end
+  if step.name == "Roasted Kodo Meat" and not step.done then kodo = true end
+end
+check("seen: Classic's Basic Campfire left out", usesOld, false)
+check("seen: no campfire steps from 74", campfires, 0)
+check("seen: Roasted Kodo Meat on the road", kodo, true)
+check("seen: goes past 75", (cookPlan.stuck or 300) > 75, true)
+ns.db.seenRecipes = nil
+ns.RecipeBook:Invalidate()
+
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
 print("")
