@@ -18,7 +18,7 @@
 --   8. The list shows the steps left first, the done ones after.
 
 local GLOBALS = { "time", "GetTime", "UnitFactionGroup", "GetRealZoneText", "GetLocale",
-  "UnitLevel", "C_Timer", "C_Map" }
+  "UnitLevel", "C_Timer", "C_Map", "C_QuestLog" }
 local saved = {}
 for _, key in ipairs(GLOBALS) do saved[key] = _G[key] end
 
@@ -404,6 +404,50 @@ check("planned by real cost", switched and switched.pickBy, "real")
 settings.roadPickBy = "junk"
 check("anything else reads as lowest", Road.PickBy(), "lowest")
 settings.roadPickBy = nil
+
+print("\nCooking and First Aid: Expert from a book, Artisan from quests")
+local cookPlan = Road:Plan({ line = 185, skill = 125, max = 150, level = 31, candidates = {} })
+local expertBook
+for _, step in ipairs(cookPlan.steps) do
+  if step.kind == "trainer" and step.cap == 225 then expertBook = step end
+end
+check("Cooking's Expert is a step", expertBook ~= nil, true)
+check("it is learned from a book", expertBook and expertBook.how and expertBook.how.kind, "book")
+check("the book costs 1g", expertBook and expertBook.cost, 10000)
+local bookTexts = Road.Texts(expertBook, "Cooking", 31, 185)
+check("its title", bookTexts.title, "Learn Expert Cooking")
+check("its range", bookTexts.range, "at 125, raises your cap to 225")
+check("the Alliance seller", bookTexts.lines[1], "Buy Expert Cookbook from Shandrina in Ashenvale.")
+check("Show the Way goes to the seller", Road:PlaceFor(expertBook, 185).name, "Shandrina")
+
+local doneQuests = {}
+C_QuestLog = { IsQuestFlaggedCompleted = function(id) return doneQuests[id] == true end }
+local artisan = { kind = "trainer", rank = Road.RANKS[185][3], how = Road.RANKS[185][3].how,
+  at = 225, cap = 300, level = 35, locked = true }
+local artTexts = Road.Texts(artisan, "Cooking", 31, 185)
+check("Artisan's title", artTexts.title, "Learn Artisan Cooking")
+check("a level chip while too low", artTexts.chip, "level 35")
+check("starts with the first quest", artTexts.lines[1],
+  "Start with the quest I Know A Guy... from Daryl Riknussun in Ironforge.")
+check("says who teaches it", artTexts.lines[2], "It leads to Dirge Quikcleave in Tanaris, who teaches you.")
+check("and the level", artTexts.lines[3], "You're level 31.")
+check("no price is shown", artisan.cost, nil)
+doneQuests[6612] = true
+artisan.locked = nil
+artTexts = Road.Texts(artisan, "Cooking", 40, 185)
+check("the last quest once the first is done", artTexts.lines[1],
+  "Do the quest Clamlette Surprise for Dirge Quikcleave in Tanaris. Then they teach you.")
+check("Show the Way moves along", Road:PlaceFor(artisan, 185).name, "Dirge Quikcleave")
+UnitFactionGroup = function() return "Horde" end
+doneQuests = {}
+local aid = { kind = "trainer", rank = Road.RANKS[129][3], how = Road.RANKS[129][3].how, at = 225, cap = 300, level = 40 }
+check("Horde First Aid starts with Arnok", Road.Texts(aid, "First Aid", 40, 129).lines[1],
+  "Start with the quest Horde Trauma from Arnok in Orgrimmar.")
+local aidBook = { kind = "trainer", rank = Road.RANKS[129][2], how = Road.RANKS[129][2].how, at = 125, cap = 225, level = 1 }
+check("Horde First Aid book seller", Road.Texts(aidBook, "First Aid", 40, 129).lines[1],
+  "Buy Expert First Aid - Under Wraps from Balai Lok'Wein in Dustwallow Marsh.")
+UnitFactionGroup = function() return "Alliance" end
+C_QuestLog = nil
 
 print("\nthe Welcome card's picks order the roads")
 ns.Recipes.GetLearnedProfessions = function()

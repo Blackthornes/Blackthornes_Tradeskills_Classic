@@ -34,7 +34,14 @@ local RoadPlan = ns.NewModule("RoadPlan")
 RoadPlan.TARGET = 300
 
 -- Classic's ranks by Classic skill line: { learn at, level, price, cap }.
--- Cooking and First Aid have only Journeyman at a trainer.
+-- Cooking and First Aid have only Journeyman at a trainer: their Expert is
+-- a book sold by a vendor and their Artisan comes from a quest chain (the
+-- owner said build it, 2026-11-08). Such a rank carries `how`:
+--   { kind = "book", item, sellers = { A = { name, zone, x, y }, H = ... } }
+--   { kind = "quest", chain = { A = { { questID, title, giver, zone, x, y }, ... }, H = ... } }
+-- The last quest's giver teaches the rank. Each book, quest and spot is in
+-- the Forever client's game tables (build 70862); a spot the game saw
+-- (VendorPins) wins. Artisan's price is not known, so it has none.
 local function Ranks(journeyman, expert, artisan)
     local list = { { 50, 10, journeyman, 150 } }
     if expert then list[2] = { 125, 20, expert, 225 } end
@@ -48,8 +55,32 @@ RoadPlan.RANKS = {
     [202] = Ranks(450, 4500, 45000),     -- Engineering
     [165] = Ranks(500, 5000, 50000),     -- Leatherworking
     [197] = Ranks(450, 4500, 50000),     -- Tailoring
-    [185] = Ranks(500),                  -- Cooking
-    [129] = Ranks(500),                  -- First Aid
+    [185] = {                            -- Cooking
+        { 50, 10, 500, 150 },
+        { 125, 1, 10000, 225, how = { kind = "book", item = 16072, title = "Expert Cookbook", sellers = {
+            A = { "Shandrina", "Ashenvale", 49.5, 67.1 },
+            H = { "Wulan", "Desolace", 26.2, 69.6 },
+        } } },
+        { 225, 35, nil, 300, how = { kind = "quest", chain = {
+            A = { { 6612, "I Know A Guy...", "Daryl Riknussun", "Ironforge", 60.1, 36.4 },
+                  { 6610, "Clamlette Surprise", "Dirge Quikcleave", "Tanaris", 52.6, 28.1 } },
+            H = { { 6611, "To Gadgetzan You Go!", "Zamja", "Orgrimmar", 57.4, 53.5 },
+                  { 6610, "Clamlette Surprise", "Dirge Quikcleave", "Tanaris", 52.6, 28.1 } },
+        } } },
+    },
+    [129] = {                            -- First Aid
+        { 50, 10, 500, 150 },
+        { 125, 1, 10000, 225, how = { kind = "book", item = 16084, title = "Expert First Aid - Under Wraps", sellers = {
+            A = { "Deneb Walker", "Arathi Highlands", 27.0, 58.8 },
+            H = { "Balai Lok'Wein", "Dustwallow Marsh", 36.5, 30.4 },
+        } } },
+        { 225, 40, nil, 300, how = { kind = "quest", chain = {
+            A = { { 6625, "Alliance Trauma", "Nissa Firestone", "Ironforge", 55.1, 58.3 },
+                  { 6624, "Triage", "Doctor Gustaf VanHowzen", "Dustwallow Marsh", 67.8, 49.0 } },
+            H = { { 6623, "Horde Trauma", "Arnok", "Orgrimmar", 34.2, 84.6 },
+                  { 6622, "Triage", "Doctor Gregory Victor", "Arathi Highlands", 73.4, 36.9 } },
+        } } },
+    },
 }
 
 -- Another recipe takes over a step only when it is this much cheaper a
@@ -207,7 +238,7 @@ function RoadPlan:Plan(opts)
             if rank and p >= rank[1] and (not done or rank[4] <= (opts.max or 0)) then
                 steps[#steps + 1] = {
                     kind = "trainer", rank = rank, at = rank[1], cap = rank[4],
-                    level = rank[2], cost = rank[3], from = p, to = p, done = done,
+                    level = rank[2], cost = rank[3], how = rank.how, from = p, to = p, done = done,
                     locked = not done and (opts.level or 0) < rank[2] or nil,
                 }
                 cap = rank[4]
@@ -527,10 +558,85 @@ function RoadPlan:QueueAll(plan)
     return count
 end
 
+local function Side()
+    local ok, faction = pcall(function()
+        local fn = rawget(_G, "UnitFactionGroup")
+        local value = fn and fn("player")
+        if type(value) == "string" then return value .. "" end
+    end)
+    if not ok then return nil end
+    if faction == "Alliance" then return "A" end
+    if faction == "Horde" then return "H" end
+    return nil
+end
+
+local function QuestDone(questID)
+    local ok, done = pcall(function()
+        local log = rawget(_G, "C_QuestLog")
+        local fn = log and log.IsQuestFlaggedCompleted or rawget(_G, "IsQuestFlaggedCompleted")
+        return fn and fn(questID) == true
+    end)
+    return ok and done or false
+end
+
+--- A quest's title as the game gives it, else the data's English one.
+local function QuestTitle(questID, fallback)
+    local ok, title = pcall(function()
+        local log = rawget(_G, "C_QuestLog")
+        local value = log and log.GetTitleForQuestID and log.GetTitleForQuestID(questID)
+        if type(value) == "string" and value ~= "" then return value .. "" end
+    end)
+    return ok and title or fallback
+end
+
+local function Spot(kind, name, zone, x, y)
+    local place = { kind = kind, name = name, zone = zone, x = x, y = y }
+    local pins = ns.VendorPins
+    if pins and pins.SeenAt then
+        local ok, seen = pcall(pins.SeenAt, pins, name, zone)
+        if ok and type(seen) == "table" and seen.x and seen.y then
+            place.x, place.y, place.mapID = seen.x, seen.y, seen.mapID
+        end
+    end
+    return place
+end
+
+--- For a rank learned from a book or quests: what to do now, for the
+--- character's side. { kind = "book", place, item, title } or { kind =
+--- "quest", place, quest, title, last (true on the chain's last quest),
+--- teacher (the last quest's place) }, or nil.
+function RoadPlan.HowNow(how)
+    if not how then return nil end
+    local side = Side()
+    if not side then return nil end
+    if how.kind == "book" then
+        local seller = how.sellers and how.sellers[side]
+        if not seller then return nil end
+        return { kind = "book", item = how.item, title = how.title,
+            place = Spot("vendor", seller[1], seller[2], seller[3], seller[4]) }
+    end
+    local chain = how.chain and how.chain[side]
+    if not chain or #chain == 0 then return nil end
+    local index = #chain
+    for i, quest in ipairs(chain) do
+        if not QuestDone(quest[1]) then index = i break end
+    end
+    local quest, final = chain[index], chain[#chain]
+    return {
+        kind = "quest", quest = quest[1], title = QuestTitle(quest[1], quest[2]), last = index == #chain,
+        place = Spot("quest", quest[3], quest[4], quest[5], quest[6]),
+        teacher = Spot("quest", final[3], final[4], final[5], final[6]),
+    }
+end
+
 --- Where a step's Show the Way goes: the trainer for a trainer step, the
 --- trainer or vendor that teaches a recipe still to learn.
 function RoadPlan:PlaceFor(step, line)
     if not step then return nil end
+    if step.kind == "trainer" and step.how then
+        local now = RoadPlan.HowNow(step.how)
+        return now and now.place
+    end
     if step.kind == "trainer" then
         return ns.LearnNext and ns.LearnNext.TrainerFor and ns.LearnNext:TrainerFor(line, step.cap)
     end
@@ -542,6 +648,7 @@ function RoadPlan:ShowTheWay(step, line, professionName)
     local place = self:PlaceFor(step, line)
     if not (place and ns.LearnNext) then return false end
     local name = step.kind == "trainer" and professionName or step.name
+    if step.how then name = place.name end
     return ns.LearnNext:ShowTheWay({ place = place, record = step.record, name = name or "" })
 end
 
@@ -581,6 +688,13 @@ local TRAIN = {
     function(profession) return L.Format("Train Artisan %s", profession) end,
 }
 
+-- A rank learned from a book or a quest, not at a trainer.
+local LEARN = {
+    function(profession) return L.Format("Train Journeyman %s", profession) end,
+    function(profession) return L.Format("Learn Expert %s", profession) end,
+    function(profession) return L.Format("Learn Artisan %s", profession) end,
+}
+
 --- Does what the character and its other characters hold cover every
 --- material of a step still to make? Then the rest they gather can go
 --- elsewhere.
@@ -603,12 +717,33 @@ function RoadPlan.Texts(step, professionName, level, line)
             if rank == step.rank then index = i end
         end
         texts.title = (TRAIN[index] or TRAIN[1])(professionName)
+        if step.how then
+            texts.title = (LEARN[index] or LEARN[1])(professionName)
+        end
         if step.locked then
             texts.chip = L.Format("level %d", step.level)
             texts.range = L.Format("at %d", step.at)
             texts.lines[1] = L.Format("You're level %d.", level or 0)
         else
             texts.range = L.Format("at %d, raises your cap to %d", step.at, step.cap)
+        end
+        local now = step.how and not step.done and RoadPlan.HowNow(step.how)
+        if now and now.kind == "book" then
+            local place = now.place
+            texts.lines = { L.Format("Buy %s from %s in %s.", ItemName(now.item, now.title), place.name, place.zone) }
+        elseif now and now.last then
+            local lines = { L.Format("Do the quest %s for %s in %s. Then they teach you.",
+                now.title, now.place.name, now.place.zone) }
+            if step.locked then lines[2] = L.Format("You're level %d.", level or 0) end
+            texts.lines = lines
+        elseif now then
+            local lines = {
+                L.Format("Start with the quest %s from %s in %s.", now.title, now.place.name, now.place.zone),
+                L.Format("It leads to %s in %s, who teaches you.", now.teacher.name, now.teacher.zone),
+            }
+            if step.locked then lines[3] = L.Format("You're level %d.", level or 0) end
+            texts.lines = lines
+        elseif not step.locked and not step.how then
             local place = not step.done and RoadPlan:PlaceFor(step, line)
             if place and place.zone then
                 texts.lines[1] = L.Format("%s trainer in %s", professionName, place.zone)

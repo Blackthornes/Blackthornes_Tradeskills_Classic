@@ -158,7 +158,12 @@ local function UpdateRow(row, step)
         row.cost:SetTextColor(Theme.Unpack("dim"))
     else
         row.cost:SetTextColor(Theme.Unpack("text"))
-        Theme.SetMoneyText(row.cost, step.cost or 0, { short = true })
+        if step.how and step.cost == nil then
+            -- A rank taught at the end of a quest: its price isn't known.
+            row.cost:SetText("")
+        else
+            Theme.SetMoneyText(row.cost, step.cost or 0, { short = true })
+        end
     end
 
     local text = table.concat(texts.lines, "\n")
