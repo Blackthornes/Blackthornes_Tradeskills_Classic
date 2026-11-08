@@ -256,6 +256,47 @@ function YourTimeView.FitMaterial(line, label, how)
     line:SetHeight(28 + labelExtra + howExtra)
 end
 
+--- Farm it, then craft, an hour, with what it makes sold at `average` each,
+--- or nil while either time is not known or there is no average.
+function YourTimeView.PerHourAt(entry, average)
+    if type(entry) ~= "table" or type(average) ~= "number" or average <= 0 then return nil end
+    local farm, craft = entry.farmSeconds, entry.craftSeconds
+    if type(farm) ~= "number" or farm <= 0 or type(craft) ~= "number" then return nil end
+    local PerHour = ns.CraftTime and ns.CraftTime.PerHour
+    local BackAt = ns.RecipeBookView and ns.RecipeBookView.BackAt
+    if not PerHour or not BackAt then return nil end
+    local made = BackAt(entry.outputItemID, average, entry.yield or 1)
+    return PerHour(made - (entry.bought or 0), farm + craft)
+end
+
+--- The lines under the graph, once it has drawn: the average shown, what an
+--- hour of farming and crafting makes at that price (for the craft's own
+--- graph), and a hint to star an item that has only its daily prices.
+function YourTimeView.GraphLines(detail, graph)
+    local entry = rawget(detail, "graphEntry")
+    if not entry then return end
+    local text = ns.PriceGraph.AverageText(graph)
+    detail.average.value:SetText(text or "--")
+    detail.average.value:SetTextColor(Theme.Unpack(text and "text" or "dim"))
+
+    local perHour = rawget(graph, "selected") == entry.outputItemID
+        and YourTimeView.PerHourAt(entry, rawget(graph, "average")) or nil
+    if perHour then
+        detail.perHour:SetText(L.Format("At the average price, farming and crafting makes %s an hour.", Money(perHour)))
+        detail.perHour:Show()
+    else
+        detail.perHour:SetText("")
+        detail.perHour:Hide()
+    end
+    detail.average:ClearAllPoints()
+    detail.average:SetPoint("BOTTOMLEFT", perHour and detail.perHour or detail.queue, "TOPLEFT", 0, perHour and 4 or 8)
+    detail.average:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+
+    detail.note:SetText(rawget(graph, "kind") == "market"
+        and L["Star this item to save its cheapest price every hour."]
+        or L["Farming time is your own, from Blackthornes Farmer. Walking there and selling aren't counted."])
+end
+
 local function BuildDetail(parent)
     local detail = Theme.CreatePanel(parent, "window")
     Theme.AccentStripe(detail, 2, 0.6)
@@ -306,7 +347,50 @@ local function BuildDetail(parent)
     detail.note:SetPoint("BOTTOMRIGHT", -12, 10)
     detail.note:SetWordWrap(true)
 
+    -- The price graph in place of the materials (asked 2026-11-08), as the
+    -- My Crafts pane has it, with the average and an hour at that price.
+    if ns.PriceGraph then
+        detail.graphButton = ns.PriceGraph.AddButton(detail, detail.materialsHeading, function()
+            ns.Config:Set("yourTimeShowsGraph", not ns.Config:Get("yourTimeShowsGraph"))
+            YourTimeView.Redraw()
+        end)
+
+        detail.perHour = Theme.CreateLabel(detail, "small", "text")
+        detail.perHour:SetPoint("BOTTOMLEFT", detail.queue, "TOPLEFT", 0, 8)
+        detail.perHour:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+        detail.perHour:SetWordWrap(true)
+        detail.perHour:Hide()
+
+        detail.average = CreateFrame("Frame", nil, detail)
+        detail.average:SetHeight(16)
+        detail.average:SetPoint("BOTTOMLEFT", detail.queue, "TOPLEFT", 0, 8)
+        detail.average:SetPoint("RIGHT", detail, "RIGHT", -12, 0)
+        detail.average.label = Theme.CreateLabel(detail.average, "small", "muted")
+        detail.average.label:SetPoint("LEFT", 0, 0)
+        detail.average.label:SetText(L["Average for these days:"])
+        detail.average.value = Theme.CreateLabel(detail.average, "small", "text", "RIGHT")
+        detail.average.value:SetPoint("RIGHT", 0, 0)
+        detail.average.value:SetPoint("LEFT", detail.average.label, "RIGHT", 6, 0)
+        detail.average.value:SetWordWrap(false)
+        detail.average:Hide()
+
+        detail.graph = ns.PriceGraph.Create(detail, { picker = true, ticks = true,
+            onRefresh = function(graph) YourTimeView.GraphLines(detail, graph) end })
+        detail.graph:SetPoint("TOPLEFT", detail.materialsHeading, "BOTTOMLEFT", 0, -8)
+        detail.graph:SetPoint("BOTTOMRIGHT", detail.average, "TOPRIGHT", 0, 8)
+        detail.graph:Hide()
+    end
+
     return detail
+end
+
+local function HideGraph(detail)
+    detail.graphEntry = nil
+    if type(rawget(detail, "graph")) ~= "table" then return end
+    detail.graphButton:Hide()
+    detail.graph:Hide()
+    detail.average:Hide()
+    detail.perHour:Hide()
 end
 
 local function ShowNothing(detail)
@@ -317,6 +401,7 @@ local function ShowNothing(detail)
     detail.materialsHeading:Hide()
     for _, way in ipairs(detail.ways) do way:Hide() end
     for _, line in ipairs(detail.materials) do line:Hide() end
+    HideGraph(detail)
     detail.queue:Hide()
     detail.note:SetText(L["Farming time is your own, from Blackthornes Farmer. Walking there and selling aren't counted."])
 end
@@ -378,6 +463,29 @@ local function ShowEntry(detail, entry)
     end
 
     detail.materialsHeading:Show()
+    local hasGraph = type(rawget(detail, "graph")) == "table" and entry.outputItemID ~= nil
+    local showGraph = hasGraph and ns.Config:Get("yourTimeShowsGraph") == true
+    detail.materialsHeading:SetText(showGraph and L["PRICE HISTORY"] or L["MATERIALS"])
+    if showGraph then
+        for _, line in ipairs(detail.materials) do line:Hide() end
+        detail.graphButton:Show()
+        ns.PriceGraph.SetButton(detail.graphButton, true)
+        detail.graph:Show()
+        detail.average:Show()
+        detail.queue:Show()
+        detail.graphEntry = entry
+        local items = { entry.outputItemID }
+        for _, mat in ipairs(entry.mats or {}) do
+            if mat.itemID then items[#items + 1] = mat.itemID end
+        end
+        detail.graph:SetItems(items, entry.outputItemID)
+        return
+    end
+    HideGraph(detail)
+    if hasGraph then
+        detail.graphButton:Show()
+        ns.PriceGraph.SetButton(detail.graphButton, false)
+    end
     local mats = entry.mats or {}
     for index, line in ipairs(detail.materials) do
         local mat = mats[index]
