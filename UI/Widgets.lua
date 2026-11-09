@@ -578,6 +578,20 @@ function Widgets.ShowItemOnly(owner, itemID, fallback)
     GameTooltip:Show()
 end
 
+--- Let a material line show its item's own tooltip on hover. The line keeps
+--- `itemID` and `itemName`, set each time it is filled; a line with no item
+--- (the "and N more" line) shows nothing.
+function Widgets.HoverItemLine(line)
+    if not line or not line.EnableMouse then return line end
+    line:EnableMouse(true)
+    line:SetScript("OnEnter", function(self)
+        local itemID = rawget(self, "itemID")
+        if itemID then Widgets.ShowItemOnly(self, itemID, rawget(self, "itemName")) end
+    end)
+    line:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return line
+end
+
 --------------------------------------------------------------------------------
 -- Checkbox
 --------------------------------------------------------------------------------

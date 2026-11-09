@@ -309,6 +309,7 @@ local function NewView(opts)
         anchor = detail.materialsHeading
         for index = 1, MATERIAL_LINES do
             local line = DoubleLine(detail, anchor, index == 1 and 5 or 1)
+            if Widgets.HoverItemLine then Widgets.HoverItemLine(line) end
             detail.materials[index] = line
             anchor = line
         end
@@ -494,14 +495,19 @@ local function NewView(opts)
         local reagents = (value.costDetail and value.costDetail.reagents) or {}
         for index, line in ipairs(detail.materials) do
             local reagent = reagents[index]
+            line.itemID, line.itemName = nil, nil
             if reagent then
                 local name = Util.GetItemLabel(reagent.itemID)
                 if index == MATERIAL_LINES and #reagents > MATERIAL_LINES then
                     SetLine(line, L.Format("and %d more", #reagents - MATERIAL_LINES + 1), "", "dim")
+                    line.label:SetTextColor(Theme.Unpack("muted"))
                 else
                     SetLine(line, ("%dx %s"):format(reagent.quantity, Util.Uncolored(name)),
                         reagent.lineCost and Money(reagent.lineCost) or L["not scanned"],
                         reagent.lineCost and "text" or "dim")
+                    -- White, since a hover shows the item itself.
+                    line.label:SetTextColor(Theme.Unpack("text"))
+                    line.itemID, line.itemName = reagent.itemID, Util.Uncolored(name)
                 end
             else
                 line:Hide()

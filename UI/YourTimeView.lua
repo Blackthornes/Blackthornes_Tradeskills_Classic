@@ -330,6 +330,7 @@ local function BuildDetail(parent)
     anchor = detail.materialsHeading
     for index = 1, MATERIAL_LINES do
         local line = MaterialLine(detail, anchor, index == 1 and 6 or 2)
+        if Widgets.HoverItemLine then Widgets.HoverItemLine(line) end
         detail.materials[index] = line
         anchor = line
     end
@@ -489,6 +490,7 @@ local function ShowEntry(detail, entry)
     local mats = entry.mats or {}
     for index, line in ipairs(detail.materials) do
         local mat = mats[index]
+        line.itemID, line.itemName = nil, nil
         if mat and index == MATERIAL_LINES and #mats > MATERIAL_LINES then
             YourTimeView.FitMaterial(line, L.Format("and %d more", #mats - MATERIAL_LINES + 1), "")
             line.value:SetText("")
@@ -498,6 +500,7 @@ local function ShowEntry(detail, entry)
             local count = math.floor(mat.count * 10 + 0.5) / 10
             count = count == math.floor(count) and ("%d"):format(count) or ("%.1f"):format(count)
             local label = ("%sx %s"):format(count, name)
+            line.itemID, line.itemName = mat.itemID, Util.Uncolored(name)
             if mat.bought then
                 line.value:SetText(Money(mat.bought))
                 line.value:SetTextColor(Theme.Unpack("muted"))
