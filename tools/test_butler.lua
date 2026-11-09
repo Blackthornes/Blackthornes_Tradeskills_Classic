@@ -237,6 +237,7 @@ ns.db.characters[ALT].inventory = { [1] = 2, ["x"] = 5 }
 ns.db.characters[ALT].inventoryAt = 50
 ns.db.characters[ALT].mail = { [4] = 1 }
 ns.db.characters[ALT].mailAt = 60
+ns.db.characters[ALT].mailExpiry = { count = 4, soonest = 1.5, soon = 3, returns = 1, gone = 2 }
 ns.Inventory.GetBagCounts = function() return { [1] = 3, [5] = 1 } end
 ns.Recipes.GetCharacters = function()
   return {
@@ -263,6 +264,12 @@ check("when the bags were read", held[2].bagsAt, 50)
 check("its mail", held[2].mail[4], 1)
 check("when the mail was read", held[2].mailAt, 60)
 check("never read is nil", held[2].bankAt, nil)
+check("how many mails in the box", held[2].mailCount, 4)
+check("the soonest a mail runs out", held[2].mailSoonest, 1.5)
+check("how many run out soon", held[2].mailSoonCount, 3)
+check("how many go back", held[2].mailReturns, 1)
+check("how many are gone for good", held[2].mailGone, 2)
+check("never read this way is nil", held[1].mailSoonest, nil)
 check("another account's character says so", held[3].linked, "other")
 check("the short name", held[2].short, "Ana")
 check("an alt's gold as last seen", held[2].gold, 1234)

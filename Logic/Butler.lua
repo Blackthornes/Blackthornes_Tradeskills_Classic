@@ -105,6 +105,12 @@
 --                  everything else is the last snapshot.
 --   bagsAt,        when each was last read (time()), nil when never; the
 --   bankAt, mailAt live bags say now.
+--   mailCount,     mail runs out (2026-11-09, Butler's "Mail Running
+--   mailSoonest,   Out"), as of mailAt: how many mails the box showed, the
+--   mailSoonCount, soonest days left of any (a number with a fraction, nil
+--   mailReturns,   for an empty box), how many run out within 3 days, and
+--   mailGone       of those how many go back to the sender or are gone for
+--                  good. All nil when the box was never read this way.
 --   gold, goldAt   copper on the character when last seen, and when
 --                  (the bags' snapshot time); live for the character
 --                  playing. nil when never recorded (2026-10-11, for
@@ -961,6 +967,14 @@ local function Holdings()
                 bankAt = Stamp(record.bankAt),
                 mailAt = Stamp(record.mailAt),
             }
+            local expiry = record.mailExpiry
+            if type(expiry) == "table" then
+                entry.mailCount = Stamp(expiry.count)
+                entry.mailSoonest = Stamp(expiry.soonest)
+                entry.mailSoonCount = Stamp(expiry.soon)
+                entry.mailReturns = Stamp(expiry.returns)
+                entry.mailGone = Stamp(expiry.gone)
+            end
             -- Gold as last seen, for Butler's gold top-ups (2026-10-11):
             -- the character playing's purse is live.
             entry.gold = type(record.gold) == "number" and record.gold or nil

@@ -163,6 +163,48 @@ function Mail:ReadAttachment(index, slot)
     return itemID, tonumber(third) or 1
 end
 
+--- Whether a mail goes back to its sender when it runs out, rather than
+-- being gone for good. The game's own answer when it has one
+-- (InboxItemCanDelete), else its rule: a player's mail that carries money
+-- or items and has not been sent back once already goes back.
+function Mail.GoesBack(index, money, itemCount, wasReturned, canReply)
+    if type(InboxItemCanDelete) == "function" then
+        local ok, canDelete = pcall(InboxItemCanDelete, index)
+        if ok and canDelete ~= nil then return not canDelete end
+    end
+    local carries = (tonumber(money) or 0) > 0 or (tonumber(itemCount) or 0) > 0
+    return carries and canReply and not wasReturned and true or false
+end
+
+-- Mail that runs out within this many days counts as running out soon
+-- (Butler's "Mail Running Out", 2026-11-09).
+Mail.SOON_DAYS = 3
+
+--- What runs out soon in a reading of the inbox: the soonest days left of
+-- any mail, how many mails there are, how many run out within SOON_DAYS,
+-- and how many of those go back to the sender or are gone for good.
+function Mail.Expiry(mails)
+    local summary = { count = 0, soon = 0, returns = 0, gone = 0 }
+    for _, mail in ipairs(mails or {}) do
+        summary.count = summary.count + 1
+        local left = tonumber(mail.daysLeft)
+        if left then
+            if not summary.soonest or left < summary.soonest then
+                summary.soonest = left
+            end
+            if left <= Mail.SOON_DAYS then
+                summary.soon = summary.soon + 1
+                if mail.goesBack then
+                    summary.returns = summary.returns + 1
+                else
+                    summary.gone = summary.gone + 1
+                end
+            end
+        end
+    end
+    return summary
+end
+
 --- Everything the inbox is showing right now.
 --
 -- @return mails, complete
@@ -187,8 +229,8 @@ function Mail:ReadInbox()
         local mail = { index = index, attachments = {} }
 
         if Util.HasFunction("GetInboxHeaderInfo") then
-            local infoOk, _, _, sender, subject, money, cod, daysLeft, itemCount =
-                pcall(GetInboxHeaderInfo, index)
+            local infoOk, _, _, sender, subject, money, cod, daysLeft, itemCount,
+                _, wasReturned, _, canReply = pcall(GetInboxHeaderInfo, index)
 
             if infoOk then
                 mail.sender = sender
@@ -197,6 +239,8 @@ function Mail:ReadInbox()
                 mail.cod = tonumber(cod) or 0
                 mail.daysLeft = tonumber(daysLeft)
                 mail.itemCount = tonumber(itemCount) or 0
+                mail.goesBack = Mail.GoesBack(index, mail.money, mail.itemCount,
+                    wasReturned, canReply)
             end
         end
 
@@ -275,6 +319,7 @@ function Mail:Read()
 
     record.mail = counts
     record.mailAt = time()
+    record.mailExpiry = Mail.Expiry(mails)
     self.readThisSession = true
     self.lastComplete = complete
 
