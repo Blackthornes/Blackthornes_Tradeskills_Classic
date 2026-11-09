@@ -104,6 +104,7 @@ check("still not searched when short", lines[3].need == 40 and not Lists.CanSear
 limited[VIAL] = true
 lines = Lists:Lines(herbs)
 check("a vendor with limited stock is searched", Lists.CanSearch(lines[3]))
+check("and is never sent to the vendor", not lines[3].fromVendor and lines[3].vendorLimited)
 limited[VIAL] = nil
 local total, unpriced = Lists.Total(Lists:Lines(herbs))
 check("the total adds what is still to buy", total == 31 * 28 + 28 * 40 + 4 * 40 and unpriced == 0)

@@ -474,7 +474,7 @@ local function ShowMaterialTooltip(row, line)
     ns.Widgets.ShowItemTooltip(row, "ANCHOR_RIGHT", line.itemID, Util.GetItemLabel(line.itemID))
     GameTooltip:AddLine(" ")
 
-    if line.fromVendor then
+    if line.fromVendor or line.vendorLimited then
         GameTooltip:AddLine(line.vendorLimited
             and L["Sold by a vendor (limited stock)"] or L["Sold by a vendor"], 0.78, 0.64, 0.30)
     end

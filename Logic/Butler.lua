@@ -1292,6 +1292,14 @@ local function VendorPrice(itemID)
     return nil
 end
 
+--- True when the only shops seen selling it have limited stock.
+local function Limited(itemID)
+    local vendor = ns.Vendor
+    if not (vendor and vendor.IsLimited) then return false end
+    local ok, limited = pcall(vendor.IsLimited, vendor, itemID)
+    return ok and limited == true
+end
+
 local function Jobs()
     local list = {}
     local queue, mail = ns.Queue, ns.QueueMail
@@ -1356,8 +1364,10 @@ local function Jobs()
                         -- `vendor`: copper for one when a vendor sells it, so
                         -- Butler lists it under Buy from a vendor (the owner,
                         -- 2026-10-13).
+                        -- Not a shop with limited stock: it sells a few
+                        -- now and then, so that goes under Buy or gather.
                         missing[#missing + 1] = { itemID = reagent.itemID, count = want - held,
-                            vendor = VendorPrice(reagent.itemID) }
+                            vendor = not Limited(reagent.itemID) and VendorPrice(reagent.itemID) or nil }
                     end
                 end
                 -- Bag slots making it frees, for the character playing only

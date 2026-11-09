@@ -1900,7 +1900,12 @@ function Queue:BuildShoppingList()
             -- Not one set to Buy on the Level Up tab, while it is listed.
             local skipVendor = auctionEach ~= nil and ns.Cost.SkipsVendor
                 and ns.Cost:SkipsVendor(itemID)
-            local fromVendor = vendor ~= nil and not skipVendor and (not auctionEach
+            -- A shop seen with limited stock sells a few now and then, so it
+            -- is never where the list sends you, even when nothing is listed
+            -- (a player was sent for Coarse Blasting Powder, 2026-11-09).
+            -- Standing at that shop, Buy materials still takes what it has.
+            local limited = vendor ~= nil and ns.Vendor:IsLimited(itemID)
+            local fromVendor = vendor ~= nil and not skipVendor and not limited and (not auctionEach
                 or vendor <= auctionEach or ns.Vendor:KeepsInStock(itemID))
             local unitCost = fromVendor and vendor or auctionEach
             local estimatedCost
@@ -1961,7 +1966,8 @@ function Queue:BuildShoppingList()
                 overpaid = ns.AHBuys and ns.AHBuys.Overpaid
                     and ns.AHBuys.Overpaid(paid, paidEstimate) or false,
                 fromVendor = fromVendor,
-                vendorLimited = fromVendor and ns.Vendor:IsLimited(itemID) or false,
+                -- A vendor sells it, but with limited stock (never fromVendor).
+                vendorLimited = limited == true,
                 source = source,
                 vendorUnit = vendor,
                 auctionUnit = auction,

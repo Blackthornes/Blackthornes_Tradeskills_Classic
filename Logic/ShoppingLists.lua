@@ -256,7 +256,10 @@ function ShoppingLists:Line(itemID, want, have)
     local vendor = ns.Vendor and ns.Vendor:GetUnitPrice(itemID) or nil
     local auction = ns.Prices and ns.Prices:GetValue(itemID, "lowest") or nil
     local keeps = vendor ~= nil and ns.Vendor:KeepsInStock(itemID)
-    local fromVendor = vendor ~= nil and (keeps or not auction or vendor <= auction)
+    -- A shop with limited stock is never where a list sends you (the craft
+    -- queue's rule, Queue:GetShoppingList); the auction house prices it.
+    local limited = vendor ~= nil and ns.Vendor:IsLimited(itemID)
+    local fromVendor = vendor ~= nil and not limited and (keeps or not auction or vendor <= auction)
 
     local need = math.max(0, want - have)
     local unit = fromVendor and vendor or auction
@@ -268,7 +271,7 @@ function ShoppingLists:Line(itemID, want, have)
         unit = unit,
         cost = unit and unit * need or nil,
         fromVendor = fromVendor,
-        vendorLimited = fromVendor and ns.Vendor:IsLimited(itemID) or false,
+        vendorLimited = limited == true,
     }
 end
 
