@@ -3381,3 +3381,6 @@ L["Puts every Blackthornes window back where it started. Your settings and data 
 L["Every window is back in its first spot."] = "Jedes Fenster ist wieder an seinem ersten Platz."
 L["put every Blackthornes window back where it started (reset)"] = "jedes Blackthornes-Fenster an seinen Anfangsplatz zurücksetzen (reset)"
 L["Type /bts windows reset to put every window back in its first spot."] = "Gib /bts windows reset ein, um jedes Fenster an seinen ersten Platz zu setzen."
+L["Clear Items"] = "Gegenstände vergessen"
+L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] = "Vergisst die gespeicherten Taschen, Bank, Post und das Gold dieses Charakters. Logg dich mit ihm ein, um alles neu zu lesen."
+L["Cleared saved items for %s."] = "Gespeicherte Gegenstände von %s vergessen."

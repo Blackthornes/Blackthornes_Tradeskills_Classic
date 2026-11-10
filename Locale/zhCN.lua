@@ -3379,3 +3379,6 @@ L["Puts every Blackthornes window back where it started. Your settings and data 
 L["Every window is back in its first spot."] = "每个窗口都回到了最初的位置。"
 L["put every Blackthornes window back where it started (reset)"] = "把每个 Blackthornes 窗口放回最初的位置（reset）"
 L["Type /bts windows reset to put every window back in its first spot."] = "输入 /bts windows reset，把每个窗口放回最初的位置。"
+L["Clear Items"] = "清除物品"
+L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] = "忘记此角色已保存的背包、银行、邮件和金币。登录该角色即可重新读取。"
+L["Cleared saved items for %s."] = "已清除%s的已保存物品。"

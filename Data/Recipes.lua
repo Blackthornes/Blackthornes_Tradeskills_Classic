@@ -538,6 +538,32 @@ function Recipes:ForgetCharacter(characterKey)
     return true
 end
 
+--- Forget what a character carried: its saved bags, bank, mail and gold
+-- (a player asked, 2026-11-10: jobs sent them to mail items alts had long
+-- since used). Recipes, professions, the queue and settings stay, and the
+-- next login on that character reads everything again. Never the
+-- character playing.
+-- @return true when cleared, else false
+Recipes.CLEARED_FIELDS = {
+    "inventory", "inventoryAt", "gold", "bank", "bankAt",
+    "mail", "mailAt", "mailExpiry", "mailMoney",
+}
+function Recipes:ClearItems(characterKey)
+    if not (ns.db and ns.db.characters and characterKey) then return false end
+    if characterKey == ns.Config:GetCharacterKey() then return false end
+    if ns.Characters and ns.Characters.IsPlaying and ns.Characters:IsPlaying(characterKey) then return false end
+    local record = ns.db.characters[characterKey]
+    if type(record) ~= "table" then return false end
+    -- Keep "last seen" on the Characters tab, which fell back on the bags' time.
+    if record.seenAt == nil and type(record.inventoryAt) == "number" then
+        record.seenAt = record.inventoryAt
+    end
+    for _, field in ipairs(Recipes.CLEARED_FIELDS) do record[field] = nil end
+    record.clearedAt = (type(time) == "function" and time()) or nil
+    if ns.Cost and ns.Cost.InvalidateIndex then ns.Cost:InvalidateIndex() end
+    return true
+end
+
 function Recipes:Count()
     return Util.Count(self:GetAll())
 end

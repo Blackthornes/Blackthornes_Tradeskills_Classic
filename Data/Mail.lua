@@ -306,8 +306,12 @@ function Mail:Read()
         return
     end
 
-    local counts = {}
+    local counts, money = {}, 0
     for _, mail in ipairs(mails) do
+        -- Gold waiting in the box (2026-11-10): Butler checks a gold
+        -- top-up it filled against it, so one already taken stops showing
+        -- as on its way. Cash on delivery is what you pay, not gold here.
+        money = money + (tonumber(mail.money) or 0)
         for _, attachment in ipairs(mail.attachments) do
             counts[attachment.itemID] =
                 (counts[attachment.itemID] or 0) + attachment.quantity
@@ -320,6 +324,7 @@ function Mail:Read()
     record.mail = counts
     record.mailAt = time()
     record.mailExpiry = Mail.Expiry(mails)
+    record.mailMoney = money
     self.readThisSession = true
     self.lastComplete = complete
 

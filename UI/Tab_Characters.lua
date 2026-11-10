@@ -239,7 +239,7 @@ end
 
 local function Disarm(button)
     button.armed = false
-    button:SetText(L["Forget character"])
+    button:SetText(button.label or L["Forget character"])
     button:SetConfirming(false)
 end
 
@@ -306,6 +306,36 @@ local function BuildCard(row)
     end, { width = 140, height = 20,
            tooltip = L["Delete this character's saved recipes and inventory"] })
     card.forget:SetPoint("BOTTOMRIGHT", 0, 0)
+    card.forget.label = L["Forget character"]
+
+    -- Clear Items (2026-11-10): forget only what the character carried,
+    -- its saved bags, bank, mail and gold, so old counts stop sending
+    -- jobs there. Arms first like Forget character.
+    card.clear = Widgets.CreateButton(card, L["Clear Items"], function()
+        local button = card.clear
+        local key = card.key
+        if not key then return end
+
+        if button.armed and button.armed == key then
+            local name = ns.Recipes:GetCharacterName(key)
+            if ns.Recipes:ClearItems(key) then
+                ns.Print(L.Format("Cleared saved items for %s.", name))
+            end
+            Disarm(button)
+            UI:RefreshActiveTab()
+            return
+        end
+
+        button.armed = key
+        button:SetText(L["Click Again"])
+        button:SetConfirming(true)
+        C_Timer.After(4, function()
+            if button.armed == key then Disarm(button) end
+        end)
+    end, { width = 140, height = 20,
+           tooltip = L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] })
+    card.clear.label = L["Clear Items"]
+    card.clear:SetPoint("RIGHT", card.forget, "LEFT", -8, 0)
 
     row.card = card
 end
@@ -375,6 +405,8 @@ local function FillCard(card, entry)
     -- Only an alt can be forgotten; never the character you're on.
     card.forget:SetShown(not entry.isCurrent)
     if card.forget.armed and card.forget.armed ~= entry.key then Disarm(card.forget) end
+    card.clear:SetShown(not entry.isCurrent)
+    if card.clear.armed and card.clear.armed ~= entry.key then Disarm(card.clear) end
 end
 
 --------------------------------------------------------------------------------
