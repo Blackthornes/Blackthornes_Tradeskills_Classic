@@ -1301,7 +1301,11 @@ end
 -- @return array of { key, itemID, name, sold, soldUnits, expired, cancelled,
 --         returned, net, gross, cut, deposit, estimated, sellThrough, lastAt,
 --         restored }
-function Mail:GetItems()
+-- With `from` and `to` (to exclusive) only entries made in that window count,
+-- the ones inside the carried-over history too, and that history (which has
+-- no dates) is left out. Without them it is every sale ever kept.
+function Mail:GetItems(from, to)
+    local windowed = from ~= nil and to ~= nil
     local byKey = {}
     local order = {}
 
@@ -1337,11 +1341,16 @@ function Mail:GetItems()
     local costs = ns.CraftedCost and ns.CraftedCost:NewSaleCache()
 
     for _, entry in ipairs(self:Entries()) do
-        local bucket = Bucket(entry.itemID or names[entry.name], entry.name)
+        local outside = windowed and not (entry.t and entry.t >= from and entry.t < to)
+        local bucket = not outside and Bucket(entry.itemID or names[entry.name], entry.name)
+
+        -- Outside the window asked for: no row at all.
+        if outside then
+            -- nothing to add
 
         -- Already inside the restored history added below. The row is still
         -- made, so the item keeps its name.
-        if self:IsRolledUp(entry) then
+        elseif not windowed and self:IsRolledUp(entry) then
             -- nothing to add
 
         elseif entry.kind == "sold" then
@@ -1379,7 +1388,7 @@ function Mail:GetItems()
             bucket.expired = bucket.expired + 1
         end
 
-        if entry.t and (not bucket.lastAt or entry.t > bucket.lastAt) then
+        if bucket and entry.t and (not bucket.lastAt or entry.t > bucket.lastAt) then
             bucket.lastAt = entry.t
         end
     end
@@ -1389,7 +1398,7 @@ function Mail:GetItems()
     -- totals -- never in a list of individual sales. `restored` is set so a row
     -- carrying it can say where the numbers came from instead of showing a
     -- gross and a cut that do not add up to the net.
-    local restored = self:GetRestoredRollup()
+    local restored = not windowed and self:GetRestoredRollup()
 
     if restored then
         for itemID, record in pairs(restored) do
