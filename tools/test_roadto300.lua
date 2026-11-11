@@ -415,6 +415,38 @@ settings.roadPickBy = "junk"
 check("anything else reads as lowest", Road.PickBy(), "lowest")
 settings.roadPickBy = nil
 
+print("\nReal cost: a craft that sells for more than it costs")
+-- Alchemy at 87: both early crafts pay. The road used to stay on the elixir
+-- to grey, 144 crafts for 100 to 120.
+local function Potion(id, name, skill, yellow, grey, cost, back)
+  return { record = { recipeID = id, name = name, skill = skill, yellow = yellow, grey = grey,
+    reagents = { { itemID = BAR, quantity = 1 } } }, known = true,
+    price = { cost = cost, back = back, reagents = { { itemID = BAR, quantity = 1, unit = cost } } } }
+end
+local paying = Road:Plan({
+  line = 171, skill = 87, max = 150, level = 30, pickBy = "real", owned = {},
+  candidates = {
+    Potion(91, "Pays A", 50, 80, 120, 287, 318),
+    Potion(92, "Pays B", 80, 80, 100, 70, 118),
+    Potion(93, "Orange", 90, 120, 150, 300, 150),
+    Potion(94, "Later", 110, 135, 175, 350, 200),
+  },
+})
+local most, lowChance, reach = 0, 1, 0
+for _, step in ipairs(paying.steps) do
+  if not step.done and step.kind == "craft" then
+    most = math.max(most, step.to <= 125 and step.crafts or 0)
+    if step.recipeID == 91 or step.recipeID == 92 then
+      lowChance = math.min(lowChance, Road.Chance(step.record, step.to - 1))
+    end
+    reach = math.max(reach, step.to)
+  end
+end
+check("no long yellow step before 125", most < 40, true)
+check("a paying craft is left before its chance gets small", lowChance >= 0.1, true)
+check("the road still goes on", reach >= 150, true)
+check("a paying craft still wins while its chance is good", FirstCraft(paying).recipeID, 92)
+
 print("\nCooking and First Aid: Expert from a book, Artisan from quests")
 local cookPlan = Road:Plan({ line = 185, skill = 125, max = 150, level = 31, candidates = {} })
 local expertBook

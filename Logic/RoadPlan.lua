@@ -106,6 +106,11 @@ RoadPlan.RANKS = {
 -- point, so the road doesn't flip between two near the same.
 RoadPlan.SWITCH = 0.85
 
+-- By real cost a craft never counts for less than this share of what its
+-- materials cost, however well it sells: the road can't bank on every one
+-- selling, and a cost at or below 0 can't be ranked a point.
+RoadPlan.REAL_FLOOR = 0.2
+
 -- Recipes priced a frame while the plan is worked out.
 RoadPlan.BUDGET = 12
 
@@ -257,7 +262,13 @@ local function PointCost(candidate, skill, learned, real)
     local chance = RoadPlan.Chance(candidate.record, skill)
     if chance <= 0 or not candidate.price then return nil end
     local craft = candidate.price.cost
-    if real then craft = craft - (candidate.price.back or 0) end
+    if real then
+        -- Never below a share of the materials: a craft that sells for more
+        -- than it costs would otherwise have a cost below 0, which looks
+        -- cheaper a point the lower its chance falls, and the road stayed
+        -- on it all the way to grey (144 yellow crafts for 20 points).
+        craft = math.max(craft - (candidate.price.back or 0), craft * RoadPlan.REAL_FLOOR)
+    end
     local cost = craft / chance
     if not candidate.known and not learned[candidate.record.recipeID] then
         local left = math.max(1, candidate.record.grey - skill)
@@ -344,10 +355,8 @@ function RoadPlan:Plan(opts)
                     q = q + 1
                     local other, otherCost = Best(candidates, q, learned, real)
                     local mine = PointCost(candidate, q, learned, real)
-                    -- A real cost can be below 0 (the craft pays): switch
-                    -- only when the other is clearly cheaper either way.
                     local switch = other and other ~= candidate and otherCost and mine
-                        and otherCost < mine - math.abs(mine) * (1 - RoadPlan.SWITCH)
+                        and otherCost < mine * RoadPlan.SWITCH
                 until q >= limit or switch
 
                 local step = {
