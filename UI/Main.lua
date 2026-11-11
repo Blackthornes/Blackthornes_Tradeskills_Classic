@@ -692,6 +692,38 @@ function UI.PositionFactor(saved, now)
     return saved / now
 end
 
+--- Every window Tradeskills keeps a place for goes back to where it starts
+--- (a player's window slid off the screen, 2026-11-11): the main window's
+--- everyday and auction house spots, the gold bar, My Auctions, the arrow
+--- and Your Way There. Sizes are kept. The auction sell list keeps no place
+--- of its own; left up away from the auction house it is put away, and at
+--- the auction house it docks beside the game's window again.
+function UI:ResetWindowPlaces()
+    if not ns.db then return end
+    ns.db.windowPosition, ns.db.auctionWindowPosition = nil, nil
+    if self.window and not TSTabs.area then pcall(self.RestorePosition, self) end
+
+    if ns.GoldGoalUI and ns.GoldGoalUI.ResetPlace then pcall(ns.GoldGoalUI.ResetPlace, ns.GoldGoalUI) end
+    if ns.AuctionTrackerUI and ns.AuctionTrackerUI.ResetPlace then
+        pcall(ns.AuctionTrackerUI.ResetPlace, ns.AuctionTrackerUI)
+    end
+
+    ns.db.wayArrowX, ns.db.wayArrowY = nil, nil
+    if ns.WayArrowUI and ns.WayArrowUI.frame then pcall(ns.WayArrowUI.RestorePosition, ns.WayArrowUI) end
+
+    ns.db.travelCardX, ns.db.travelCardY = nil, nil
+    if ns.TravelCard and ns.TravelCard.frame then pcall(ns.TravelCard.RestorePlace, ns.TravelCard) end
+
+    local panel = ns.PostPanel
+    if panel and panel.frame then
+        if ns.Scanner and ns.Scanner.isAuctionHouseOpen then
+            if panel.Attach then pcall(panel.Attach, panel) end
+        elseif panel.Hide then
+            pcall(panel.Hide, panel)
+        end
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Window size
 --------------------------------------------------------------------------------
@@ -928,6 +960,11 @@ if ns.RegisterCommand then
 
         local now = UI:SetWindowScale(scale)
         ns.Print(L.Format("window size: %s.", UI.ScaleText(now)))
+    end)
+
+    ns.RegisterCommand("resetwindows", L["put every Tradeskills window back where it starts"], function()
+        UI:ResetWindowPlaces()
+        ns.Print(L["Every Tradeskills window is back where it starts."])
     end)
 end
 
