@@ -61,6 +61,16 @@ local PAGES = {
 }
 local DEFAULT_PAGE = "pricing"
 
+-- "Prefer TSM Prices:" only means something while TSM Prices is on, so it
+-- is greyed and takes no clicks while that is off.
+local function GreyPreferTSM(widgets, tsmOn)
+    local box, row = widgets.preferTsmPrices, widgets.preferTsmRow
+    if not box then return end
+    -- The row holds the label and the box, so its alpha greys both.
+    if row then row:SetAlpha(tsmOn and 1 or 0.4) else box:SetAlpha(tsmOn and 1 or 0.4) end
+    box:EnableMouse(tsmOn and true or false)
+end
+
 local widgets = {}
 
 --- An Off / Shift / Always box (see the Look page) set to the saved mode,
@@ -1992,6 +2002,7 @@ local function Build(outer)
     widgets.tsmPrices = Widgets.CreateCheckbox(tsmRow, L["On"], function(checked)
         Config:Set("tsmPrices", checked)
         if ns.TSMPrices then ns.TSMPrices:Forget() end
+        GreyPreferTSM(widgets, checked)
         UI:RefreshActiveTab()
     end, false)
     widgets.tsmPrices:SetPoint("TOPLEFT", CONTROL_X, -2)
@@ -2000,6 +2011,19 @@ local function Build(outer)
     Place(pages.sharing, 2, widgets.tsmStatus, -4)
     widgets.tsmStatus:SetWidth(COLUMN_WIDTH)
     widgets.tsmStatus:SetWordWrap(true)
+
+    -- TSM's price over your own once your scan is four hours old (the owner,
+    -- 2026-11-12). Off unless ticked, greyed while TSM Prices is off.
+    -- `preferTsmPrices`, account wide; never rename it. See Prices:PreferredTSM.
+    local preferRow = CreateRow(pages.sharing, 2, L["Prefer TSM Prices:"],
+        L["Uses TSM's price once your own scan is more than 4 hours old. Posting prices still come from your scans."])
+    widgets.preferTsmPrices = Widgets.CreateCheckbox(preferRow, L["On"], function(checked)
+        Config:Set("preferTsmPrices", checked)
+        if ns.TSMPrices then ns.TSMPrices:Forget() end
+        UI:RefreshActiveTab()
+    end, false)
+    widgets.preferTsmPrices:SetPoint("TOPLEFT", CONTROL_X, -2)
+    widgets.preferTsmRow = preferRow
 
     local auctionatorRow = CreateRow(pages.sharing, 2, L["Auctionator Prices:"],
         L["Uses Auctionator prices for items nothing else has priced, or when its price is newer than your old one."])
@@ -2545,6 +2569,8 @@ local function Refresh()
     widgets.realmStatus:SetText(ns.RealmPrices and ns.RealmPrices:Describe() or "")
     widgets.tsmPrices:SetChecked(Config:Get("tsmPrices") ~= false)
     widgets.tsmStatus:SetText(ns.TSMPrices and ns.TSMPrices:Describe() or "")
+    widgets.preferTsmPrices:SetChecked(Config:Get("preferTsmPrices") == true)
+    GreyPreferTSM(widgets, Config:Get("tsmPrices") ~= false)
     widgets.auctionatorPrices:SetChecked(Config:Get("auctionatorPrices") ~= false)
     widgets.auctionatorStatus:SetText(ns.AuctionatorPrices and ns.AuctionatorPrices:Describe() or "")
 

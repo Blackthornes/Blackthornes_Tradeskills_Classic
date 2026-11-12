@@ -565,6 +565,10 @@ local DEFAULTS = {
         -- Fill gaps with TradeSkillMaster's prices when it is loaded (asked
         -- 2026-10-12). See Logic/TSMPrices.lua.
         tsmPrices = true,
+        -- Use TSM's price once your own scan is more than four hours old
+        -- (the owner, 2026-11-12). Off unless ticked; never rename it.
+        -- See Prices:PreferredTSM.
+        preferTsmPrices = false,
         -- Then Auctionator's (asked 2026-10-12). See Logic/AuctionatorPrices.lua.
         auctionatorPrices = true,
         -- Which of the two fills a gap first (the owner, 2026-10-25): "tsm"

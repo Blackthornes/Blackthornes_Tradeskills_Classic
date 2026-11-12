@@ -823,18 +823,56 @@ end
 -- when "Price Order:" says Auctionator first (`priceOrder`). A stale price of your
 -- own also gives way to Auctionator's when Auctionator saw the item later.
 -- GetScanValue answers from the scans alone.
+-- "Prefer TSM Prices:" (`preferTsmPrices`, the owner 2026-11-12): TSM's
+-- price takes over from your own scan once that is this old. Fixed, apart
+-- from the stale setting (staleAfterSeconds).
+Prices.PREFER_TSM_AFTER = 4 * 3600
+
+--- Asks TSM's or Auctionator's module for a price, noting it was used.
+local function AskOther(source, itemID, which)
+    if not (source and source.GetValue) then return nil end
+    local value = source:GetValue(itemID, which)
+    if value and source.Used then source:Used() end
+    return value
+end
+
+--- True when "Prefer TSM Prices:" is ticked and TSM Prices is on.
+function Prices:PrefersTSM()
+    local config = ns.Config
+    if not (config and config:Get("preferTsmPrices") == true) then return false end
+    return config:Get("tsmPrices") ~= false
+end
+
+--- TSM's price when "Prefer TSM Prices:" says to use it for this item:
+--- ticked, and your own scan is missing or more than PREFER_TSM_AFTER old.
+--- nil otherwise, or when TSM has no price.
+function Prices:PreferredTSM(itemID, which)
+    if which == "rival" or not self:PrefersTSM() then return nil end
+    local age = self:GetAge(itemID)
+    if age and age <= self.PREFER_TSM_AFTER then return nil end
+    return AskOther(ns.TSMPrices, itemID, which)
+end
+
 function Prices:GetValue(itemID, which)
     local scanned = self:GetScanValue(itemID, which)
     if which == "rival" then return scanned end
+
+    -- With "Prefer TSM Prices:" ticked, TSM's price stands in for a scan
+    -- more than four hours old, ahead of the other account, guild and realm.
+    -- A price set by hand still applies below. No TSM price, the usual way.
+    local preferred = self:PreferredTSM(itemID, which)
+    if preferred then
+        scanned = preferred
+    end
 
     -- Guildmates' prices (Logic/GuildPrices.lua, off unless the player turns
     -- it on) fill a gap: an item never priced here, or one whose price has
     -- gone stale while theirs is newer. A fresh scan of your own always wins.
     -- Only asked when it could be used: their answer is sorted out of every
     -- guildmate's, and prices are read many times a redraw.
-    local filled
+    local filled = preferred and true or nil
     local guild = ns.GuildPrices
-    if guild and guild.IsOn and guild:IsOn() and (not scanned or self:IsStale(itemID)) then
+    if not filled and guild and guild.IsOn and guild:IsOn() and (not scanned or self:IsStale(itemID)) then
         local shared, sharedAt = guild:GetValue(itemID, which)
         if shared then
             local record = self:GetTable()[itemID]
