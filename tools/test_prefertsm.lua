@@ -75,18 +75,21 @@ check("off, PrefersTSM says no", not Prices:PrefersTSM())
 
 settings.preferTsmPrices = true
 check("ticked, PrefersTSM says yes", Prices:PrefersTSM())
-check("ticked, TSM takes over a scan more than 4 hours old", Prices:GetValue(1) == 900)
+check("ticked, TSM takes over a scan more than 1 hour old", Prices:GetValue(1) == 900)
 check("min reads TSM's min buyout", Prices:GetValue(1, "min") == 800)
 check("rival never comes from TSM", Prices:GetValue(1, "rival") == 499)
 check("the scans alone are untouched", Prices:GetScanValue(1) == 500)
 
-Scan(2, 500, 3)
-check("a scan under 4 hours old keeps its price", Prices:GetValue(2) == 500)
+Scan(2, 500, 0.5)
+check("a scan under 1 hour old keeps its price", Prices:GetValue(2) == 500)
 
-settings.staleAfterSeconds = 3600
-Scan(3, 500, 3)
-check("the stale setting does not move the 4 hours", Prices:GetValue(3) == 500)
+settings.staleAfterSeconds = 600
+Scan(3, 500, 0.5)
+check("the stale setting does not move the hour", Prices:GetValue(3) == 500)
 settings.staleAfterSeconds = 48 * 3600
+
+Scan(4, 500, 2)
+check("a 2 hour old scan gives way to TSM", Prices:GetValue(4) == 900)
 
 check("an item never scanned takes TSM's price", Prices:GetValue(4) == 900)
 

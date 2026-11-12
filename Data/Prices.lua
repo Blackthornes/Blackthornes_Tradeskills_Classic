@@ -826,7 +826,7 @@ end
 -- "Prefer TSM Prices:" (`preferTsmPrices`, the owner 2026-11-12): TSM's
 -- price takes over from your own scan once that is this old. Fixed, apart
 -- from the stale setting (staleAfterSeconds).
-Prices.PREFER_TSM_AFTER = 4 * 3600
+Prices.PREFER_TSM_AFTER = 3600
 
 --- Asks TSM's or Auctionator's module for a price, noting it was used.
 local function AskOther(source, itemID, which)
@@ -858,7 +858,7 @@ function Prices:GetValue(itemID, which)
     if which == "rival" then return scanned end
 
     -- With "Prefer TSM Prices:" ticked, TSM's price stands in for a scan
-    -- more than four hours old, ahead of the other account, guild and realm.
+    -- more than an hour old, ahead of the other account, guild and realm.
     -- A price set by hand still applies below. No TSM price, the usual way.
     local preferred = self:PreferredTSM(itemID, which)
     if preferred then

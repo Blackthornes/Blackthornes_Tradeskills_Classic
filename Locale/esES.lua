@@ -2759,7 +2759,7 @@ L["Swaps scans with guildmates who use Tradeskills. Your own scans always win."]
 L["TSM Prices:"] = "Precios de TSM:"
 L["Uses TradeSkillMaster prices for items you haven't priced."] = "Usa los precios de TradeSkillMaster para objetos a los que no has puesto precio."
 L["Prefer TSM Prices:"] = "Preferir precios de TSM:"
-L["Uses TSM's price once your own scan is more than 4 hours old. Posting prices still come from your scans."] = "Usa el precio de TSM cuando tu propio escaneo tiene más de 4 horas. Los precios para publicar siguen saliendo de tus escaneos."
+L["Uses TSM's price once your own scan is more than 1 hour old. Posting prices still come from your scans."] = "Usa el precio de TSM cuando tu propio escaneo tiene más de 1 hora. Los precios para publicar siguen saliendo de tus escaneos."
 L["Auctionator Prices:"] = "Precios de Auctionator:"
 L["Uses Auctionator prices for items nothing else has priced, or when its price is newer than your old one."] = "Usa los precios de Auctionator para objetos que nada más tiene con precio, o cuando su precio es más nuevo que el tuyo antiguo."
 L["Remove Old Prices:"] = "Borrar precios viejos:"

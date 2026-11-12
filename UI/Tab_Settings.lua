@@ -2012,11 +2012,11 @@ local function Build(outer)
     widgets.tsmStatus:SetWidth(COLUMN_WIDTH)
     widgets.tsmStatus:SetWordWrap(true)
 
-    -- TSM's price over your own once your scan is four hours old (the owner,
+    -- TSM's price over your own once your scan is an hour old (the owner,
     -- 2026-11-12). Off unless ticked, greyed while TSM Prices is off.
     -- `preferTsmPrices`, account wide; never rename it. See Prices:PreferredTSM.
     local preferRow = CreateRow(pages.sharing, 2, L["Prefer TSM Prices:"],
-        L["Uses TSM's price once your own scan is more than 4 hours old. Posting prices still come from your scans."])
+        L["Uses TSM's price once your own scan is more than 1 hour old. Posting prices still come from your scans."])
     widgets.preferTsmPrices = Widgets.CreateCheckbox(preferRow, L["On"], function(checked)
         Config:Set("preferTsmPrices", checked)
         if ns.TSMPrices then ns.TSMPrices:Forget() end
