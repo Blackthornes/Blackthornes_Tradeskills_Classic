@@ -41,6 +41,9 @@ local COLUMNS = {
     { key = "learn",      label = L["LEARN FROM"], width = 92, justify = "CENTER" },
     { key = "price",      label = L["RECIPE"],     width = 66, money = true },
     { key = "profit",     label = L["PROFIT"],     width = 70, money = true },
+    -- How well the item it makes sells (Logic/Demand.lua), as on My crafts,
+    -- so a player can tell before buying the recipe.
+    { key = "demand",     label = L["DEMAND"],     width = 50, justify = "CENTER" },
     { key = "disenchant", label = L["DISENCHANT"], width = 66, money = true },
     { key = "sells",      label = L["SELLS"],      width = 66, money = true },
     { key = "cost",       label = L["COST"],       width = 66, money = true },
@@ -201,6 +204,15 @@ local function NewView(opts)
             cells.sells:SetTextColor(Theme.Unpack("dim"))
         else
             SetMoney(cells.sells, entry.auction)
+        end
+
+        local reading = entry.outputItemID and ns.Demand and ns.Demand:Get(entry.outputItemID)
+        if reading then
+            cells.demand:SetText(ns.Demand:Label(reading))
+            cells.demand:SetTextColor(Theme.Unpack(ns.Demand:Color(reading)))
+        else
+            cells.demand:SetText("--")
+            cells.demand:SetTextColor(Theme.Unpack("dim"))
         end
 
         if entry.disenchant then
@@ -717,6 +729,10 @@ local function NewView(opts)
             sells = function(entry) return entry.auction end,
             disenchant = function(entry) return entry.disenchant end,
             profit = function(entry) return entry.profit end,
+            demand = function(entry)
+                return ns.Demand and entry.outputItemID
+                    and ns.Demand:Rank(ns.Demand:Get(entry.outputItemID)) or 0
+            end,
             price = function(entry) return entry.price end,
             learn = function(entry) return entry.known and L["Known"] or entry.learn end,
         }, function() instance.Refresh() end)

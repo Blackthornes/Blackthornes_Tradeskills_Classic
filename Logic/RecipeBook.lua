@@ -978,6 +978,15 @@ function RecipeBook:TooltipLines(itemID)
         lines[#lines + 1] = { L["Vendors for"], Money(returns.vendor) }
     end
 
+    -- How well the item it makes sells (Logic/Demand.lua), so a player can
+    -- tell before buying the recipe (asked 2026-11-12).
+    if ns.Demand and ns.Demand.Get then
+        local ok, reading = pcall(ns.Demand.Get, ns.Demand, record.outputItemID)
+        if ok and reading then
+            lines[#lines + 1] = { L["Demand"], ns.Demand:Label(reading), color = ns.Demand:Color(reading) }
+        end
+    end
+
     if value.profit then
         local text = Money(value.profit)
         if value.backWay and value.backWay ~= "auction" then

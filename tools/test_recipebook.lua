@@ -192,6 +192,18 @@ check("disenchants for", Line(lines, "Disenchants for")[2], "120c")
 check("profit per craft", Line(lines, "Profit per craft")[2], "120c")
 check("in green", Line(lines, "Profit per craft").color, "profit")
 check("pays for itself", Line(lines, "Pays for itself")[2], "after 8 crafts")
+check("no Demand line without a reading", Line(lines, "Demand"), nil)
+
+-- How well the item it makes sells, as on My crafts.
+local oldDemand = ns.Demand
+ns.Demand = {
+    Get = function(_, id) return id == BOOTS and { level = "high" } or nil end,
+    Label = function() return "High" end,
+    Color = function() return "profit" end,
+}
+check("demand for the item it makes", Line(Book:TooltipLines(PATTERN_BOOTS), "Demand")[2], "High")
+check("in its colour", Line(Book:TooltipLines(PATTERN_BOOTS), "Demand").color, "profit")
+ns.Demand = oldDemand
 accountWide[2158] = { outputItemID = BOOTS, knownBy = { "alt" } }
 Book.known = nil
 check("an alt who knows it is named", Line(Book:TooltipLines(PATTERN_BOOTS), "Known by")[2], "Ana")
