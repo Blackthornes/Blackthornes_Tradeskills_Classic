@@ -1852,10 +1852,10 @@ local function Build(outer)
     FitButton(goldPlace)
 
     -- A window dragged off the screen comes back (a player's report, 2026-11-11).
-    local windowPlacesRow = CreateRow(pages.look, 2, L["Window Places:"])
-    local windowPlaces = Widgets.CreateButton(windowPlacesRow, L["Reset"], function()
-        UI:ResetWindowPlaces()
-        ns.Print(L["Every Tradeskills window is back where it starts."])
+    local windowPlacesRow = CreateRow(pages.look, 2, L["Window Spots:"],
+        L["Puts every Blackthornes window back where it started. Your settings and data stay the same."])
+    local windowPlaces = Widgets.CreateButton(windowPlacesRow, L["Set Default"], function()
+        UI:ResetAllWindows()
     end, { width = 60, height = 20 })
     windowPlaces:SetPoint("TOPLEFT", CONTROL_X, -2)
     FitButton(windowPlaces)

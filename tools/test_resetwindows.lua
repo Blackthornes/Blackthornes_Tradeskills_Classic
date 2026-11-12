@@ -1,4 +1,4 @@
--- "Window Places:" Reset and /bts resetwindows (a player's window slid off
+-- "Window Spots:" Set Default and /bts windows reset (a player's window slid off
 -- the screen, 2026-11-11), outside WoW.
 --
 -- What must hold:
@@ -112,10 +112,15 @@ check("unbuilt arrow still cleared", ns.db.wayArrowX, nil)
 -- 5. The command.
 Fresh()
 printed = {}
-check("command registered", type(commands.resetwindows), "function")
-commands.resetwindows("")
+check("command registered", type(commands.windows), "function")
+commands.windows("")
+check("the word alone changes nothing", ns.db.windowPosition ~= nil, true)
+commands.windows("reset")
 check("command clears", ns.db.windowPosition, nil)
-check("command says so", printed[1], "Every Tradeskills window is back where it starts.")
+check("command says so", printed[#printed], "Every window is back in its first spot.")
+Fresh()
+commands.resetwindows("")
+check("the older word still works", ns.db.windowPosition, nil)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

@@ -701,6 +701,8 @@ end
 function UI:ResetWindowPlaces()
     if not ns.db then return end
     ns.db.windowPosition, ns.db.auctionWindowPosition = nil, nil
+    ns.db.postPanelSpot = nil
+    if ns.PostPanel then ns.PostPanel.dockedTo = nil end
     if self.window and not TSTabs.area then pcall(self.RestorePosition, self) end
 
     if ns.GoldGoalUI and ns.GoldGoalUI.ResetPlace then pcall(ns.GoldGoalUI.ResetPlace, ns.GoldGoalUI) end
@@ -722,6 +724,20 @@ function UI:ResetWindowPlaces()
             pcall(panel.Hide, panel)
         end
     end
+end
+
+--- Window Spots: Set Default (a player asked, the owner said build it,
+--- 2026-11-12): every Blackthornes window loaded goes back where it started,
+--- through the shared window's ResetAllSpots, which runs each addon's own
+--- reset. Without it, only Tradeskills' windows.
+function UI:ResetAllWindows()
+    local shared = ns.SharedWindow
+    if shared and shared.ResetAllSpots then shared.ResetAllSpots()
+    else self:ResetWindowPlaces() end
+    ns.Print(L["Every window is back in its first spot."])
+end
+if ns.SharedWindow and ns.SharedWindow.AddSpotReset then
+    ns.SharedWindow.AddSpotReset("Tradeskills", function() UI:ResetWindowPlaces() end)
 end
 
 --------------------------------------------------------------------------------
@@ -962,9 +978,14 @@ if ns.RegisterCommand then
         ns.Print(L.Format("window size: %s.", UI.ScaleText(now)))
     end)
 
-    ns.RegisterCommand("resetwindows", L["put every Tradeskills window back where it starts"], function()
-        UI:ResetWindowPlaces()
-        ns.Print(L["Every Tradeskills window is back where it starts."])
+    ns.RegisterCommand("windows", L["put every Blackthornes window back where it started (reset)"], function(arg)
+        arg = ((arg or ""):match("^%s*(.-)%s*$") or ""):lower()
+        if arg == "reset" then UI:ResetAllWindows()
+        else ns.Print(L["Type /bts windows reset to put every window back in its first spot."]) end
+    end)
+    -- The older word still works.
+    ns.RegisterCommand("resetwindows", L["put every Blackthornes window back where it started (reset)"], function()
+        UI:ResetAllWindows()
     end)
 end
 
@@ -1711,6 +1732,7 @@ function UI:ShowTransferDialog(mode)
         dialog.action:SetPoint("BOTTOMRIGHT", -20, 18)
 
         self.transferDialog = dialog
+        if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(dialog, "ts.transfer") end
     end
 
     if mode == "export" then

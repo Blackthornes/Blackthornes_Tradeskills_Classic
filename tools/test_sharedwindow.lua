@@ -26,6 +26,8 @@
 --  10. Closed by the player while a game window is open, it stays closed
 --      when that window goes; only an addon's close on leaving
 --      (Close(true)) lets it go back to the addon open before.
+--  11. Dragged while docked it keeps that spot by the game's window; a small
+--      window keeps where it was dragged; Set Default puts every one back.
 
 local NAMES = { "CreateFrame", "UIParent", "C_Timer", "time", "BlackthornesWindow",
     "UISpecialFrames", "GetCursorPosition", "GetTime", "MailFrame", "OpenMailFrame", "MerchantFrame", "AuctionFrame" }
@@ -69,6 +71,7 @@ local function Object()
     function o:GetRight() return self.right end
     function o:ClearAllPoints() self.point = nil end
     function o:SetPoint(...) self.point = { ... } end
+    function o:GetPoint() if self.point then return unpack(self.point) end end
     return setmetatable(o, { __index = function() return function() end end })
 end
 
@@ -351,6 +354,70 @@ do
     frame.SetSize, frame.SetHeight = setSize, setHeight
     rawset(frame, "blackthornesFold", nil)
     frame:SetSize(fullW, fullH)
+end
+
+-- 11. Dragged while docked, it keeps that spot beside the game's window,
+-- kept for each place; Set Default puts every window back.
+do
+    now = now + 5
+    SW.Arrived("auction")
+    SW.Open("tradeskills")
+    assert(SW.Docked() and SW.Place() == "auction", "docked at the auction house")
+    frame.left, frame.top = 900, 650
+    frame.scripts.OnDragStop(frame)
+    local spot = dbA.oneWindowDockSpots and dbA.oneWindowDockSpots.auction
+    assert(spot and spot.x == 60 and spot.y == -70, "the drop is kept from the game window's corner")
+    assert(dbC.oneWindowDockSpots ~= dbA.oneWindowDockSpots or dbC.oneWindowDockSpots.auction.x == 60,
+        "every save has it")
+    assert(SW.Keep() == false, "dropped by hand, nothing moves it back")
+    AuctionFrame.right = 860
+    assert(SW.Keep() and frame.point[4] == 920 and frame.point[5] == 650,
+        "the game's window moved: the window keeps its spot from it")
+    SW.Close()
+    SW.Left("auction")
+    AuctionFrame.right = 840
+    now = now + 5
+    SW.Arrived("auction")
+    SW.Open("tradeskills")
+    assert(SW.Docked() and frame.point[4] == 900 and frame.point[5] == 650, "next visit, the same spot")
+    local ran = 0
+    SW.AddSpotReset("beta", function() ran = ran + 1 end)
+    SW.AddSpotReset("alpha", function() error("broken") end)
+    dbA.oneWindowScale = 120
+    SW.ResetAllSpots()
+    assert(ran == 1, "every addon's reset runs, past a broken one")
+    assert(dbA.oneWindowDockSpots == nil and dbC.oneWindowDockSpots == nil
+        and dbA.oneWindowLeft == nil and dbB.oneWindowTop == nil, "the spots go")
+    assert(dbA.oneWindowScale == 120, "the size stays")
+    assert(frame.point[4] == 840 + SW.DOCK_GAP, "docked, it goes back beside the game's window")
+    SW.Close()
+    SW.Left("auction")
+    frame.left, frame.top = 100, 600
+    SW.Open("gamma")
+
+    -- A small window keeps where it was dragged; Set Default puts it back.
+    local hookBefore = _G.hooksecurefunc
+    _G.hooksecurefunc = function(t, name, fn)
+        local old = t[name]
+        t[name] = function(...) old(...) fn(...) end
+    end
+    local small = Object()
+    small.shown = false
+    small:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+    SW.KeepSpot(small, "alpha.export")
+    _G.hooksecurefunc = hookBefore
+    small.left, small.top = 300, 500
+    small:StopMovingOrSizing()
+    assert(dbA.windowSpots and dbA.windowSpots["alpha.export"].x == 300
+        and dbB.windowSpots["alpha.export"].y == 500, "the drop is kept in every save")
+    small:ClearAllPoints()
+    small:Show()
+    small:Fire("OnShow")
+    assert(small.point and small.point[1] == "TOPLEFT" and small.point[4] == 300 and small.point[5] == 500,
+        "shown again, it goes where it was left")
+    SW.ResetAllSpots()
+    assert(dbA.windowSpots == nil, "Set Default forgets it")
+    assert(small.point[1] == "CENTER" and small.point[5] == 40, "and puts it back where it started")
 end
 
 SW.SetOn(false)

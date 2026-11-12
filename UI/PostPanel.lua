@@ -639,6 +639,11 @@ function PostPanel:Build()
     self.header = header
     self.title = title
 
+    -- Dragged by its plate or header (a player asked, the owner said build
+    -- it, 2026-11-12): where it is dropped is kept beside the auction house
+    -- (PostPanel:SaveSpot) and it stays on screen.
+    self:MakeDraggable(frame, header)
+
     -- Everything under the title, so the collapse button can fold it away in
     -- one go and leave the title strip showing.
     local body = CreateFrame("Frame", nil, frame)
@@ -1507,6 +1512,73 @@ function PostPanel:Placement(auctionFrame)
     return side, left, fits
 end
 
+--------------------------------------------------------------------------------
+-- A spot of the player's own
+--------------------------------------------------------------------------------
+
+--- The spot the player dragged the drawer to, as an offset from the auction
+-- window's top right corner in the drawer's own units, or nil.
+function PostPanel:Spot()
+    local db = ns.db
+    local spot = db and db.postPanelSpot
+    if type(spot) == "table" and type(spot.x) == "number" and type(spot.y) == "number" then
+        return spot
+    end
+    return nil
+end
+
+--- Keep where the drawer was dropped, beside the auction window it sits by.
+function PostPanel:SaveSpot()
+    local frame = self.frame
+    local auctionFrame = ns.UI and ns.UI:FindAuctionFrame()
+    if not (frame and auctionFrame and ns.db) then return end
+    local ok, left, top, ours, right, atop, theirs = pcall(function()
+        return frame:GetLeft(), frame:GetTop(), frame:GetEffectiveScale(),
+            auctionFrame:GetRight(), auctionFrame:GetTop(), auctionFrame:GetEffectiveScale()
+    end)
+    if not (ok and left and top and right and atop and ours and theirs and ours > 0) then return end
+    ns.db.postPanelSpot = {
+        x = (left * ours - right * theirs) / ours,
+        y = (top * ours - atop * theirs) / ours,
+    }
+    self.dockedTo = nil
+    self:Redock()
+end
+
+--- Forget the dragged spot: the drawer goes back beside the auction house.
+function PostPanel:ResetSpot()
+    if ns.db then ns.db.postPanelSpot = nil end
+    self.dockedTo = nil
+    if self.frame and self.attached and not self.inOne then self:Redock() end
+end
+
+--- Let the drawer be dragged by itself and its header. Never in a fight.
+function PostPanel:MakeDraggable(frame, header)
+    if frame.SetMovable then frame:SetMovable(true) end
+    if frame.SetClampedToScreen then frame:SetClampedToScreen(true) end
+    local function Start()
+        if PostPanel.inOne then return end
+        if InCombatLockdown and InCombatLockdown() then return end
+        PostPanel.dragging = true
+        frame:StartMoving()
+    end
+    local function Stop()
+        if not PostPanel.dragging then return end
+        PostPanel.dragging = nil
+        frame:StopMovingOrSizing()
+        PostPanel:SaveSpot()
+    end
+    for _, piece in ipairs({ frame, header }) do
+        if piece and piece.RegisterForDrag then
+            pcall(piece.RegisterForDrag, piece, "LeftButton")
+            if piece.HookScript then
+                piece:HookScript("OnDragStart", Start)
+                piece:HookScript("OnDragStop", Stop)
+            end
+        end
+    end
+end
+
 --- Put the panel where Placement says, showing or hiding it to match.
 --
 -- Cheap enough for the one-second auction house ticker, which is what brings
@@ -1520,6 +1592,28 @@ function PostPanel:Redock()
 
     local auctionFrame = ns.UI:FindAuctionFrame()
     if not auctionFrame then return end
+
+    if self.dragging then return end
+
+    -- Dragged somewhere by the player: kept there, beside the auction house.
+    local spot = self:Spot()
+    if spot then
+        if self.dockedTo ~= auctionFrame or self.dockedSpotX ~= spot.x or self.dockedSpotY ~= spot.y then
+            frame:ClearAllPoints()
+            frame:SetPoint("TOPLEFT", auctionFrame, "TOPRIGHT", spot.x, spot.y)
+            self.dockedTo, self.dockedOffset, self.dockedLeft = auctionFrame, spot.x, nil
+            self.dockedSpotX, self.dockedSpotY = spot.x, spot.y
+            self:ApplyHeight(true)
+        end
+        if not frame:IsShown() then
+            frame:Show()
+            self:ApplyHeight(true)
+            self:Refresh()
+            if ns.Motion then ns.Motion:Open(frame, 0) end
+        end
+        return
+    end
+    self.dockedSpotX, self.dockedSpotY = nil, nil
 
     local host, left, fits = self:Placement(auctionFrame)
 

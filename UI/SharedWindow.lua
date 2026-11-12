@@ -40,7 +40,7 @@ local ADDON, ns = ...
 local SharedWindow = {}
 ns.SharedWindow = SharedWindow
 
-local FILE_VERSION = 8
+local FILE_VERSION = 9
 SharedWindow.FILE_VERSION = FILE_VERSION
 
 local PLATE = "Blackthornes"
@@ -360,9 +360,14 @@ function SharedWindow.Build()
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        -- Moved while docked, it stays where it was dropped for this visit,
-        -- but its own place is kept for when the game's window closes.
-        if not hub.docked then SavePlace(self) end
+        -- Moved while docked, it keeps that spot beside this game window
+        -- (SharedWindow.Dropped); its own place is kept for when the game's
+        -- window closes.
+        if not hub.docked then
+            SavePlace(self)
+        else
+            SharedWindow.Dropped(self)
+        end
     end)
     frame:Hide()
     Theme.Fill(frame, "window")
@@ -705,9 +710,41 @@ local function Beside(frame, game)
         if okReach and type(left) == "number" then reach = left end
     end
     frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
-        right * scale / ours + reach + SharedWindow.DOCK_GAP, top * scale / ours)
+    local spots = Read("oneWindowDockSpots")
+    local spot = type(spots) == "table" and hub.place and spots[hub.place]
+    if type(spot) == "table" and type(spot.x) == "number" and type(spot.y) == "number" then
+        -- Dragged here by hand before: the same spot from the game's window.
+        frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
+            (right * scale + spot.x) / ours, (top * scale + spot.y) / ours)
+    else
+        frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
+            right * scale / ours + reach + SharedWindow.DOCK_GAP, top * scale / ours)
+    end
     return true
+end
+
+--- Dragged while docked: keep where it was dropped, measured from the
+--- game window's top right corner in screen pixels, for this place
+--- (auction, mail, vendor, trainer). Every save gets a fresh table.
+local function SaveDockSpot(frame, game)
+    if not (hub.place and game) then return end
+    local ok, left, top, ours, right, gtop, scale = pcall(function()
+        return frame:GetLeft(), frame:GetTop(), frame:GetEffectiveScale(),
+            game:GetRight(), game:GetTop(), game:GetEffectiveScale()
+    end)
+    if not ok then return end
+    for _, v in ipairs({ left, top, ours, right, gtop, scale }) do
+        if type(v) ~= "number" then return end
+    end
+    if ours <= 0 then ours = 1 end
+    if scale <= 0 then scale = 1 end
+    local spots = {}
+    local old = Read("oneWindowDockSpots")
+    if type(old) == "table" then
+        for key, value in pairs(old) do spots[key] = value end
+    end
+    spots[hub.place] = { x = left * ours - right * scale, y = top * ours - gtop * scale }
+    WriteAll("oneWindowDockSpots", spots)
 end
 
 --- Where the game's window and this one stand and how wide this one is:
@@ -745,6 +782,122 @@ function SharedWindow.Dock(again)
     hub.spot = placed and Spot(frame, game) or nil
     Tell()
     return placed
+end
+
+--- Dropped by hand while docked: remember the spot for this place.
+function SharedWindow.Dropped(frame)
+    frame = frame or hub.frame
+    if not (frame and hub.docked) then return end
+    local game = GameFrame()
+    if not game then return end
+    SaveDockSpot(frame, game)
+    hub.spot = Spot(frame, game)
+end
+
+--- Every window back where it first stood: the one window's own place and
+--- its spots beside the game's windows go (its size stays), then every
+--- addon's own windows (SharedWindow.AddSpotReset). Nothing else changes.
+function SharedWindow.ResetSpots()
+    WriteAll("oneWindowDockSpots", nil)
+    WriteAll("oneWindowLeft", nil)
+    WriteAll("oneWindowTop", nil)
+    local frame = hub.frame
+    if frame and not InFight() then
+        if hub.docked then SharedWindow.Dock(true)
+        else pcall(Place, frame) end
+    end
+end
+
+--- Each addon signs up what puts its own windows back; Set Default in any
+--- addon runs them all, each in a pcall.
+function SharedWindow.AddSpotReset(name, fn)
+    if type(name) ~= "string" or type(fn) ~= "function" then return end
+    hub.spotResets = hub.spotResets or {}
+    hub.spotResets[name] = fn
+end
+
+--- A small window of any addon remembers where it was dragged (a player
+--- asked, the owner said build it, 2026-11-12): kept account wide in
+--- every save as windowSpots[key] = { x, y }, its top left in screen
+--- pixels; laid again each time it shows, kept on the screen. Its first
+--- place is noted so Set Default can put it back.
+local function PutAt(frame, spot)
+    local ok, scale = pcall(frame.GetEffectiveScale, frame)
+    if not (ok and type(scale) == "number" and scale > 0) then scale = 1 end
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", spot.x / scale, spot.y / scale)
+end
+
+local function KeptSpot(key)
+    local spots = Read("windowSpots")
+    local spot = type(spots) == "table" and spots[key]
+    if type(spot) == "table" and type(spot.x) == "number" and type(spot.y) == "number" then
+        return spot
+    end
+    return nil
+end
+
+function SharedWindow.KeepSpot(frame, key)
+    if type(frame) ~= "table" or type(key) ~= "string" then return end
+    hub.kept = hub.kept or {}
+    if hub.kept[key] and hub.kept[key].frame == frame then return end
+    local first = { pcall(frame.GetPoint, frame, 1) }
+    hub.kept[key] = { frame = frame, first = first[1] and first[2] and
+        { first[2], first[3], first[4], first[5], first[6] } or nil }
+    if frame.SetClampedToScreen then pcall(frame.SetClampedToScreen, frame, true) end
+    if frame.SetMovable then pcall(frame.SetMovable, frame, true) end
+    local function Lay()
+        if InFight() then return end
+        local spot = KeptSpot(key)
+        if spot then pcall(PutAt, frame, spot) end
+    end
+    if frame.HookScript then
+        frame:HookScript("OnShow", function()
+            Lay()
+            -- A window that places itself after showing is laid again.
+            if C_Timer and C_Timer.After then C_Timer.After(0, Lay) end
+        end)
+    end
+    -- Saved however the window was dragged: by itself, or by a title bar
+    -- that moves it.
+    local function Save()
+        local ok, left, top, scale = pcall(function()
+            return frame:GetLeft(), frame:GetTop(), frame:GetEffectiveScale()
+        end)
+        if not (ok and left and top and scale) then return end
+        local spots, old = {}, Read("windowSpots")
+        if type(old) == "table" then for k, v in pairs(old) do spots[k] = v end end
+        spots[key] = { x = left * scale, y = top * scale }
+        WriteAll("windowSpots", spots)
+    end
+    -- A drag script can hold the game's StopMovingOrSizing from before the
+    -- hook, so the drag stop is heard too; saving twice does no harm.
+    if type(hooksecurefunc) == "function" and type(frame.StopMovingOrSizing) == "function" then
+        pcall(hooksecurefunc, frame, "StopMovingOrSizing", Save)
+    end
+    if frame.HookScript then frame:HookScript("OnDragStop", Save) end
+    local ok, shown = pcall(frame.IsShown, frame)
+    if ok and shown then Lay() end
+end
+
+function SharedWindow.ResetAllSpots()
+    SharedWindow.ResetSpots()
+    WriteAll("windowSpots", nil)
+    if not InFight() then
+        for _, kept in pairs(hub.kept or {}) do
+            local first = kept.first
+            if first then
+                pcall(function()
+                    kept.frame:ClearAllPoints()
+                    kept.frame:SetPoint(first[1], first[2], first[3], first[4], first[5])
+                end)
+            end
+        end
+    end
+    local names = {}
+    for name in pairs(hub.spotResets or {}) do names[#names + 1] = name end
+    table.sort(names)
+    for _, name in ipairs(names) do pcall(hub.spotResets[name]) end
 end
 
 --- While a game window is open: up but not docked yet (the game showed

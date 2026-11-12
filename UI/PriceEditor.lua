@@ -301,6 +301,7 @@ function PriceEditor:Build()
     self.done:SetPoint("RIGHT", self.list, "LEFT", -8, 0)
 
     self.frame = frame
+    if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(frame, "ts.priceeditor") end
     return frame
 end
 
