@@ -1124,6 +1124,16 @@ local function Build(outer)
     widgets.minMargin:SetPoint("TOPLEFT", CONTROL_X, 0)
     AddUnit(marginRow, widgets.minMargin, "%")
 
+    -- Gold an hour, buy the parts or make them (a Discord player, the
+    -- owner said build it 2026-11-12, casting time only). Off unless ticked.
+    local hourRow = CreateRow(pages.pricing, 2, L["Gold an Hour:"],
+        L["Shows whether buying the parts or making them earns more an hour. Only crafting time counts, not buying or selling."])
+
+    widgets.goldAnHour = Widgets.CreateCheckbox(hourRow, L["On"], function(checked)
+        UI:SetGoldAnHour(checked == true)
+    end, false)
+    widgets.goldAnHour:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     CreateSection(pages.pricing, 2, L["PRICE AGE"])
     local staleRow = CreateRow(pages.pricing, 2, L["Prices Go Stale After:"],
         L["Older prices are greyed out but still used."])
@@ -2656,6 +2666,7 @@ local function Refresh()
     widgets.windowSize:SetValue(shown)
     widgets.mailReport:SetChecked(Config:Get("mailReport") ~= false)
     widgets.hideSaleChat:SetChecked(Config:Get("hideSaleChat") == true)
+    widgets.goldAnHour:SetChecked(Config:Get("profitGoldAnHour") == true)
     for key, box in pairs(widgets.sounds) do
         box:SetChecked(Config:Get(key) ~= false)
     end
@@ -2837,6 +2848,24 @@ end
 local function Confirmed(args)
     return (args or ""):lower():match("^%s*confirm%s*$") ~= nil
 end
+
+--- Turns "Gold an Hour:" on or off and redraws what shows it.
+function UI:SetGoldAnHour(on)
+    ns.Config:Set("profitGoldAnHour", on == true)
+    if widgets.goldAnHour then widgets.goldAnHour:SetChecked(on == true) end
+    if UI.RefreshActiveTab then UI:RefreshActiveTab() end
+end
+
+ns.RegisterCommand("goldhour", L["show gold an hour for buying the parts or making them (on/off)"], function(args)
+    local argument = (args or ""):lower():match("^%s*(.-)%s*$")
+    local on
+    if argument == "on" then on = true
+    elseif argument == "off" then on = false
+    else on = ns.Config:Get("profitGoldAnHour") ~= true end
+    UI:SetGoldAnHour(on)
+    ns.Print(on and L["Gold an hour is on. The Profit tab shows whether buying the parts or making them earns more."]
+        or L["Gold an hour is off."])
+end)
 
 -- These delete data, so they are typed and never a Settings button.
 ns.RegisterCommand("mute", L["turn every Blackthornes sound off or back on (on/off)"], function(args)

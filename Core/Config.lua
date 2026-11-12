@@ -541,6 +541,8 @@ local DEFAULTS = {
         -- The Profit tab's TIME and GOLD/HR columns (asked 2026-10-09),
         -- from its "Per hour" tick box.
         profitShowsPerHour = false,
+        -- Gold an hour, buying the parts or making them (Logic/HourPlans.lua).
+        profitGoldAnHour = false,
 
         -- The columns a player hid (asked 2026-10-09): "list.key" for each,
         -- separated by commas. Empty shows every column. Right-click a
