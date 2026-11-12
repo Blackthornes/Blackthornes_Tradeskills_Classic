@@ -1451,6 +1451,12 @@ local function Build(outer)
         widgets.crateTooltips = ShiftDropdown(crateTipRow, "crate", "tooltipCrateCosts")
     end
 
+    -- A player asked (2026-11-12): what you paid on the auction house.
+    local boughtTipRow = CreateRow(pages.tooltips, 1, L["Bought For on Tooltips:"],
+        L["What you last paid for an item on the auction house. Hold Shift for the average."])
+
+    widgets.boughtTooltips = ShiftDropdown(boughtTipRow, "bought", "tooltipBoughtFor")
+
     CreateSection(pages.look, 1, L["SHOWN IN THE GAME"])
     -- Its own row (a player's report, 2026-10-09): beside the tick box it
     -- started 340 pixels in and ran past the column into the next one.
@@ -2618,6 +2624,7 @@ local function Refresh()
     ShowShiftMode(widgets.enchantTooltips)
     ShowShiftMode(widgets.disenchantTooltips)
     if widgets.crateTooltips then ShowShiftMode(widgets.crateTooltips) end
+    ShowShiftMode(widgets.boughtTooltips)
     widgets.openWithShops:SetChecked(Config:Get("openWithShops") == true)
     widgets.openAtAuction:SetChecked(Config:Get("openAtAuction") ~= false)
     widgets.openAtProfessions:SetChecked(Config:Get("openAtProfessions") ~= false)

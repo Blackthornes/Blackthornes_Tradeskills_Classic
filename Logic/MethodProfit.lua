@@ -136,6 +136,37 @@ function MethodProfit:BuyCost(itemID)
     return math.floor(paid / units + 0.5)
 end
 
+--- What you paid for an item on the auction house, for its tooltip (a
+--- player asked, 2026-11-12): the newest buy still counted, and the average
+--- over every buy still counted. nil when there are none.
+-- @return { each, at, average, units, buys } or nil
+function MethodProfit:BoughtSummary(itemID)
+    local list = itemID and self:GetLog().buys[itemID]
+    if type(list) ~= "table" then return nil end
+
+    local since = Now() - self.BUY_LIFE
+    local newest
+    local units, paid, buys = 0, 0, 0
+    for _, buy in ipairs(list) do
+        local n, cost, at = type(buy) == "table" and tonumber(buy.n),
+            type(buy) == "table" and tonumber(buy.paid), type(buy) == "table" and tonumber(buy.at)
+        if n and n > 0 and cost and cost > 0 and at and at >= since then
+            units = units + n
+            paid = paid + cost
+            buys = buys + 1
+            if not newest or at >= newest.at then
+                newest = { each = math.floor(cost / n + 0.5), at = at }
+            end
+        end
+    end
+
+    if not newest then return nil end
+    newest.average = math.floor(paid / units + 0.5)
+    newest.units = units
+    newest.buys = buys
+    return newest
+end
+
 --- What one of an item cost you, and how that is known.
 -- @return each, "made" | "bought", or nil when it cost you nothing known
 function MethodProfit:CostOf(itemID)

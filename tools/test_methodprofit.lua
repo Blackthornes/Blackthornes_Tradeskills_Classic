@@ -60,6 +60,22 @@ check("average of what was paid", MP:BuyCost(CLOTH), 120)
 MP:NoteBought(CLOTH, 0, 500)
 MP:NoteBought(CLOTH, 5, nil)
 check("junk purchases are ignored", MP:BuyCost(CLOTH), 120)
+
+local ORE = 600
+check("nothing bought: no summary", MP:BoughtSummary(ORE), nil)
+MP:NoteBought(ORE, 10, 1000)
+MP:NoteBought(ORE, 10, 1400)
+now = now + 50
+MP:NoteBought(ORE, 4, 600)
+local bought = MP:BoughtSummary(ORE)
+check("the newest buy, each", bought.each, 150)
+check("and when", bought.at, now)
+check("the average over every buy", bought.average, 125)
+check("units in all", bought.units, 24)
+check("buys in all", bought.buys, 3)
+now = now + MP.BUY_LIFE + 1
+check("too old to count: no summary", MP:BoughtSummary(ORE), nil)
+now = now - MP.BUY_LIFE - 51
 check("a craft cost wins", select(2, MP:CostOf(BOLT)), "made")
 check("else what was bought", select(2, MP:CostOf(CLOTH)), "bought")
 check("loot has none", MP:CostOf(LOOT), nil)

@@ -428,4 +428,51 @@ ns.Writs = nil
 
 ns.Prices.Get = nil
 
+-- What you paid on the auction house (a player asked, 2026-11-12): the newest
+-- buy each and when, the average with Shift held, nothing never bought.
+time = time or os.time
+local realTime = time
+time = function() return 1000000 end
+local summaries = {
+    [LINEN_CLOTH] = { each = 875, at = 1000000 - 2 * 3600, average = 910, units = 60, buys = 4 },
+    [COPPER_BAR] = { each = 300, at = 1000000 - 3600, average = 300, units = 5, buys = 1 },
+}
+ns.MethodProfit = { BoughtSummary = function(_, itemID) return summaries[itemID] end }
+
+local function Find(list, label)
+    for _, line in ipairs(list) do if line[1] == label then return line end end
+end
+
+lines = ItemTooltip:LinesFor(LINEN_CLOTH, nil)
+check("bought for says each and when", Find(lines, "Bought for") and Find(lines, "Bought for")[2], "<875> each  (2h ago)")
+check("several buys give an average", Find(lines, "Average paid") and Find(lines, "Average paid")[2], "<910>  (60 in 4 buys)")
+lines = ItemTooltip:LinesFor(COPPER_BAR, nil)
+check("one buy has no average", Find(lines, "Average paid"), nil)
+check("but still says what it cost", Find(lines, "Bought for") ~= nil, true)
+check("never bought, nothing said", Find(ItemTooltip:LinesFor(SILK_CLOTH, nil), "Bought for"), nil)
+
+-- Shift up: the average waits, and Shift redraws the tooltip for it.
+local shiftDown = false
+ns.TooltipShift = { Shows = function() return true end, ShiftDown = function() return shiftDown end }
+lines = ItemTooltip:LinesFor(LINEN_CLOTH, nil)
+check("the average waits for Shift", Find(lines, "Average paid"), nil)
+check("and says to hold Shift", lines.held, true)
+check("so Shift redraws it", ItemTooltip.boughtHeld, true)
+shiftDown = true
+lines = ItemTooltip:LinesFor(LINEN_CLOTH, nil)
+check("Shift held shows the average", Find(lines, "Average paid") ~= nil, true)
+
+-- The line on Shift: nothing until Shift is held.
+ns.TooltipShift = { Shows = function(_, key) return key ~= "bought" end, ShiftDown = function() return false end }
+lines = ItemTooltip:LinesFor(LINEN_CLOTH, nil)
+check("on Shift, bought for waits", Find(lines, "Bought for"), nil)
+check("and is held", lines.held, true)
+ns.TooltipShift = nil
+
+ns.settings.tooltipBoughtFor = false
+check("turned off, nothing", Find(ItemTooltip:LinesFor(LINEN_CLOTH, nil), "Bought for"), nil)
+ns.settings.tooltipBoughtFor = nil
+ns.MethodProfit = nil
+time = realTime
+
 print("test_itemtooltip: ok")

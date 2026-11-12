@@ -293,6 +293,11 @@ local DEFAULTS = {
         -- UI/ItemTooltip.lua. Never rename it.
         tooltipCrateCosts = true,
 
+        -- What you paid on the auction house, on an item's tooltip (a
+        -- player asked, 2026-11-12). See ItemTooltip:AddBoughtLines. Never
+        -- rename it.
+        tooltipBoughtFor = true,
+
         -- Off, Shift or Always for each tooltip line (asked 2026-10-18):
         -- true keeps that line for while Shift is held. Whether a line is on
         -- stays in its own setting above, and the sales lines' Shift is
@@ -303,6 +308,7 @@ local DEFAULTS = {
         tooltipEnchantShift = false,
         tooltipDisenchantShift = true,
         tooltipCrateShift = false,
+        tooltipBoughtShift = false,
 
         -- A green arrow on the icon of any gear that is an upgrade for the
         -- character playing, as Blackthornes Equipment judges it. Does
