@@ -51,6 +51,7 @@ Data\TravelZones.lua
 
 Logic\Cost.lua
 Logic\CraftTime.lua
+Logic\HourPlans.lua
 Logic\Disenchant.lua
 Logic\DisenchantLog.lua
 Logic\SkillUp.lua

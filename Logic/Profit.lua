@@ -1028,6 +1028,13 @@ function Profit:Analyse(recipeID, characterKey, method)
     analysis.timeSeconds = seconds
     analysis.goldPerHour = ns.CraftTime and ns.CraftTime.PerHour(analysis.profit, seconds) or nil
 
+    -- Buy the parts or make them, whichever earns more an hour (a Discord
+    -- player, 2026-11-12). Only while "Gold an Hour:" is ticked, and only
+    -- for a craft whose own cast is timed (Logic/HourPlans.lua).
+    if analysis.knownByMe and ns.HourPlans and ns.HourPlans:IsOn() then
+        analysis.hourPlans = ns.HourPlans:For(recipeID, analysis)
+    end
+
     -- Margin is profit against revenue; ROI is profit against the gold you must
     -- actually front. They rank very differently and both are worth seeing.
     analysis.margin = analysis.revenue > 0 and (analysis.profit / analysis.revenue) or 0
