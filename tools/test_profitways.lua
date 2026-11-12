@@ -188,6 +188,31 @@ check("with only two ways, both are described", #Profit:DescribeWays(Profit:Anal
 disenchantable = true
 
 print("")
+print("vendor and DE, the AH left out (asked 2026-11-12)")
+
+enchanterSkill = 75
+a = Profit:Analyse(RECIPE, nil, "vendordisenchant")
+check("disenchanting still wins when someone can break it", a.via, "disenchant")
+check("at its profit", a.profit, 120)
+enchanterSkill = nil
+a = Profit:Analyse(RECIPE, nil, "vendordisenchant")
+check("with no enchanter the vendor wins", a.via, "vendor")
+check("making 10c", a.profit, 10)
+ns.Prices:Record(BELT, 900000, 900000, 4, time(), 900000, nil)
+check("the AH pays most of all now", Profit:Analyse(RECIPE, nil, "best").via, "auction")
+check("but vendor and DE never picks it", Profit:Analyse(RECIPE, nil, "vendordisenchant").via, "vendor")
+ns.Prices:Record(BELT, 65, 60, 4, time(), 60, nil)
+settings.profitBy = "vendordisenchant"
+check("the pick is kept", Profit:GetMethod(), "vendordisenchant")
+check("it is listed", #Profit:GetRanked({ method = "vendordisenchant", minProfit = 0 }), 1)
+settings.profitBy = nil
+
+check("the tag names the AH", Profit.WayTag("auction"):find("(AH)", 1, true) ~= nil, true)
+check("the vendor", Profit.WayTag("vendor"):find("(Vendor)", 1, true) ~= nil, true)
+check("and disenchanting", Profit.WayTag("disenchant"):find("(DE)", 1, true) ~= nil, true)
+check("no way, no tag", Profit.WayTag(nil), "")
+
+print("")
 print("the choice kept in Settings")
 
 check("nothing picked is the best way", Profit:GetMethod(), "best")

@@ -40,7 +40,7 @@ end
 local COLUMNS = {
     { key = "learn",      label = L["LEARN FROM"], width = 92, justify = "CENTER" },
     { key = "price",      label = L["RECIPE"],     width = 66, money = true },
-    { key = "profit",     label = L["PROFIT"],     width = 70, money = true },
+    { key = "profit",     label = L["PROFIT"],     width = 104, money = true },
     -- How well the item it makes sells (Logic/Demand.lua), as on My crafts,
     -- so a player can tell before buying the recipe.
     { key = "demand",     label = L["DEMAND"],     width = 50, justify = "CENTER" },
@@ -222,7 +222,8 @@ local function NewView(opts)
         end
 
         if entry.profit then
-            Theme.SetMoneyText(cells.profit, entry.profit, { short = true })
+            Theme.SetMoneyText(cells.profit, entry.profit, { short = true,
+                suffix = ns.Profit and ns.Profit.WayTag(entry.backWay) or nil })
             cells.profit:SetTextColor(Theme.ProfitColor(entry.profit))
         else
             cells.profit:SetText("--")

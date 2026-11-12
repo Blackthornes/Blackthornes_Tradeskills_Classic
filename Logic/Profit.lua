@@ -596,10 +596,41 @@ end
 Profit.WAYS = { "vendor", "auction", "disenchant" }
 
 -- What the Profit tab's switch offers, in its order.
-Profit.METHODS = { "best", "auction", "vendor", "disenchant" }
+-- "vendordisenchant" (a player asked, 2026-11-12) leaves the auction house
+-- out and takes whichever of vendor and disenchant pays more.
+Profit.METHODS = { "best", "auction", "vendor", "vendordisenchant", "disenchant" }
+
+-- The ways each method that weighs more than one way picks from, in tie
+-- order. A method not listed here counts its own way alone.
+Profit.METHOD_WAYS = {
+    best = Profit.WAYS,
+    vendordisenchant = { "vendor", "disenchant" },
+}
 
 -- Short names, for the VIA column and the switch.
 Profit.WAY_LABELS = { auction = L["AH"], vendor = L["Vendor"], disenchant = L["DE"] }
+
+--- The source tag that rides after a profit number where there is no VIA
+--- column: "(AH)", "(Vendor)" or "(DE)", in that way's colour. "" for none.
+--- Colours text the way a profit came by (AH blue, Vendor cream gold, DE
+--- purple); the text as it is when the way has no colour.
+function Profit.WayColored(way, text)
+    local Theme = ns.Theme
+    local color = way and Theme and Theme.colors and Theme.colors["way_" .. way]
+    if type(color) == "table" and color[1] then
+        return string.format("|cff%02x%02x%02x%s|r", math.floor(color[1] * 255 + 0.5),
+            math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5), text)
+    end
+    return text
+end
+
+--- "(AH)", "(Vendor)" or "(DE)" in the way's colour, put after a profit
+--- number; "" when no way is known.
+function Profit.WayTag(way)
+    local label = way and Profit.WAY_LABELS[way]
+    if not label then return "" end
+    return Profit.WayColored(way, L.Format("(%s)", label))
+end
 
 -- How /bts why names where a material's price came from (Cost's sources).
 local SOURCE_NOTES = {
@@ -611,6 +642,7 @@ local NO_WAY_REASON = {
     auction = L["no auction price"],
     vendor = L["no vendor price"],
     disenchant = L["cannot be disenchanted"],
+    vendordisenchant = L["no vendor price"],
 }
 
 --- Can one of your characters disenchant this? Read from what each last
@@ -875,7 +907,8 @@ function Profit:Analyse(recipeID, characterKey, method)
 
     -- Ranked by disenchanting, a craft no auction or vendor prices may
     -- still be worth breaking down.
-    local countsDisenchant = (method == "best" or method == "disenchant")
+    local countsDisenchant = (method == "best" or method == "disenchant"
+        or method == "vendordisenchant")
         and analysis.disenchantValue ~= nil
 
     if not unitRevenue and not countsDisenchant then
@@ -950,8 +983,8 @@ function Profit:Analyse(recipeID, characterKey, method)
     if method == nil then
         -- The sale the Sell tab would make, decided above.
         via = basis == "vendor" and "vendor" or "auction"
-    elseif method == "best" then
-        for _, way in ipairs(self.WAYS) do
+    elseif self.METHOD_WAYS[method] then
+        for _, way in ipairs(self.METHOD_WAYS[method]) do
             local option = ways[way]
             -- Disenchanting counts only when one of your characters can.
             local usable = option and (way ~= "disenchant" or option.canDisenchant == true)

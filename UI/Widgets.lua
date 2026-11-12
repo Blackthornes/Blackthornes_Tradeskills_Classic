@@ -1069,8 +1069,19 @@ function Widgets.CreateDropdown(parent, options, onSelect, opts)
                 entry.mark:Hide()
 
                 local function Light(value) entry.highlight:SetAlpha(value) end
-                entry:SetScript("OnEnter", function(self) Motion:Blend(self, "hover", 1, 0.08, Light) end)
-                entry:SetScript("OnLeave", function(self) Motion:Blend(self, "hover", 0, 0.15, Light) end)
+                -- An option may carry a hover of its own (`option.tooltip`).
+                entry:SetScript("OnEnter", function(self)
+                    Motion:Blend(self, "hover", 1, 0.08, Light)
+                    if self.tip and GameTooltip then
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetText(self.tip, 1, 1, 1, 1, true)
+                        GameTooltip:Show()
+                    end
+                end)
+                entry:SetScript("OnLeave", function(self)
+                    Motion:Blend(self, "hover", 0, 0.15, Light)
+                    if self.tip and GameTooltip then GameTooltip:Hide() end
+                end)
 
                 entries[index] = entry
             end
@@ -1089,6 +1100,7 @@ function Widgets.CreateDropdown(parent, options, onSelect, opts)
                 entry.label:SetTextColor(Theme.Unpack(color))
                 entry.mark:SetShown(IsOn(option))
                 entry:EnableMouse(not option.header)
+                entry.tip = option.tooltip
                 entry:Show()
             else
                 entry:Hide()

@@ -989,7 +989,13 @@ function RecipeBook:TooltipLines(itemID)
 
     if value.profit then
         local text = Money(value.profit)
-        if value.backWay and value.backWay ~= "auction" then
+        -- Always name the way that won, the AH too, in its colour (asked
+        -- 2026-11-12, so a player can see where the money comes from).
+        local Profit = ns.Profit
+        local word = value.backWay and Profit and Profit.WAY_LABELS and Profit.WAY_LABELS[value.backWay]
+        if word then
+            text = L.Format("%s  (by %s)", text, Profit.WayColored(value.backWay, word))
+        elseif value.backWay then
             text = L.Format("%s  (by %s)", text, WAY_NAMES[value.backWay] or value.backWay)
         end
         lines[#lines + 1] = { L["Profit per craft"], text, color = value.profit >= 0 and "profit" or "loss" }

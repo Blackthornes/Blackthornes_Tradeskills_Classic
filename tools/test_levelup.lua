@@ -261,6 +261,12 @@ method = "best"
 belt = LevelUp:BuildRow(1)
 check("set to Best, whichever pays most", belt.back == 238 and belt.backWay == "disenchant")
 
+method = "vendordisenchant"
+belt = LevelUp:BuildRow(1)
+check("set to Vendor and DE, the better of those two", belt.back == 238 and belt.backWay == "disenchant")
+kilt = LevelUp:BuildRow(6)
+check("Vendor and DE: no disenchant, the vendor counts", kilt.back == 40 and kilt.backWay == "vendor")
+
 method = "something old"
 belt = LevelUp:BuildRow(1)
 check("an unknown choice counts as Best", belt.back == 238 and belt.returns.method == "best")

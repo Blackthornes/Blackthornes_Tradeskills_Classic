@@ -39,6 +39,9 @@ local COLUMNS = {
     { key = "sub",    label = L["SUB-CRAFT"], width = 50, justify = "CENTER", button = true },
 }
 
+local COLUMNS_BY_KEY = {}
+for _, column in ipairs(COLUMNS) do COLUMNS_BY_KEY[column.key] = column end
+
 -- Any column but the recipe's name can be hidden (UI/Columns.lua).
 ns.Columns:Register("levelup", L["Level Up"], COLUMNS)
 
@@ -432,7 +435,11 @@ local function UpdateRow(row, entry)
     end
 
     if entry.back then
-        Theme.SetMoneyText(cells.back, entry.back, { short = true })
+        -- With the VIA column squeezed out or hidden, the source rides on
+        -- the number instead (a player asked, 2026-11-12).
+        local viaShown = not squeezed.via and ns.Columns:Shown("levelup", COLUMNS_BY_KEY.via)
+        Theme.SetMoneyText(cells.back, entry.back, { short = true,
+            suffix = not viaShown and ns.Profit.WayTag(entry.backWay) or nil })
         cells.via:SetText(WAY_SHORT[entry.backWay] or "")
         cells.via:SetTextColor(Theme.Unpack("muted"))
     else

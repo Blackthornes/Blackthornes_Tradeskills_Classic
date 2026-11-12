@@ -133,7 +133,10 @@ local squeezedKey = ""
 --- The list's own rules for a column, before any is set aside for room.
 local function ColumnWanted(column)
     if column.accountWideOnly then return state.accountWide end
-    if column.bestOnly then return Method() == "best" end
+    if column.bestOnly then
+        local method = Method()
+        return method == "best" or method == "vendordisenchant"
+    end
     if column.disenchantOnly then return state.showDisenchant end
     if column.perHourOnly then return ns.Config:Get("profitShowsPerHour") == true end
     return true
@@ -2009,13 +2012,17 @@ local function BuildCrafts(container)
     for _, method in ipairs(ns.Profit.METHODS or {}) do
         if labels[method] then
             methodOptions[#methodOptions + 1] = { text = L.Format("Profit: %s", labels[method]), value = method }
+        elseif method == "vendordisenchant" then
+            -- The AH left out, for a player who finds it slow (asked 2026-11-12).
+            methodOptions[#methodOptions + 1] = { text = L["Profit: Vendor and DE"], value = method,
+                tooltip = L["Counts vendor and disenchant money. Leaves the AH out."] }
         end
     end
 
     local method = Widgets.CreateDropdown(toolbar, methodOptions, function(value)
         ns.Config:Set("profitBy", value)
 
-        -- VIA shows only when ranked by whichever pays most.
+        -- VIA shows only when more than one way can win.
         layoutVersion = layoutVersion + 1
         ApplyHeadingLayout()
 
@@ -2026,7 +2033,7 @@ local function BuildCrafts(container)
         if pane and pane.RequestRefresh and pane.IsShown and pane:IsShown() then
             pane:RequestRefresh()
         end
-    end, { width = 140 })
+    end, { width = 170 })
     method:SetPoint("LEFT", profession, "RIGHT", 8, 0)
     method:SetValue(Method() or "best")
     widgets.methodDropdown = method
