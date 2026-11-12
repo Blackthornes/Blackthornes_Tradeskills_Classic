@@ -94,7 +94,7 @@ function GoldGoalUI.Play(which)
     if ns.Config and ns.Config:Get("goldTrackerSound") == false then return false end
     if type(PlaySound) ~= "function" then return false end
     for _, id in ipairs(GoldGoalUI.SOUNDS[which] or {}) do
-        local ok, willPlay = pcall(PlaySound, id, "Master")
+        local ok, willPlay = pcall(ns.PlaySound or PlaySound, id, "Master")
         if ok and willPlay then return true end
     end
     return false

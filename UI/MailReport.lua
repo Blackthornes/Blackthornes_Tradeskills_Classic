@@ -60,13 +60,13 @@ function MailReport.Play(which)
     if ns.Config and ns.Config:Get("mailReportSound") == false then return false end
 
     if type(PlaySoundFile) == "function" then
-        local ok, willPlay = pcall(PlaySoundFile, MailReport.SOUNDS[which], "Master")
+        local ok, willPlay = pcall(ns.PlaySoundFile or PlaySoundFile, MailReport.SOUNDS[which], "Master")
         if ok and willPlay then return true end
     end
 
     if type(PlaySound) == "function" then
         for _, id in ipairs(FALLBACK[which] or {}) do
-            local ok, willPlay = pcall(PlaySound, id, "Master")
+            local ok, willPlay = pcall(ns.PlaySound or PlaySound, id, "Master")
             if ok and willPlay then return true end
         end
     end

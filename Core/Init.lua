@@ -100,6 +100,20 @@ local function Keep(line)
     if kept then kept[#kept + 1] = Plain(line) end
 end
 
+-- Every sound goes through these two, so Mute All Sounds (UI/SharedChoices.lua)
+-- quiets them all, fallbacks too. Muted, they answer false: "won't play".
+function ns.PlaySound(...)
+    if ns.Muted and ns.Muted() then return false end
+    if type(PlaySound) ~= "function" then return false end
+    return PlaySound(...)
+end
+
+function ns.PlaySoundFile(...)
+    if ns.Muted and ns.Muted() then return false end
+    if type(PlaySoundFile) ~= "function" then return false end
+    return PlaySoundFile(...)
+end
+
 function ns.Print(...)
     local frame = DEFAULT_CHAT_FRAME
     if frame then

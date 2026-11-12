@@ -182,6 +182,29 @@ assert(took == 1, "one other addon took it, the broken one skipped")
 assert(#heard == 1 and heard[1] == "two:textSize=large", "it never comes back")
 assert(ns.SharedChoices:Changed("nothing", 1) == 0, "only the shared choices go")
 
+-- 6b. Mute All Sounds: one switch on the shared board for every addon.
+assert(not ns.Muted() and not other.Muted(), "sounds play until the box is ticked")
+local twoSave = nil
+BlackthornesSharedChoices.muteReaders.Two = function() return twoSave end
+assert(not ns.Muted(), "a save not loaded yet says nothing")
+twoSave = false
+assert(not ns.Muted(), "a save that never ticked it keeps sounds on")
+assert(BlackthornesSharedChoices.muteReaders.Two == nil, "each save is read once")
+heard = {}
+ns.SharedChoices:SetMute(true, 200)
+assert(ns.Muted() and other.Muted(), "ticked in one, every addon goes quiet")
+assert(heard[1] == "two:muteSounds=true", "and the others are told so they save it")
+BlackthornesSharedChoices.muteReaders.Old = function() return false, 150 end
+assert(ns.Muted(), "an older save never turns it back on")
+BlackthornesSharedChoices.muteReaders.Newer = function() return false, 300 end
+assert(not ns.Muted(), "a newer save wins")
+BlackthornesSharedChoices.muteReaders.Late = function() return true, 400 end
+assert(other.Muted(), "an addon off when it was ticked still goes quiet once its save loads")
+BlackthornesSharedChoices.muteReaders.Bad = function() error("broken") end
+assert(ns.Muted() and BlackthornesSharedChoices.muteReaders.Bad == nil, "a broken reader is let go")
+other.SharedChoices:SetMute(false, 500)
+assert(not ns.Muted(), "unticked anywhere, sounds come back")
+
 -- 7. Panel gems.
 local header = Object(UIParent)
 local folds, closes = {}, 0

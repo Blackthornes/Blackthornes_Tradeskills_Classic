@@ -230,7 +230,7 @@ end
 function SellOut:Cheer()
     if type(PlaySound) ~= "function" then return end
     local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-    pcall(PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
+    pcall(ns.PlaySound or PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
 end
 
 --- This character's mailbox was just read. Settle every window that has run

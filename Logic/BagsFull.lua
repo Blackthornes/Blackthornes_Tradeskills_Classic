@@ -51,7 +51,7 @@ function BagsFull:Warn()
     if ns.Config:Get("bagsFullSound") == false or type(PlaySound) ~= "function" then return end
 
     local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-    pcall(PlaySound, kits.ALARM_CLOCK_WARNING_2 or WARNING_SOUND, "Master")
+    pcall(ns.PlaySound or PlaySound, kits.ALARM_CLOCK_WARNING_2 or WARNING_SOUND, "Master")
 end
 
 function BagsFull:OnEnable()

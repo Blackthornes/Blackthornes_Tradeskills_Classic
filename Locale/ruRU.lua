@@ -3365,3 +3365,7 @@ L["Columns, the arrow and Goblin Gold"] = "Столбцы, стрелка и Г�
 L["Looking..."] = "Ищу..."
 L["No Deals Left"] = "Выгодных больше нет"
 L["Buys the cheapest one that still makes a profit. One click buys one, and it's marked bought to disenchant."] = "Покупает самый дешёвый, который ещё принесёт прибыль. Один щелчок покупает один, и он помечается как купленный для распыления."
+L["Mute All Sounds:"] = "Выключить все звуки:"
+L["turn every Blackthornes sound off or back on (on/off)"] = "выключить или снова включить все звуки Blackthornes (on/off)"
+L["All Blackthornes sounds are off. /bts mute off turns them back on."] = "Все звуки Blackthornes выключены. /bts mute off включит их снова."
+L["Blackthornes sounds are back on."] = "Звуки Blackthornes снова включены."

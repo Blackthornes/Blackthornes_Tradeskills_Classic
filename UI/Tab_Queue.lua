@@ -759,7 +759,7 @@ local function AnnounceAltCrafts(lines)
     if found and type(PlaySound) == "function" and ns.Config:Get("altCraftSound") ~= false then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
         local kit = kits.LOOT_WINDOW_COIN_SOUND or 120
-        pcall(PlaySound, kit, "Master")
+        pcall(ns.PlaySound or PlaySound, kit, "Master")
     end
 end
 

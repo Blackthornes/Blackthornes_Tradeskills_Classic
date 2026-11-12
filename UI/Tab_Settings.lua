@@ -1642,6 +1642,14 @@ local function Build(outer)
         return box
     end
 
+    -- One box quiets every sound every Blackthornes addon plays, this
+    -- warning about saved data included (UI/SharedChoices.lua).
+    local muteRow = CreateRow(pages.general, 2, L["Mute All Sounds:"], nil)
+    widgets.muteSounds = Widgets.CreateCheckbox(muteRow, L["On"], function(checked)
+        UI:SetMuteSounds(checked)
+    end, false)
+    widgets.muteSounds:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     -- The sale alarm picks its sound (asked 2026-10-11: players found the
     -- raid warning too much and asked for an old cash register). Off is the
     -- saleAlarm switch; the sound is saleSound. Picking one plays it.
@@ -1698,7 +1706,7 @@ local function Build(outer)
         L["A cheer on the Stats tab when an item has its best week of sales yet, once a week."],
         function()
             local kit = type(SOUNDKIT) == "table" and SOUNDKIT.IG_QUEST_LIST_COMPLETE or 878
-            pcall(PlaySound, kit, "Master")
+            pcall(ns.PlaySound or PlaySound, kit, "Master")
         end)
 
     -- Which columns each list shows (asked 2026-10-09). The same tick list
@@ -2489,6 +2497,7 @@ local function Refresh()
     for key, box in pairs(widgets.sounds) do
         box:SetChecked(Config:Get(key) ~= false)
     end
+    widgets.muteSounds:SetChecked(ns.Muted and ns.Muted() or false)
     widgets.saleAlarm:Refresh()
     widgets.cooldownAlerts:SetChecked(Config:Get("cooldownAlerts") ~= false)
     widgets.tradeRequests:SetChecked(Config:Get("tradeRequests") == true)
@@ -2583,6 +2592,17 @@ end
 
 --- Delete every stored price for this realm. The other realms keep their
 --- prices, so they keep their scan times and sizes too.
+-- Mute All Sounds: kept in this addon's settings and told to every sister.
+function UI:SetMuteSounds(on)
+    on = on == true
+    local at = ns.SharedChoices and ns.SharedChoices:SetMute(on) or nil
+    if ns.Config then
+        ns.Config:Set("muteSounds", on)
+        ns.Config:Set("muteSoundsAt", at)
+    end
+    if widgets and widgets.muteSounds then widgets.muteSounds:SetChecked(on) end
+end
+
 function UI:ClearPriceData()
     local realmKey = ns.Config:GetRealmKey()
     ns.db.prices[realmKey] = {}
@@ -2633,6 +2653,17 @@ local function Confirmed(args)
 end
 
 -- These delete data, so they are typed and never a Settings button.
+ns.RegisterCommand("mute", L["turn every Blackthornes sound off or back on (on/off)"], function(args)
+    local argument = (args or ""):lower():match("^%s*(.-)%s*$")
+    local on
+    if argument == "on" then on = true
+    elseif argument == "off" then on = false
+    else on = not (ns.Muted and ns.Muted()) end
+    UI:SetMuteSounds(on)
+    ns.Print(on and L["All Blackthornes sounds are off. /bts mute off turns them back on."]
+        or L["Blackthornes sounds are back on."])
+end)
+
 ns.RegisterCommand("clearprices", L["delete every saved price on this realm (add confirm)"], function(args)
     if not Confirmed(args) then
         ns.Print(L["This deletes every saved price on this realm. Type /bts clearprices confirm to do it."])
@@ -2678,7 +2709,13 @@ if ns.SharedChoices then
             if ns.Travel then ns.Travel:SetOn(value and true or false) end
         elseif choice == "arrowSize" then
             if ns.WayArrowUI then ns.WayArrowUI:SetSize(value) end
+        elseif choice == "muteSounds" then
+            ns.Config:Set("muteSounds", value == true)
+            ns.Config:Set("muteSoundsAt", ns.SharedChoices.board.mute and ns.SharedChoices.board.mute.at)
         end
         if ns.UI and ns.UI.RefreshActiveTab then pcall(ns.UI.RefreshActiveTab, ns.UI) end
+    end, function()
+        if not ns.db or not ns.db.settings then return nil end
+        return ns.db.settings.muteSounds == true, ns.db.settings.muteSoundsAt
     end)
 end

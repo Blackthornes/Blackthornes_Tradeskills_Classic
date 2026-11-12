@@ -709,7 +709,7 @@ function Crafting:AnnounceRunDone(run)
     end
 
     local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-    pcall(PlaySound, kits.READY_CHECK or 8960, "Master")
+    pcall(ns.PlaySound or PlaySound, kits.READY_CHECK or 8960, "Master")
 end
 
 function Crafting:StopWatching()

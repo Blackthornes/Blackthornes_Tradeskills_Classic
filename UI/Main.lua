@@ -1229,7 +1229,7 @@ function UI:CelebrateScan(result)
 
     if (not ns.Config or ns.Config:Get("scanSounds") ~= false) and type(PlaySound) == "function" then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-        pcall(PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
+        pcall(ns.PlaySound or PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
     end
 end
 

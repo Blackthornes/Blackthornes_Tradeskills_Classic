@@ -394,7 +394,7 @@ end
 function Contribute:Alert(line)
     if type(PlaySound) == "function" then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-        pcall(PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
+        pcall(ns.PlaySound or PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
     end
     if ns.Notice and ns.Notice.Show then
         pcall(ns.Notice.Show, ns.Notice, line, { key = "contribute" })

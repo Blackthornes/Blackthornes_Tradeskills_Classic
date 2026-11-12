@@ -665,7 +665,7 @@ MerchantsFavor.SOUNDS = {
 local function Play(which)
     if type(PlaySound) ~= "function" then return end
     for _, id in ipairs(MerchantsFavor.SOUNDS[which] or {}) do
-        local ok, willPlay = pcall(PlaySound, id, "Master")
+        local ok, willPlay = pcall(ns.PlaySound or PlaySound, id, "Master")
         if ok and willPlay then return end
     end
 end
