@@ -233,6 +233,7 @@ function RoadPlan:Candidates(line)
     for _, record in pairs(all) do
         if LineOf(record, memo) == line and record.yellow and record.grey
             and record.reagents and #record.reagents > 0
+            and not RoadPlan:IsSkipped(record.recipeID)
             and not (not record.forever and record.name and remade[record.name:lower()]) then
             local known = record.starter or book:KnowsIt(record)
             local place
@@ -247,6 +248,60 @@ function RoadPlan:Candidates(line)
     end
     table.sort(list, function(a, b) return a.record.recipeID < b.record.recipeID end)
     return list
+end
+
+--------------------------------------------------------------------------------
+-- Skipped recipes (a player asked, the owner said build it, 2026-11-12):
+-- right-click a step and Skip This Recipe, and the road picks the next one.
+-- Kept account wide in `roadSkipped`, recipeID -> name (never rename it).
+-- Only the road reads it; the queue and the other tabs are untouched.
+--------------------------------------------------------------------------------
+
+RoadPlan.skipVersion = 0
+
+local function Skipped()
+    return ns.db and ns.db.roadSkipped
+end
+
+function RoadPlan:IsSkipped(recipeID)
+    local skipped = recipeID ~= nil and Skipped()
+    return skipped and skipped[recipeID] ~= nil or false
+end
+
+--- Leave a recipe off the road. The road is worked out again.
+-- @return true when it was skipped
+function RoadPlan:Skip(recipeID, name)
+    if not ns.db or type(recipeID) ~= "number" then return false end
+    ns.db.roadSkipped = ns.db.roadSkipped or {}
+    local record = ns.RecipeBook and ns.RecipeBook.Get and ns.RecipeBook:Get(recipeID)
+    ns.db.roadSkipped[recipeID] = name or (record and record.name) or ("recipe " .. recipeID)
+    RoadPlan.skipVersion = RoadPlan.skipVersion + 1
+    return true
+end
+
+--- The skipped recipes of one profession, by its Classic line.
+function RoadPlan:SkippedOn(line)
+    local list = {}
+    local skipped = Skipped()
+    if not skipped then return list end
+    local book = ns.RecipeBook
+    local memo = {}
+    for recipeID in pairs(skipped) do
+        local record = book and book.Get and book:Get(recipeID)
+        if record and LineOf(record, memo) == line then list[#list + 1] = recipeID end
+    end
+    table.sort(list)
+    return list
+end
+
+--- Show All: bring back every skipped recipe of one profession.
+-- @return how many came back
+function RoadPlan:ShowAllOn(line)
+    local skipped = Skipped()
+    local list = self:SkippedOn(line)
+    for _, recipeID in ipairs(list) do skipped[recipeID] = nil end
+    if #list > 0 then RoadPlan.skipVersion = RoadPlan.skipVersion + 1 end
+    return #list
 end
 
 --- How the road picks its recipes: "lowest" (what the materials cost) or
@@ -572,6 +627,7 @@ local function Key(profession, level)
         tostring(ns.Prices and ns.Prices.scanCount or 0),
         tostring(ns.Queue and ns.Queue.version or 0),
         RoadPlan.PickBy(),
+        tostring(RoadPlan.skipVersion),
         -- Farmer's fishing pace moves with every cast it counts.
         profession.line == RoadPlan.FISHING and tostring(RoadPlan.FarmerPaceVersion()) or "",
     }, "|")

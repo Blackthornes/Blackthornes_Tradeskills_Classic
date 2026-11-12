@@ -576,6 +576,91 @@ check("seen: goes past 75", (cookPlan.stuck or 300) > 75, true)
 ns.db.seenRecipes = nil
 ns.RecipeBook:Invalidate()
 
+
+print("\nfishing: the road")
+check("1 to 75 is a catch a point", Road.FishCatches(1, 75), 74)
+check("75 to 100 takes more", Road.FishCatches(75, 100), 37)
+local fishPlan = Road.FishPlan({ skill = 95, max = 150, level = 15, side = "A", race = "Human",
+  farmer = false, owned = {} })
+check("eight steps: four ranks, four zones", #fishPlan.steps, 8)
+check("a fishing plan", fishPlan.fishing, true)
+check("Apprentice done", fishPlan.steps[1].done, true)
+check("Elwynn done", fishPlan.steps[2].done, true)
+check("Journeyman done", fishPlan.steps[3].done, true)
+local westfall = fishPlan.steps[4]
+check("now: Westfall", westfall.zone, "Westfall")
+check("from your skill", westfall.from, 95)
+check("marked current", westfall.current, true)
+check("the plan's current step", fishPlan.current, 4)
+check("catches 95 to 125", westfall.catches, Road.FishCatches(95, 125))
+check("no pace without Farmer", westfall.paced, nil)
+check("Westfall's fish never get away at 95", westfall.lure and westfall.lure.cover, nil)
+local stv = fishPlan.steps[6]
+check("then Stranglethorn Vale", stv.zone, "Stranglethorn Vale")
+check("a lure for the vale", stv.lure ~= nil and not stv.lure.cover, true)
+check("the best one you can buy", stv.lure and stv.lure.item, 6532)
+check("book step is a book", fishPlan.steps[5].how.kind, "book")
+check("quest step locked at 15", fishPlan.steps[7].locked, true)
+check("no queue for fishing", fishPlan.pickBy, "lowest")
+check("hours at least 1", Road.FishHours(fishPlan) >= 1, true)
+
+print("\nfishing: the words")
+local words = Road.Texts(westfall, "Fishing", 15, 356)
+check("title", words.title, "Fish in Westfall")
+check("range", words.range, "95 to 125")
+check("chip on the current one", words.chip, "Now")
+check("count line", words.lines[1], ("About %d more catches."):format(westfall.catches))
+local valeWords = Road.Texts(stv, "Fishing", 15, 356)
+check("not current: no chip", valeWords.chip, nil)
+check("lure tip", valeWords.tip, "Fish get away here until you reach 130. Put on a item 6532 (+75) first.")
+check("trainer title", Road.Texts(fishPlan.steps[1], "Fishing", 15, 356).title, "Train Apprentice Fishing")
+local quest = Road.Texts(fishPlan.steps[7], "Fishing", 15, 356)
+check("quest chip", quest.chip, "Level 35")
+check("quest says your level", quest.lines[#quest.lines], "You're level 15.")
+
+print("\nfishing: with Farmer")
+local paced = Road.FishPlan({ skill = 95, max = 150, level = 15, side = "A", race = "Human", owned = { [6530] = { 4 } },
+  farmer = { seconds = 12, best = { name = "Jangolode Mine", place = { kind = "spot", name = "Jangolode Mine",
+    zone = "Westfall", x = 40, y = 20 } } } })
+local pacedStep = paced.steps[4]
+check("your pace", pacedStep.each, 12)
+check("paced", pacedStep.paced, true)
+local pacedWords = Road.Texts(pacedStep, "Fishing", 15, 356)
+check("best spot line", pacedWords.lines[2], "Best spot you've fished here: Jangolode Mine.")
+check("show the way to it", Road:PlaceFor(pacedStep, 356).name, "Jangolode Mine")
+check("a lure in the bags first", paced.steps[6].lure.item, 6530)
+check("says how many you have", Road.Texts(paced.steps[6], "Fishing", 15, 356).tip,
+  "Fish get away here until you reach 130. Put on a item 6530 (+50) first. You have 4.")
+check("never a spot it doesn't know", Road:PlaceFor(westfall, 356), nil)
+
+print("\nskip a recipe")
+local function HasCandidate(id)
+  for _, c in ipairs(Road:Candidates(164)) do if c.record.recipeID == id then return true end end
+  return false
+end
+check("the belt is offered", HasCandidate(3), true)
+check("nothing skipped yet", #Road:SkippedOn(164), 0)
+local beforePlan = Road:Get(professions[1])
+check("skip needs a recipe ID", Road:Skip(nil), false)
+check("skip the belt", Road:Skip(3), true)
+check("kept by name", ns.db.roadSkipped[3], ns.RecipeBook:Get(3).name)
+check("it is skipped", Road:IsSkipped(3), true)
+check("another is not", Road:IsSkipped(4), false)
+check("the road leaves it out", HasCandidate(3), false)
+local skippedPlan = Road:Get(professions[1])
+check("the plan is worked out again", skippedPlan ~= beforePlan, true)
+local beltLeft = false
+for _, step in ipairs(skippedPlan.steps) do
+  if step.kind == "craft" and step.recipeID == 3 then beltLeft = true end
+end
+check("no step for it", beltLeft, false)
+check("listed for its profession", Road:SkippedOn(164)[1], 3)
+check("not for another", #Road:SkippedOn(185), 0)
+check("Show All brings it back", Road:ShowAllOn(164), 1)
+check("offered again", HasCandidate(3), true)
+check("nothing skipped after", Road:IsSkipped(3), false)
+check("Show All with nothing skipped", Road:ShowAllOn(164), 0)
+
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 
 print("")

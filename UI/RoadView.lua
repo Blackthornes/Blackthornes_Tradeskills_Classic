@@ -204,6 +204,47 @@ local function UpdateRow(row, step)
     row.way:SetShown(place ~= nil and place ~= false)
 end
 
+--- A step's right-click menu (the house row menu), the usual action
+--- first: Queue Step, Show the Way, then Skip This Recipe (a player asked,
+--- the owner said build it, 2026-11-12). Only a craft step still to do.
+function RoadView.StepMenu(step)
+    if type(step) ~= "table" or step.done or step.kind ~= "craft" or not step.recipeID then return nil end
+    local profession = Picked()
+    local lines = {}
+    lines[#lines + 1] = { text = L["Queue Step"], run = function() RoadView:QueueStep(step) end }
+    local place = ns.RoadPlan:PlaceFor(step, profession and profession.line)
+    if place then
+        lines[#lines + 1] = { text = L["Show the Way"], run = function()
+            ns.RoadPlan:ShowTheWay(step, profession.line, profession.name)
+        end }
+    end
+    lines[#lines + 1] = { text = L["Skip This Recipe"], run = function()
+        RoadView:SkipStep(step)
+    end }
+    return lines
+end
+
+--- Skip This Recipe: the road leaves it out and picks the next one.
+function RoadView:SkipStep(step)
+    if not (step and step.recipeID) then return end
+    if ns.RoadPlan:Skip(step.recipeID, step.name) and self.built then self:Refresh() end
+end
+
+--- Show All: every skipped recipe of the profession shown comes back.
+function RoadView:ShowAll()
+    local profession = Picked()
+    if not profession then return end
+    ns.RoadPlan:ShowAllOn(profession.line)
+    if self.built then self:Refresh() end
+end
+
+--- "1 recipe skipped." / "3 recipes skipped.", or nil with none.
+function RoadView.SkippedText(count)
+    if not count or count <= 0 then return nil end
+    if count == 1 then return L["1 recipe skipped."] end
+    return L.Format("%d recipes skipped.", count)
+end
+
 --------------------------------------------------------------------------------
 -- Build
 --------------------------------------------------------------------------------
@@ -265,6 +306,14 @@ function RoadView:Build(view)
     widgets.total = Theme.CreateLabel(footer, "normal", "text")
     widgets.total:SetPoint("LEFT", widgets.totalLabel, "RIGHT", 8, 0)
 
+    -- Show All brings back the recipes skipped on this road.
+    widgets.showAll = Widgets.CreateButton(footer, L["Show All"], function()
+        RoadView:ShowAll()
+    end, { width = 80, height = 24 })
+    Fit(widgets.showAll)
+    widgets.showAll:SetPoint("RIGHT", widgets.queueAll, "LEFT", -8, 0)
+    widgets.showAll:Hide()
+
     widgets.saved = Theme.CreateLabel(footer, "small", "muted")
     widgets.saved:SetPoint("TOPLEFT", widgets.totalLabel, "BOTTOMLEFT", 0, -4)
     widgets.saved:SetPoint("RIGHT", widgets.queueAll, "LEFT", -12, 0)
@@ -279,6 +328,7 @@ function RoadView:Build(view)
         rowHeight = ROW_HEIGHT,
         createRow = CreateRow,
         updateRow = UpdateRow,
+        menu = RoadView.StepMenu,
         isSelected = function(step)
             local plan = RoadView.plan
             return plan ~= nil and plan.current ~= nil and plan.steps[plan.current] == step
@@ -342,6 +392,7 @@ function RoadView:Refresh()
         widgets.empty:Show()
         widgets.total:SetText("")
         widgets.saved:SetText("")
+        RoadView:PlaceShowAll(0)
         DrawMeter(nil)
         return
     end
@@ -383,7 +434,25 @@ function RoadView:Refresh()
     else
         Theme.SetMoneyText(widgets.total, plan.total or 0, { short = true })
     end
-    widgets.saved:SetText(RoadView.FootText(plan))
+    local skipped = #ns.RoadPlan:SkippedOn(profession.line)
+    widgets.saved:SetText(RoadView.FootText(plan, skipped))
+    self:PlaceShowAll(skipped)
+end
+
+--- Show All shows only while this road has a skipped recipe; the footer's
+--- words make room for it.
+function RoadView:PlaceShowAll(skipped)
+    local show = (skipped or 0) > 0
+    widgets.showAll:SetShown(show)
+    widgets.saved:ClearAllPoints()
+    widgets.saved:SetPoint("TOPLEFT", widgets.totalLabel, "BOTTOMLEFT", 0, -4)
+    local anchor = show and widgets.showAll
+        or (widgets.queueAll:IsShown() and widgets.queueAll) or nil
+    if anchor then
+        widgets.saved:SetPoint("RIGHT", anchor, "LEFT", -12, 0)
+    else
+        widgets.saved:SetPoint("RIGHT", widgets.saved:GetParent(), "RIGHT", 0, 0)
+    end
 end
 
 --- Fishing's footer: "about 4 hours of fishing, 1g 25s".
@@ -396,7 +465,7 @@ end
 
 --- The footer's second line: what you own takes off, or where it stops,
 --- and with Real Cost what selling the crafts brings back.
-function RoadView.FootText(plan)
+function RoadView.FootText(plan, skipped)
     local lines = {}
     if (plan.saved or 0) > 0 then
         lines[#lines + 1] = L.Format("What you own already takes off %s.",
@@ -408,6 +477,8 @@ function RoadView.FootText(plan)
         lines[#lines + 1] = L.Format("Selling what you make brings back about %s.",
             Util.FormatMoney(plan.back, { short = true }))
     end
+    local skippedText = RoadView.SkippedText(skipped)
+    if skippedText then lines[#lines + 1] = skippedText end
     return table.concat(lines, "\n")
 end
 

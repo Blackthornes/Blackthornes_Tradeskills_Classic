@@ -649,6 +649,12 @@ local DEFAULTS = {
     -- the name kept for Settings. See Cost:SetNeverSubCraft.
     neverSubCrafts = {},
 
+    -- recipeID -> the craft's name: recipes the player skipped on Road to
+    -- 300 (a player asked, 2026-11-12: a vendor's limited recipe was sold
+    -- out), so the road picks the next one. Account wide; only the road
+    -- reads it; never rename it. See RoadPlan:Skip.
+    roadSkipped = {},
+
     -- recipeID -> the craft's name: crafts always made to go into another
     -- craft, whatever buying costs (2026-10-13, Make on the Level Up tab).
     -- Account wide. See Cost:SetSubCraftChoice.
