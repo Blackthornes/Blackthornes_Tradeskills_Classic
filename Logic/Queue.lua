@@ -1639,6 +1639,38 @@ function Queue:GetTotals()
     return totals
 end
 
+--- How long the whole queue takes to cast (a player asked, 2026-11-12):
+--- every entry, sub-crafts too, its count times one cast
+--- (CraftTime:GetCast: the player's own casts first, then the game's).
+--- A craft with no known cast is counted apart and never guessed.
+-- @return { seconds, timed, untimed, byCrafter = { [characterKey] = seconds },
+--   untimedBy = { [characterKey] = crafts } }; seconds is nil when no craft
+--   on the queue has a known time
+function Queue:GetCraftTime()
+    local result = { seconds = 0, timed = 0, untimed = 0, byCrafter = {}, untimedBy = {} }
+    local craftTime = ns.CraftTime
+
+    for _, entry in ipairs(self:GetAll()) do
+        local count = entry.quantity or 0
+        if count > 0 then
+            local crafter = self:GetCrafter(entry) or "?"
+            local cast = craftTime and craftTime:GetCast(entry.recipeID)
+            if cast then
+                local seconds = cast * count
+                result.seconds = result.seconds + seconds
+                result.timed = result.timed + count
+                result.byCrafter[crafter] = (result.byCrafter[crafter] or 0) + seconds
+            else
+                result.untimed = result.untimed + count
+                result.untimedBy[crafter] = (result.untimedBy[crafter] or 0) + count
+            end
+        end
+    end
+
+    if result.timed == 0 then result.seconds = nil end
+    return result
+end
+
 --- What each queued craft costs and earns for all the times it is queued.
 --
 -- One craft's cost times the count is right unless "Charge market price" is

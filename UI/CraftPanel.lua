@@ -1227,7 +1227,19 @@ function CraftPanel:Build()
     summaryHover:SetAllPoints(summary)
     summaryHover:EnableMouse(true)
     summaryHover:SetScript("OnEnter", function(hover)
-        if not CraftPanel.summaryNote or not summary:IsShown() then return end
+        if not summary:IsShown() then return end
+        -- The crafting time card, with the profit note under it when there is one.
+        local info = CraftPanel.craftTime
+        if info and info.seconds and ns.QueueTimeTip then
+            ns.QueueTimeTip.Show(hover, info)
+            if CraftPanel.summaryNote then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(CraftPanel.summaryNote, 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+            return
+        end
+        if not CraftPanel.summaryNote then return end
         GameTooltip:SetOwner(hover, "ANCHOR_TOP")
         GameTooltip:SetText(CraftPanel.summaryNote, 1, 1, 1, 1, true)
         GameTooltip:Show()
@@ -1717,6 +1729,7 @@ function CraftPanel:UpdateSummary()
 
     local queued = ns.Queue:Count()
     self.summaryNote = nil
+    self.craftTime = nil
 
     if queued == 0 then
         self.summary:SetText(L["Nothing queued"])
@@ -1738,7 +1751,20 @@ function CraftPanel:UpdateSummary()
     -- The profit in its own colour: green when the queue pays, red when not.
     -- Kept short: it shares the bottom line with Clear queue and Queue tab,
     -- and an amount too long for it loses coins rather than its end.
+    -- How long the queue takes to cast comes first, and is the first thing
+    -- dropped when the line runs short.
     local texts = {}
+    local craftTime = ns.Queue.GetCraftTime and ns.Queue:GetCraftTime() or nil
+    self.craftTime = craftTime
+    if craftTime and craftTime.seconds then
+        local about = ns.CraftTime.Format(craftTime.seconds)
+        for _, coins in ipairs({ 3, 2, 1 }) do
+            texts[#texts + 1] = L.Format("%d queued · about %s · profit |c%s%s|r%s", totals.crafts,
+                about, colour,
+                Util.FormatMoney(totals.profit, { noColor = true, short = true, parts = coins }),
+                marker)
+        end
+    end
     for _, coins in ipairs({ 3, 2, 1 }) do
         texts[#texts + 1] = L.Format("%d queued · profit |c%s%s|r%s", totals.crafts, colour,
             Util.FormatMoney(totals.profit, { noColor = true, short = true, parts = coins }),

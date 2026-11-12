@@ -46,6 +46,9 @@ local QUANTITY_WIDTH = 42
 -- "Vendor" at the client's font, with the button's own insets.
 local ACTION_WIDTH = 54
 
+-- A craft's time on its row: "1h 05m" at the client's font, with room.
+local TIME_WIDTH = 48
+
 -- Disenchant next, left of Clear all, when Settings turns it on.
 local DE_NEXT_WIDTH = 230
 
@@ -54,6 +57,70 @@ local function InCombat()
 end
 
 local widgets = {}
+
+--------------------------------------------------------------------------------
+-- Crafting Time hover (2026-11-12), shared with the craft pane's footer
+--------------------------------------------------------------------------------
+
+local QueueTimeTip = {}
+ns.QueueTimeTip = QueueTimeTip
+
+--- A character's whole name, or "You" for the one playing.
+function QueueTimeTip.Who(characterKey)
+    local characters = ns.Characters
+    if characters and characters.IsPlaying then
+        local ok, playing = pcall(characters.IsPlaying, characters, characterKey)
+        if ok and playing then return L["You"] end
+    end
+    local recipes = ns.Recipes
+    if recipes and recipes.GetCharacterName then
+        local ok, name = pcall(recipes.GetCharacterName, recipes, characterKey)
+        if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    return tostring(characterKey)
+end
+
+--- The lines: a time for each character, most first, then the crafts with
+--- no time yet. Each { left, right, untimed }.
+function QueueTimeTip.Lines(info)
+    local lines = {}
+    if not info then return lines end
+
+    local who = {}
+    for key, seconds in pairs(info.byCrafter or {}) do
+        who[#who + 1] = { name = QueueTimeTip.Who(key), seconds = seconds }
+    end
+    table.sort(who, function(a, b)
+        if a.seconds ~= b.seconds then return a.seconds > b.seconds end
+        return a.name < b.name
+    end)
+    for _, one in ipairs(who) do
+        lines[#lines + 1] = { left = one.name, right = ns.CraftTime.Format(one.seconds) }
+    end
+
+    if (info.untimed or 0) > 0 then
+        lines[#lines + 1] = { left = L["Not timed yet"], untimed = true,
+            right = info.untimed == 1 and L.Format("%d craft", info.untimed)
+                or L.Format("%d crafts", info.untimed) }
+    end
+    return lines
+end
+
+function QueueTimeTip.Show(owner, info)
+    if not info or ((info.timed or 0) == 0 and (info.untimed or 0) == 0) then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    GameTooltip:AddLine(L["Crafting Time"], 1, 0.82, 0)
+    for _, line in ipairs(QueueTimeTip.Lines(info)) do
+        if line.untimed then
+            GameTooltip:AddDoubleLine(line.left, line.right, 0.78, 0.64, 0.30, 0.78, 0.64, 0.30)
+        else
+            GameTooltip:AddDoubleLine(line.left, line.right, 0.9, 0.86, 0.75, 1, 1, 1)
+        end
+    end
+    GameTooltip:AddLine(L["Casting only. Walking and waiting aren't counted. A craft gets its time once you make one."],
+        0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+end
 
 -- Each queued craft's cost and profit for its whole count, worked out once
 -- per redraw (Queue:GetEntryCosts) so a row and the footer agree.
@@ -70,8 +137,15 @@ local function CreateCraftRow(row)
 
     row.name = Theme.CreateLabel(row, "small", "text")
     row.name:SetPoint("LEFT", 28, 0)
-    -- Ends short of the action button, so a long name never draws under it.
-    row.name:SetPoint("RIGHT", row, "RIGHT", -(198 + ACTION_WIDTH + 6), 0)
+    -- Ends short of the time and the action button, so a long name never
+    -- draws under them.
+    row.name:SetPoint("RIGHT", row, "RIGHT", -(198 + ACTION_WIDTH + 6 + TIME_WIDTH + 6), 0)
+
+    -- How long this craft takes, its count times one cast (2026-11-12).
+    -- A gold "?" until it has been cast once and the game gives no time.
+    row.time = Theme.CreateLabel(row, "small", "text", "RIGHT")
+    row.time:SetPoint("RIGHT", -(198 + ACTION_WIDTH + 6), 0)
+    row.time:SetWidth(TIME_WIDTH)
 
     -- What the craft is for once made: AH, DE or Vendor. A click steps to
     -- the next, a right-click goes back to whichever pays most.
@@ -306,6 +380,15 @@ local function UpdateCraftRow(row, entry)
     row.boundRecipeID = entry.recipeID
 
     UpdateActionButton(row, entry)
+
+    local cast = ns.CraftTime and ns.CraftTime:GetCast(entry.recipeID)
+    if cast then
+        row.time:SetText(ns.CraftTime.Format(cast * (entry.quantity or 0)))
+        row.time:SetTextColor(Theme.Unpack("text"))
+    else
+        row.time:SetText("?")
+        row.time:SetTextColor(Theme.Unpack("accent"))
+    end
 
     local kept = entry.isDependency and entry.buyCheaper == true
     row.buyInstead:SetShown(kept)
@@ -877,6 +960,7 @@ local function Refresh()
     UpdateDisenchantNext()
 
     if #entries == 0 then
+        widgets.craftTime = nil
         widgets.summaryLabel:SetText("")
         -- Nothing queued, but gear may still be on the list to buy.
         widgets.shoppingLabel:SetText(#shopping > 0 and (unknown > 0
@@ -885,12 +969,24 @@ local function Refresh()
         return
     end
 
-    widgets.summaryLabel:SetText(L.Format(totals.crafts == 1
-            and L["%d craft  ·  materials %s  ·  profit %s"] or L["%d crafts  ·  materials %s  ·  profit %s"],
-        totals.crafts,
-        Util.FormatMoney(totals.cost, { short = true }),
-        Util.FormatMoney(totals.profit, { short = true }))
-        .. (totals.priceable and "" or L["  (some unpriced)"]))
+    local craftTime = ns.Queue.GetCraftTime and ns.Queue:GetCraftTime()
+    widgets.craftTime = craftTime
+    local unpriced = totals.priceable and "" or L["  (some unpriced)"]
+    if craftTime and craftTime.seconds then
+        widgets.summaryLabel:SetText(L.Format(totals.crafts == 1
+                and L["%d craft  ·  about %s  ·  materials %s  ·  profit %s"]
+                or L["%d crafts  ·  about %s  ·  materials %s  ·  profit %s"],
+            totals.crafts,
+            ns.CraftTime.Format(craftTime.seconds),
+            Util.FormatMoney(totals.cost, { short = true }),
+            Util.FormatMoney(totals.profit, { short = true })) .. unpriced)
+    else
+        widgets.summaryLabel:SetText(L.Format(totals.crafts == 1
+                and L["%d craft  ·  materials %s  ·  profit %s"] or L["%d crafts  ·  materials %s  ·  profit %s"],
+            totals.crafts,
+            Util.FormatMoney(totals.cost, { short = true }),
+            Util.FormatMoney(totals.profit, { short = true })) .. unpriced)
+    end
 
     widgets.shoppingLabel:SetText(unknown > 0
         and L.Format("To buy: %s  (+%d unpriced)", Util.FormatMoney(shoppingCost, { short = true }), unknown)
@@ -1052,6 +1148,15 @@ local function Build(container)
     local summaryLabel = Theme.CreateLabel(container, "small", "text")
     summaryLabel:SetPoint("BOTTOMLEFT", 8, 10)
     widgets.summaryLabel = summaryLabel
+
+    -- Hovering the footer splits the time by character (2026-11-12).
+    local summaryHover = CreateFrame("Frame", nil, container)
+    summaryHover:SetAllPoints(summaryLabel)
+    summaryHover:EnableMouse(true)
+    summaryHover:SetScript("OnEnter", function(self)
+        if ns.QueueTimeTip then ns.QueueTimeTip.Show(self, widgets.craftTime) end
+    end)
+    summaryHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Materials panel
     local materials = Theme.CreatePanel(container, "window")
