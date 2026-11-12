@@ -1,6 +1,12 @@
 ## Interface: 11509
 ## Title: Blackthornes Tradeskills
 ## Notes: Finds profitable crafts, scans the auction house and keeps a craft queue.
+## Notes-deDE: Findet lohnende Herstellungen, durchsucht das Auktionshaus und führt eine Herstellungsliste.
+## Notes-frFR: Trouve les fabrications rentables, analyse l'hôtel des ventes et tient une file de fabrication.
+## Notes-esES: Encuentra objetos rentables para fabricar, revisa la casa de subastas y lleva una cola de fabricación.
+## Notes-esMX: Encuentra objetos rentables para fabricar, revisa la casa de subastas y lleva una cola de fabricación.
+## Notes-ruRU: Находит выгодные рецепты, сканирует аукцион и ведёт очередь крафта.
+## Notes-zhCN: 找出赚钱的制造配方，扫描拍卖行，并管理制造队列。
 ## Author: Blackthornes
 ## Version: @project-version@
 ## SavedVariables: BlackthornesTSDB
