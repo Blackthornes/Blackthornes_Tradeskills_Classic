@@ -3439,3 +3439,8 @@ L["Casting only. Walking and waiting aren't counted. A craft gets its time once 
 L["%d craft  ·  about %s  ·  materials %s  ·  profit %s"] = "%d fabrication  ·  environ %s  ·  composants %s  ·  profit %s"
 L["%d crafts  ·  about %s  ·  materials %s  ·  profit %s"] = "%d fabrications  ·  environ %s  ·  composants %s  ·  profit %s"
 L["%d queued · about %s · profit |c%s%s|r%s"] = "%d dans la file · environ %s · profit |c%s%s|r%s"
+L["Disenchant Results:"] = "Résultats de désenchantement :"
+L["Says in chat what each disenchant gave."] = "Dit dans la discussion ce que chaque désenchantement t'a donné."
+L["show what each disenchant gave in chat: /bts dechat on|off"] = "montrer dans la discussion ce que chaque désenchantement a donné : /bts dechat on|off"
+L["Disenchant results show in chat."] = "Les résultats de désenchantement s'affichent dans la discussion."
+L["Disenchant results no longer show in chat."] = "Les résultats de désenchantement ne s'affichent plus dans la discussion."

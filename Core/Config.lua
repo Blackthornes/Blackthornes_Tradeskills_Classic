@@ -415,6 +415,8 @@ local DEFAULTS = {
         mailReportSound = true,
         -- The chime when a disenchant turns up something new or lucky.
         disenchantSound = true,
+        -- What each disenchant gave, said in chat (Logic/DisenchantLog.lua).
+        disenchantChat = true,
         -- The cheer when Set goal makes a Farmer goal.
         goalSound = true,
         -- Farmer goals made with Set goal move with the queue, and go

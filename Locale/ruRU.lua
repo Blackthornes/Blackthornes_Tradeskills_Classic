@@ -3441,3 +3441,8 @@ L["Casting only. Walking and waiting aren't counted. A craft gets its time once 
 L["%d craft  ·  about %s  ·  materials %s  ·  profit %s"] = "созданий: %d  ·  около %s  ·  материалы %s  ·  прибыль %s"
 L["%d crafts  ·  about %s  ·  materials %s  ·  profit %s"] = "созданий: %d  ·  около %s  ·  материалы %s  ·  прибыль %s"
 L["%d queued · about %s · profit |c%s%s|r%s"] = "в очереди %d · около %s · прибыль |c%s%s|r%s"
+L["Disenchant Results:"] = "Итоги распыления:"
+L["Says in chat what each disenchant gave."] = "Пишет в чат, что дало каждое распыление."
+L["show what each disenchant gave in chat: /bts dechat on|off"] = "показывать в чате, что дало каждое распыление: /bts dechat on|off"
+L["Disenchant results show in chat."] = "Итоги распыления видны в чате."
+L["Disenchant results no longer show in chat."] = "Итоги распыления больше не видны в чате."

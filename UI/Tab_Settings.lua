@@ -1918,6 +1918,15 @@ local function Build(outer)
     windowPlaces:SetPoint("TOPLEFT", CONTROL_X, -2)
     FitButton(windowPlaces)
 
+    -- What each disenchant gave, in chat (a player asked, 2026-11-13).
+    CreateSection(pages.look, 2, L["DISENCHANT"])
+    local deChatRow = CreateRow(pages.look, 2, L["Disenchant Results:"],
+        L["Says in chat what each disenchant gave."])
+    widgets.disenchantChat = Widgets.CreateCheckbox(deChatRow, L["Show"], function(checked)
+        if ns.DisenchantLog then ns.DisenchantLog:SetChat(checked) else Config:Set("disenchantChat", checked) end
+    end, true)
+    widgets.disenchantChat:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     -- Sharing (asked 2026-10-07): your characters on another account of
     -- yours, and prices within your guild. Logic/AccountLink.lua and
     -- Logic/GuildPrices.lua; every /bts share command has a control here.
@@ -2711,6 +2720,7 @@ local function Refresh()
     if widgets.shareData then widgets.shareData:SetChecked(Config:Get("shareData") == true) end
     widgets.guildStatus:SetText(ns.GuildPrices and ns.GuildPrices:Status() or "")
     widgets.realmPrices:SetChecked(Config:Get("realmPrices") == true)
+    if widgets.disenchantChat then widgets.disenchantChat:SetChecked(Config:Get("disenchantChat") ~= false) end
     widgets.realmStatus:SetText(ns.RealmPrices and ns.RealmPrices:Describe() or "")
     widgets.tsmPrices:SetChecked(Config:Get("tsmPrices") ~= false)
     widgets.tsmStatus:SetText(ns.TSMPrices and ns.TSMPrices:Describe() or "")

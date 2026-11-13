@@ -3437,3 +3437,8 @@ L["Casting only. Walking and waiting aren't counted. A craft gets its time once 
 L["%d craft  ·  about %s  ·  materials %s  ·  profit %s"] = "%d 个制造  ·  约 %s  ·  材料 %s  ·  利润 %s"
 L["%d crafts  ·  about %s  ·  materials %s  ·  profit %s"] = "%d 个制造  ·  约 %s  ·  材料 %s  ·  利润 %s"
 L["%d queued · about %s · profit |c%s%s|r%s"] = "队列中 %d 个 · 约 %s · 利润 |c%s%s|r%s"
+L["Disenchant Results:"] = "分解结果："
+L["Says in chat what each disenchant gave."] = "在聊天中显示每次分解得到了什么。"
+L["show what each disenchant gave in chat: /bts dechat on|off"] = "在聊天中显示每次分解得到了什么：/bts dechat on|off"
+L["Disenchant results show in chat."] = "分解结果会显示在聊天中。"
+L["Disenchant results no longer show in chat."] = "分解结果不再显示在聊天中。"
