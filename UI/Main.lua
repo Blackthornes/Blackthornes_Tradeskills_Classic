@@ -1626,6 +1626,27 @@ end
 -- Transfer dialog
 --------------------------------------------------------------------------------
 
+--- Shows one part of a prices export in the dialog.
+function UI:ShowPricePart(index)
+    local dialog = self.transferDialog
+    local parts = dialog and dialog.parts
+    if not parts then return end
+
+    dialog.partIndex = index
+    if #parts > 1 then
+        dialog.hint:SetText(L.Format("%d price(s). Part %d of %d. Press Ctrl+C to copy it, then press Next Part for the next one. Import every part on the other computer.",
+            dialog.count or 0, index, #parts))
+        dialog.action:SetText(L["Next Part"])
+        dialog.action:Show()
+    else
+        dialog.hint:SetText(L.Format("%d price(s). Press Ctrl+C to copy, then paste it into Import Prices on the other computer.",
+            dialog.count or 0))
+        dialog.action:Hide()
+    end
+    dialog.editBox:SetText(parts[index])
+    dialog.editBox:HighlightText()
+end
+
 --- A selectable text box for copying an export code out, or pasting one in.
 --
 -- WoW chat cannot be selected, so a code has to live in an edit box for Ctrl+C
@@ -1729,7 +1750,16 @@ function UI:ShowTransferDialog(mode)
         dialog.scrollTo = ScrollTo
 
         dialog.action = Widgets.CreateButton(dialog, L["Import"], function()
-            local ok, message = ns.Transfer:Import(dialog.editBox:GetText())
+            if dialog.mode == "exportPrices" then
+                -- Next Part: the next piece of a long prices code.
+                local parts = dialog.parts or {}
+                local index = (dialog.partIndex or 1) % math.max(1, #parts) + 1
+                UI:ShowPricePart(index)
+                return
+            end
+
+            local importer = dialog.mode == "importPrices" and ns.PriceTransfer or ns.Transfer
+            local ok, message = importer:Import(dialog.editBox:GetText())
 
             ns.Print(message)
             if ok then dialog:Hide() end
@@ -1740,7 +1770,28 @@ function UI:ShowTransferDialog(mode)
         if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(dialog, "ts.transfer") end
     end
 
-    if mode == "export" then
+    dialog.mode = mode
+    dialog.action:SetText(L["Import"])
+    dialog.parts = nil
+
+    if mode == "exportPrices" then
+        local parts, count = ns.PriceTransfer:Export()
+        dialog.title:SetText(L["Export Prices"])
+        if not parts then
+            dialog.hint:SetText(count or "")
+            dialog.editBox:SetText("")
+            dialog.action:Hide()
+        else
+            dialog.parts = parts
+            dialog.count = count
+            UI:ShowPricePart(1)
+        end
+    elseif mode == "importPrices" then
+        dialog.title:SetText(L["Import Prices"])
+        dialog.hint:SetText(L["Paste a prices code with Ctrl+V, then press Import. Only prices newer than yours are used, and nothing of yours is replaced by an older one."])
+        dialog.editBox:SetText("")
+        dialog.action:Show()
+    elseif mode == "export" then
         local code = ns.Transfer:Export()
         local queued, settings, limits = ns.Transfer:Describe()
 

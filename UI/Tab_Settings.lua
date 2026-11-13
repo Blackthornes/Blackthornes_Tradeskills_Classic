@@ -1354,6 +1354,20 @@ local function Build(outer)
     FitButton(importButton)
     importButton:SetPoint("LEFT", exportButton, "RIGHT", 8, 0)
 
+    local exportPrices = Widgets.CreateButton(pages.queue.content, L["Export Prices"], function()
+        UI:ShowTransferDialog("exportPrices")
+    end, { width = 100, height = 22,
+           tooltip = L["Copy your recent auction prices as a code to use on another computer."] })
+    Place(pages.queue, 1, exportPrices, -8)
+    FitButton(exportPrices)
+
+    local importPrices = Widgets.CreateButton(pages.queue.content, L["Import Prices"], function()
+        UI:ShowTransferDialog("importPrices")
+    end, { width = 100, height = 22,
+           tooltip = L["Load a prices code. Only prices newer than yours are used."] })
+    FitButton(importPrices)
+    importPrices:SetPoint("LEFT", exportPrices, "RIGHT", 8, 0)
+
     CreateSection(pages.auction, 2, L["SCANNING"])
 
     local budgetRow = CreateRow(pages.auction, 2, L["Scan Speed:"],
@@ -2200,6 +2214,8 @@ local function Build(outer)
     -- The buttons standing on their own, so the search finds them too.
     Searchable(pages.queue, exportButton, L["Export queue Copy your queue, settings and stock limits as a code"])
     Searchable(pages.queue, importButton, L["Import Load a code"])
+    Searchable(pages.queue, exportPrices, L["Export Prices Copy your recent auction prices to use on another computer"])
+    Searchable(pages.queue, importPrices, L["Import Prices Load prices from another computer, newer ones only"])
     Searchable(pages.sharing, syncButton, L["Sync now Contact your other account now and swap anything that changed"])
 
     -- About (UI/About.lua): the note on how the addons are made, then the

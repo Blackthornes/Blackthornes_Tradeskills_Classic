@@ -86,6 +86,7 @@ Logic\GoldLog.lua
 Logic\GoldGoal.lua
 Logic\MethodProfit.lua
 Logic\Transfer.lua
+Logic\PriceTransfer.lua
 Logic\SaleAlarm.lua
 Logic\MailHaul.lua
 Logic\Demand.lua
