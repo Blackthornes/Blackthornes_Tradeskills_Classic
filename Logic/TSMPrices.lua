@@ -9,18 +9,20 @@
 --
 -- It only fills a gap: Prices:GetValue asks here when neither your own scans
 -- nor your guildmates' have a price for the item. Your own scans always win.
--- "market" reads DBMarket, "min" and "lowest" DBMinBuyout; "rival" is never
+-- "market" reads DBRecent, "min" and "lowest" DBMinBuyout; "rival" is never
 -- asked, since it is the price to undercut on this auction house now.
 --
 -- TSM's prices come from its desktop app, which may not cover Forever's
 -- realms; then it answers nil and nothing changes.
 --
 -- "TSM Price Source:" (a player asked, the owner said build it, 2026-11-13)
--- lets the player name the price "market" reads: DBMinBuyout, DBRecent or
+-- lets the player name the price "market" reads: DBMarket, DBMinBuyout or
 -- one of their own TSM custom prices. Saved as `tsmPriceSource` (account
--- wide, never rename it); nil or empty reads DBMarket. A source TSM says is
--- not valid (TSM_API.IsCustomPriceValid), or one that gives no price for an
--- item, falls back to DBMarket. "min" and "lowest" stay DBMinBuyout.
+-- wide, never rename it); nil or empty reads DBRecent (the owner,
+-- 2026-11-13). A source TSM says is not valid (TSM_API.IsCustomPriceValid),
+-- or one that gives no price for an item, falls back to DBRecent, and when
+-- DBRecent has none either, quietly to DBMarket, so a price never goes
+-- blank. "min" and "lowest" stay DBMinBuyout.
 --
 -- On unless unticked (`tsmPrices`, Settings, Sharing; never rename it).
 -- Prices are read many times a redraw, so each answer is kept CACHE_FOR
@@ -33,13 +35,13 @@ local TSMPrices = ns.NewModule("TSMPrices")
 
 TSMPrices.CACHE_FOR = 60
 TSMPrices.MAX_PRICE = 1e11            -- above this is not a price (10 million gold)
+TSMPrices.DEFAULT_SOURCE = "DBRecent"
+TSMPrices.FALLBACK_SOURCE = "DBMarket"  -- when DBRecent has no price for an item
 TSMPrices.SOURCES = {
-    market = "DBMarket",
+    market = TSMPrices.DEFAULT_SOURCE,
     min = "DBMinBuyout",
     lowest = "DBMinBuyout",
 }
-
-TSMPrices.DEFAULT_SOURCE = "DBMarket"
 
 local cache = {}                      -- [which][itemID] = { value or false, at }
 local validity = {}                   -- [source text] = true or false
@@ -60,7 +62,7 @@ function TSMPrices:Loaded()
     return self.Api() ~= nil
 end
 
---- The source the player typed, trimmed, or nil for the usual DBMarket.
+--- The source the player typed, trimmed, or nil for the usual DBRecent.
 function TSMPrices.Typed()
     local text = ns.Config and ns.Config:Get("tsmPriceSource")
     if type(text) ~= "string" then return nil end
@@ -84,7 +86,7 @@ function TSMPrices:SourceValid(text)
     return validity[text]
 end
 
---- The source "market" reads: the player's own when TSM knows it, else DBMarket.
+--- The source "market" reads: the player's own when TSM knows it, else DBRecent.
 function TSMPrices:MarketSource()
     local text = self.Typed()
     if text and self:SourceValid(text) then return text end
@@ -128,6 +130,9 @@ function TSMPrices:GetValue(itemID, which)
     end
 
     local value = custom and Read(api, custom, itemID) or Read(api, source, itemID)
+    if not value and key == "market" and source ~= self.FALLBACK_SOURCE then
+        value = Read(api, self.FALLBACK_SOURCE, itemID)
+    end
     kept[itemID] = { value or false, now }
     return value
 end

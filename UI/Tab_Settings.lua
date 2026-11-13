@@ -2033,12 +2033,12 @@ local function Build(outer)
     widgets.preferTsmRow = preferRow
 
     -- The TSM price to read (a player asked, the owner said build it,
-    -- 2026-11-13): DBMarket unless the player types another, or one of
+    -- 2026-11-13): DBRecent unless the player types another, or one of
     -- their own TSM custom prices. `tsmPriceSource`, account wide; never
     -- rename it. Saved on Enter or leaving the box. See TSMPrices:MarketSource.
     local sourceRow = CreateRow(pages.sharing, 2, L["TSM Price Source:"],
-        L["The TSM price to use, like DBMarket or DBMinBuyout. You can also type one of your own TSM custom prices."])
-    widgets.tsmPriceSource = Widgets.CreateSearchBox(sourceRow, "DBMarket")
+        L["The TSM price to use, like DBRecent or DBMarket. You can also type one of your own TSM custom prices."])
+    widgets.tsmPriceSource = Widgets.CreateSearchBox(sourceRow, "DBRecent")
     widgets.tsmPriceSource:SetWidth(150)
     widgets.tsmPriceSource:SetPoint("TOPLEFT", CONTROL_X, 0)
     if widgets.tsmPriceSource.icon then
@@ -2621,7 +2621,7 @@ local function Refresh()
         if widgets.tsmPriceSource:GetText() ~= saved then widgets.tsmPriceSource:SetText(saved) end
     end
     local refused = ns.TSMPrices and ns.TSMPrices:SourceRefused()
-    widgets.tsmSourceNote:SetText(refused and L["TSM doesn't know that price. Using DBMarket."] or "")
+    widgets.tsmSourceNote:SetText(refused and L["TSM doesn't know that price. Using DBRecent."] or "")
     widgets.auctionatorPrices:SetChecked(Config:Get("auctionatorPrices") ~= false)
     widgets.auctionatorStatus:SetText(ns.AuctionatorPrices and ns.AuctionatorPrices:Describe() or "")
 

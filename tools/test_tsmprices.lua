@@ -2,7 +2,7 @@
 --
 -- What must hold:
 --   1. Without TSM loaded, nothing changes.
---   2. An item nobody has priced takes TSM's DBMarket (market) or
+--   2. An item nobody has priced takes TSM's DBRecent (market) or
 --      DBMinBuyout (min, lowest); "rival" never asks TSM.
 --   3. Your own scan always wins over TSM's.
 --   4. Unticked, TSM is never asked.
@@ -55,7 +55,7 @@ print("\nTSM prices")
 check("without TSM an unpriced item has no price", Prices:GetValue(2589) == nil)
 
 local asked = {}
-local answers = { DBMarket = 1234.4, DBMinBuyout = 999 }
+local answers = { DBRecent = 1234.4, DBMinBuyout = 999 }
 TSM_API = {
     GetCustomPriceValue = function(source, item)
         asked[#asked + 1] = source .. " " .. item
@@ -64,7 +64,7 @@ TSM_API = {
 }
 
 check("an unpriced item takes TSM's market value", Prices:GetValue(2589) == 1234)
-check("asked by TSM's item string", asked[1] == "DBMarket i:2589")
+check("asked for DBRecent by TSM's item string", asked[1] == "DBRecent i:2589")
 check("min reads DBMinBuyout", Prices:GetValue(2589, "min") == 999)
 check("lowest reads DBMinBuyout", Prices:GetValue(2589, "lowest") == 999)
 check("rival never asks TSM", Prices:GetValue(2589, "rival") == nil)
@@ -104,38 +104,41 @@ check("an API without the call counts as not loaded", not TSM:Loaded())
 -- "TSM Price Source:" (2026-11-13): the price "market" reads.
 print("\nTSM price source")
 priceTable = {}
-local reads, valid = {}, { DBRecent = true, ["dbmarket*1.1"] = true }
+local reads, valid = {}, { DBMarket = true, ["dbmarket*1.1"] = true }
+local noRecent = {}
 TSM_API = {
     GetCustomPriceValue = function(source, item)
         reads[#reads + 1] = source
-        if source == "DBRecent" then return 777 end
+        if source == "DBRecent" then return not noRecent[item] and 1234 or nil end
         if source == "dbmarket*1.1" then return nil end
-        if source == "DBMarket" then return 1234 end
+        if source == "DBMarket" then return 777 end
         if source == "DBMinBuyout" then return 999 end
     end,
     IsCustomPriceValid = function(text) return valid[text] == true end,
 }
 TSM:Forget()
-check("no source typed reads DBMarket", Prices:GetValue(3001) == 1234 and reads[#reads] == "DBMarket")
-settings.tsmPriceSource = "  DBRecent  "
+check("no source typed reads DBRecent", Prices:GetValue(3001) == 1234 and reads[#reads] == "DBRecent")
+noRecent["i:3009"] = true
+check("no DBRecent price falls back to DBMarket", Prices:GetValue(3009) == 777 and reads[#reads] == "DBMarket")
+settings.tsmPriceSource = "  DBMarket  "
 TSM:Forget()
-check("a typed source is read, trimmed", Prices:GetValue(3002) == 777 and reads[#reads] == "DBRecent")
+check("a typed source is read, trimmed", Prices:GetValue(3002) == 777 and reads[#reads] == "DBMarket")
 check("min still reads DBMinBuyout", Prices:GetValue(3002, "min") == 999 and reads[#reads] == "DBMinBuyout")
 check("a known source is not refused", not TSM:SourceRefused())
 settings.tsmPriceSource = "dbmarket*1.1"
 TSM:Forget()
-check("a source that gives nothing falls back to DBMarket", Prices:GetValue(3003) == 1234 and reads[#reads] == "DBMarket")
+check("a source that gives nothing falls back to DBRecent", Prices:GetValue(3003) == 1234 and reads[#reads] == "DBRecent")
 settings.tsmPriceSource = "NotAPrice"
 TSM:Forget()
 check("a source TSM doesn't know is refused", TSM:SourceRefused())
-check("and reads DBMarket", Prices:GetValue(3004) == 1234 and reads[#reads] == "DBMarket")
+check("and reads DBRecent", Prices:GetValue(3004) == 1234 and reads[#reads] == "DBRecent")
 valid.NotAPrice = true
 check("validity is kept until forgotten", TSM:SourceRefused())
 TSM:Forget()
 check("Forget asks TSM again", not TSM:SourceRefused())
 settings.tsmPriceSource = ""
 TSM:Forget()
-check("an empty box reads DBMarket", TSM:MarketSource() == "DBMarket")
+check("an empty box reads DBRecent", TSM:MarketSource() == "DBRecent")
 settings.tsmPriceSource = "NotAPrice"
 TSM_API.IsCustomPriceValid = nil
 TSM:Forget()
