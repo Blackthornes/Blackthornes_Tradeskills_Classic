@@ -101,5 +101,51 @@ check("NaN is no price", Prices:GetValue(2594) == nil)
 TSM_API = { GetCustomPriceValue = "nope" }
 check("an API without the call counts as not loaded", not TSM:Loaded())
 
+-- "TSM Price Source:" (2026-11-13): the price "market" reads.
+print("\nTSM price source")
+priceTable = {}
+local reads, valid = {}, { DBRecent = true, ["dbmarket*1.1"] = true }
+TSM_API = {
+    GetCustomPriceValue = function(source, item)
+        reads[#reads + 1] = source
+        if source == "DBRecent" then return 777 end
+        if source == "dbmarket*1.1" then return nil end
+        if source == "DBMarket" then return 1234 end
+        if source == "DBMinBuyout" then return 999 end
+    end,
+    IsCustomPriceValid = function(text) return valid[text] == true end,
+}
+TSM:Forget()
+check("no source typed reads DBMarket", Prices:GetValue(3001) == 1234 and reads[#reads] == "DBMarket")
+settings.tsmPriceSource = "  DBRecent  "
+TSM:Forget()
+check("a typed source is read, trimmed", Prices:GetValue(3002) == 777 and reads[#reads] == "DBRecent")
+check("min still reads DBMinBuyout", Prices:GetValue(3002, "min") == 999 and reads[#reads] == "DBMinBuyout")
+check("a known source is not refused", not TSM:SourceRefused())
+settings.tsmPriceSource = "dbmarket*1.1"
+TSM:Forget()
+check("a source that gives nothing falls back to DBMarket", Prices:GetValue(3003) == 1234 and reads[#reads] == "DBMarket")
+settings.tsmPriceSource = "NotAPrice"
+TSM:Forget()
+check("a source TSM doesn't know is refused", TSM:SourceRefused())
+check("and reads DBMarket", Prices:GetValue(3004) == 1234 and reads[#reads] == "DBMarket")
+valid.NotAPrice = true
+check("validity is kept until forgotten", TSM:SourceRefused())
+TSM:Forget()
+check("Forget asks TSM again", not TSM:SourceRefused())
+settings.tsmPriceSource = ""
+TSM:Forget()
+check("an empty box reads DBMarket", TSM:MarketSource() == "DBMarket")
+settings.tsmPriceSource = "NotAPrice"
+TSM_API.IsCustomPriceValid = nil
+TSM:Forget()
+check("without the check call the source is tried as typed", TSM:MarketSource() == "NotAPrice")
+TSM_API.IsCustomPriceValid = function() error("boom") end
+TSM:Forget()
+check("a check that raises is tried as typed", TSM:MarketSource() == "NotAPrice")
+TSM_API = nil
+check("without TSM nothing is refused", not TSM:SourceRefused())
+settings.tsmPriceSource = nil
+
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 print(("\n%d check(s) passed\n"):format(checks))

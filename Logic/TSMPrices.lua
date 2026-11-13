@@ -15,6 +15,13 @@
 -- TSM's prices come from its desktop app, which may not cover Forever's
 -- realms; then it answers nil and nothing changes.
 --
+-- "TSM Price Source:" (a player asked, the owner said build it, 2026-11-13)
+-- lets the player name the price "market" reads: DBMinBuyout, DBRecent or
+-- one of their own TSM custom prices. Saved as `tsmPriceSource` (account
+-- wide, never rename it); nil or empty reads DBMarket. A source TSM says is
+-- not valid (TSM_API.IsCustomPriceValid), or one that gives no price for an
+-- item, falls back to DBMarket. "min" and "lowest" stay DBMinBuyout.
+--
 -- On unless unticked (`tsmPrices`, Settings, Sharing; never rename it).
 -- Prices are read many times a redraw, so each answer is kept CACHE_FOR
 -- seconds.
@@ -32,7 +39,10 @@ TSMPrices.SOURCES = {
     lowest = "DBMinBuyout",
 }
 
+TSMPrices.DEFAULT_SOURCE = "DBMarket"
+
 local cache = {}                      -- [which][itemID] = { value or false, at }
+local validity = {}                   -- [source text] = true or false
 TSMPrices.used = 0                    -- prices taken from TSM this session
 
 function TSMPrices:IsOn()
@@ -50,6 +60,44 @@ function TSMPrices:Loaded()
     return self.Api() ~= nil
 end
 
+--- The source the player typed, trimmed, or nil for the usual DBMarket.
+function TSMPrices.Typed()
+    local text = ns.Config and ns.Config:Get("tsmPriceSource")
+    if type(text) ~= "string" then return nil end
+    text = text:match("^%s*(.-)%s*$")
+    if text == "" or text:lower() == TSMPrices.DEFAULT_SOURCE:lower() then return nil end
+    return text
+end
+
+--- false when TSM says the typed source is not one it knows; true when it
+--- is, or when TSM can't say (not loaded, or no check call).
+function TSMPrices:SourceValid(text)
+    text = text or self.Typed()
+    if not text then return true end
+    local api = self.Api()
+    if not api or type(api.IsCustomPriceValid) ~= "function" then return true end
+    if validity[text] == nil then
+        local ok, valid = pcall(api.IsCustomPriceValid, text)
+        -- A check that raises can't say, so the source is tried as typed.
+        validity[text] = (not ok) or (valid and true or false)
+    end
+    return validity[text]
+end
+
+--- The source "market" reads: the player's own when TSM knows it, else DBMarket.
+function TSMPrices:MarketSource()
+    local text = self.Typed()
+    if text and self:SourceValid(text) then return text end
+    return self.DEFAULT_SOURCE
+end
+
+--- True while a typed source is one TSM says it doesn't know (the note
+--- under the box in Settings).
+function TSMPrices:SourceRefused()
+    local text = self.Typed()
+    return text ~= nil and self:Loaded() and not self:SourceValid(text)
+end
+
 local function Read(api, source, itemID)
     local ok, value = pcall(api.GetCustomPriceValue, source, "i:" .. itemID)
     if not ok or type(value) ~= "number" then return nil end
@@ -62,6 +110,11 @@ function TSMPrices:GetValue(itemID, which)
     if type(itemID) ~= "number" or not self:IsOn() then return nil end
     local source = self.SOURCES[which or "market"]
     if not source then return nil end
+    local custom
+    if (which or "market") == "market" then
+        local picked = self:MarketSource()
+        if picked ~= source then custom = picked end
+    end
     local api = self.Api()
     if not api then return nil end
 
@@ -74,7 +127,7 @@ function TSMPrices:GetValue(itemID, which)
         return entry[1] or nil
     end
 
-    local value = Read(api, source, itemID)
+    local value = custom and Read(api, custom, itemID) or Read(api, source, itemID)
     kept[itemID] = { value or false, now }
     return value
 end
@@ -82,6 +135,7 @@ end
 --- Forget kept answers (the setting was changed).
 function TSMPrices:Forget()
     cache = {}
+    validity = {}
 end
 
 --- Called by Prices:GetValue when it hands out a TSM price.

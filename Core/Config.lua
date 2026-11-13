@@ -569,6 +569,9 @@ local DEFAULTS = {
         -- (the owner, 2026-11-12). Off unless ticked; never rename it.
         -- See Prices:PreferredTSM.
         preferTsmPrices = false,
+        -- The TSM price "market" reads, typed by the player (2026-11-13):
+        -- `tsmPriceSource`, nil or empty for DBMarket; never rename it.
+        -- See TSMPrices:MarketSource.
         -- Then Auctionator's (asked 2026-10-12). See Logic/AuctionatorPrices.lua.
         auctionatorPrices = true,
         -- Which of the two fills a gap first (the owner, 2026-10-25): "tsm"

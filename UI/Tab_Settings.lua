@@ -69,6 +69,13 @@ local function GreyPreferTSM(widgets, tsmOn)
     -- The row holds the label and the box, so its alpha greys both.
     if row then row:SetAlpha(tsmOn and 1 or 0.4) else box:SetAlpha(tsmOn and 1 or 0.4) end
     box:EnableMouse(tsmOn and true or false)
+    -- "TSM Price Source:" greys the same way.
+    local sourceRow, source = widgets.tsmSourceRow, widgets.tsmPriceSource
+    if sourceRow then sourceRow:SetAlpha(tsmOn and 1 or 0.4) end
+    if source then
+        source.editBox:EnableMouse(tsmOn and true or false)
+        if not tsmOn then source.editBox:ClearFocus() end
+    end
 end
 
 local widgets = {}
@@ -2025,6 +2032,43 @@ local function Build(outer)
     widgets.preferTsmPrices:SetPoint("TOPLEFT", CONTROL_X, -2)
     widgets.preferTsmRow = preferRow
 
+    -- The TSM price to read (a player asked, the owner said build it,
+    -- 2026-11-13): DBMarket unless the player types another, or one of
+    -- their own TSM custom prices. `tsmPriceSource`, account wide; never
+    -- rename it. Saved on Enter or leaving the box. See TSMPrices:MarketSource.
+    local sourceRow = CreateRow(pages.sharing, 2, L["TSM Price Source:"],
+        L["The TSM price to use, like DBMarket or DBMinBuyout. You can also type one of your own TSM custom prices."])
+    widgets.tsmPriceSource = Widgets.CreateSearchBox(sourceRow, "DBMarket")
+    widgets.tsmPriceSource:SetWidth(150)
+    widgets.tsmPriceSource:SetPoint("TOPLEFT", CONTROL_X, 0)
+    if widgets.tsmPriceSource.icon then
+        widgets.tsmPriceSource.icon:Hide()
+        widgets.tsmPriceSource.editBox:SetPoint("TOPLEFT", 6, 0)
+        widgets.tsmPriceSource.hint:SetPoint("LEFT", 6, 0)
+    end
+    widgets.tsmSourceRow = sourceRow
+    local function SaveSource(editBox)
+        local text = (editBox:GetText() or ""):match("^%s*(.-)%s*$")
+        local was = Config:Get("tsmPriceSource") or ""
+        if text == was then return end
+        Config:Set("tsmPriceSource", text ~= "" and text or nil)
+        if ns.TSMPrices then ns.TSMPrices:Forget() end
+        UI:RefreshActiveTab()
+    end
+    widgets.tsmPriceSource.editBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+    widgets.tsmPriceSource.editBox:HookScript("OnEditFocusLost", SaveSource)
+    widgets.tsmPriceSource.editBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(Config:Get("tsmPriceSource") or "")
+        self:ClearFocus()
+    end)
+
+    widgets.tsmSourceNote = Theme.CreateLabel(pages.sharing.content, "tiny", "warn")
+    Place(pages.sharing, 2, widgets.tsmSourceNote, -4)
+    widgets.tsmSourceNote:SetWidth(COLUMN_WIDTH)
+    widgets.tsmSourceNote:SetWordWrap(true)
+
     local auctionatorRow = CreateRow(pages.sharing, 2, L["Auctionator Prices:"],
         L["Uses Auctionator prices for items nothing else has priced, or when its price is newer than your old one."])
     widgets.auctionatorPrices = Widgets.CreateCheckbox(auctionatorRow, L["On"], function(checked)
@@ -2571,6 +2615,13 @@ local function Refresh()
     widgets.tsmStatus:SetText(ns.TSMPrices and ns.TSMPrices:Describe() or "")
     widgets.preferTsmPrices:SetChecked(Config:Get("preferTsmPrices") == true)
     GreyPreferTSM(widgets, Config:Get("tsmPrices") ~= false)
+    local sourceBox = widgets.tsmPriceSource.editBox
+    if not (sourceBox.HasFocus and sourceBox:HasFocus()) then
+        local saved = Config:Get("tsmPriceSource") or ""
+        if widgets.tsmPriceSource:GetText() ~= saved then widgets.tsmPriceSource:SetText(saved) end
+    end
+    local refused = ns.TSMPrices and ns.TSMPrices:SourceRefused()
+    widgets.tsmSourceNote:SetText(refused and L["TSM doesn't know that price. Using DBMarket."] or "")
     widgets.auctionatorPrices:SetChecked(Config:Get("auctionatorPrices") ~= false)
     widgets.auctionatorStatus:SetText(ns.AuctionatorPrices and ns.AuctionatorPrices:Describe() or "")
 
