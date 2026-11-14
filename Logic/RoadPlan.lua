@@ -492,6 +492,26 @@ function RoadPlan:Plan(opts)
         end
     end
 
+    -- One recipe can come back further up the road (craft 6, train, craft
+    -- 7 more). Queueing a step asks for everything the road wants of that
+    -- recipe up to it, so two steps add up to 13 rather than the second
+    -- setting the queue to 7 (a player's report, 2026-11-14).
+    local upTo, needsUpTo = {}, {}
+    for _, step in ipairs(steps) do
+        if not step.done and step.kind == "craft" and step.recipeID then
+            local id = step.recipeID
+            upTo[id] = (upTo[id] or 0) + step.crafts
+            step.queueCrafts = upTo[id]
+            local sums = needsUpTo[id] or {}
+            needsUpTo[id] = sums
+            step.queueNeeds = {}
+            for _, need in ipairs(step.needs or {}) do
+                sums[need.itemID] = (sums[need.itemID] or 0) + need.count
+                step.queueNeeds[#step.queueNeeds + 1] = { itemID = need.itemID, count = sums[need.itemID] }
+            end
+        end
+    end
+
     return {
         steps = steps, current = current, total = total, saved = saved, back = back, stuck = stuck,
         skill = now, max = opts.max, line = line, pickBy = real and "real" or "lowest",
@@ -705,13 +725,13 @@ function RoadPlan:QueueStep(step)
     local queue = ns.Queue
     if not (step and step.kind == "craft" and queue) then return false end
     if not step.learn and queue.Ensure then
-        local ok, done = pcall(queue.Ensure, queue, step.recipeID, step.crafts)
+        local ok, done = pcall(queue.Ensure, queue, step.recipeID, step.queueCrafts or step.crafts)
         return ok and done and true or false
     end
     if not queue.EnsureBuy then return false end
-    local forRecipe = { recipeID = step.recipeID, name = step.name, crafts = step.crafts }
+    local forRecipe = { recipeID = step.recipeID, name = step.name, crafts = step.queueCrafts or step.crafts }
     local any = false
-    for _, need in ipairs(step.needs or {}) do
+    for _, need in ipairs(step.queueNeeds or step.needs or {}) do
         if need.count > 0 then
             local ok, done = pcall(queue.EnsureBuy, queue, need.itemID, need.count, nil, forRecipe)
             if ok and done then any = true end

@@ -447,6 +447,41 @@ check("a paying craft is left before its chance gets small", lowChance >= 0.1, t
 check("the road still goes on", reach >= 150, true)
 check("a paying craft still wins while its chance is good", FirstCraft(paying).recipeID, 92)
 
+print("\none recipe on both sides of a trainer adds up")
+-- Alchemy 120 to 125, the trainer, then more of the same craft: queueing
+-- both steps set the queue to the second step's count (a player's report).
+local again = Road:Plan({
+  line = 171, skill = 120, max = 125, level = 40, owned = {},
+  candidates = { Potion(95, "Same", 100, 140, 160, 50, 0) },
+})
+local sames = {}
+for _, step in ipairs(again.steps) do
+  if not step.done and step.kind == "craft" then sames[#sames + 1] = step end
+end
+check("the road has the craft before and after the trainer", #sames >= 2 and sames[2].recipeID == 95, true)
+ensured, bought = {}, {}
+Road:QueueStep(sames[1])
+check("the first step queues its own crafts", ensured[95], sames[1].crafts)
+Road:QueueStep(sames[2])
+check("the second step adds to it", ensured[95], sames[1].crafts + sames[2].crafts)
+Road:QueueStep(sames[2])
+check("queueing it again adds nothing more", ensured[95], sames[1].crafts + sames[2].crafts)
+local learnAgain = Road:Plan({
+  line = 171, skill = 120, max = 125, level = 40, owned = {},
+  candidates = { (function() local c = Potion(96, "Learn", 100, 140, 160, 50, 0)
+    c.known = false c.place = { price = 0 } return c end)() },
+})
+local learns = {}
+for _, step in ipairs(learnAgain.steps) do
+  if not step.done and step.kind == "craft" then learns[#learns + 1] = step end
+end
+ensured, bought = {}, {}
+for _, step in ipairs(learns) do step.learn = step.learn or { price = 0 } Road:QueueStep(step) end
+local allNeeds, allCrafts = 0, 0
+for _, step in ipairs(learns) do allNeeds = allNeeds + step.needs[1].count allCrafts = allCrafts + step.crafts end
+check("materials for a recipe to learn add up too", bought[BAR] and bought[BAR][1], allNeeds)
+check("and the crafts tied to them", bought[BAR] and bought[BAR][2].crafts, allCrafts)
+
 print("\nCooking and First Aid: Expert from a book, Artisan from quests")
 local cookPlan = Road:Plan({ line = 185, skill = 125, max = 150, level = 31, candidates = {} })
 local expertBook
