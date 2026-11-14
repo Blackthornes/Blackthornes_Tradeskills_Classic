@@ -260,6 +260,12 @@ local DEFAULTS = {
         -- asked (2026-10-20); a save that already has it on keeps it.
         showValueInProfessionWindow = false,
 
+        -- Show each recipe's profit in Blizzard's profession window instead
+        -- of its sell price, and a card under the reagents with what it sells
+        -- for, what the mats cost and the profit (the owner picked option B,
+        -- 2026-11-14). Off unless ticked.
+        craftProfitInProfessionWindow = false,
+
         -- Put what an item is worth on the auction house onto the item's
         -- own tooltip, wherever the game draws one. Off leaves every
         -- tooltip exactly as the client writes it.

@@ -145,6 +145,14 @@ end
 
 --- The text to put beside the name, or nil to leave the row alone.
 function RecipeValue:TextFor(recipeID)
+    -- "Craft Cost and Profit:" (Trent, 2026-11-14): the craft's profit in
+    -- place of what it sells for, "No price" when any price is missing.
+    if self:ShowsProfit() and ns.CraftProfit then
+        local figures = ns.CraftProfit:For(recipeID)
+        if not figures then return nil end
+        return ns.CraftProfit.RowText(figures)
+    end
+
     local value = self:ValueFor(recipeID)
     if not value then return nil end
 
@@ -157,7 +165,13 @@ end
 -- keeps it.
 function RecipeValue:IsEnabled()
     if not ns.Config then return false end
-    return ns.Config:Get("showValueInProfessionWindow") == true
+    return ns.Config:Get("showValueInProfessionWindow") == true or self:ShowsProfit()
+end
+
+--- Is "Craft Cost and Profit:" ticked? Off unless ticked.
+function RecipeValue:ShowsProfit()
+    if not ns.Config then return false end
+    return ns.Config:Get("craftProfitInProfessionWindow") == true
 end
 
 --------------------------------------------------------------------------------
@@ -826,11 +840,78 @@ local function RowKey(row, label, recipeID, text)
     return table.concat(parts, "\031")
 end
 
+--------------------------------------------------------------------------------
+-- The row's hover: Sells For, Mats Cost and Profit
+--------------------------------------------------------------------------------
+
+-- Rows whose hover is already hooked. Weak keys, like the labels.
+local hovered = setmetatable({}, { __mode = "k" })
+
+--- Add the three lines to the game's tooltip for a row's recipe.
+--
+-- Only lines are added: when the game already shows its own tooltip for the
+-- row they go under it, else the tooltip is opened for the row with only
+-- these. Nothing on the row is changed.
+function RecipeValue:AddHoverLines(row, tooltip)
+    if not self:ShowsProfit() or not ns.CraftProfit then return false end
+    tooltip = tooltip or _G.GameTooltip
+    if type(tooltip) ~= "table" then return false end
+
+    local recipeID = self:RecipeForRow(row)
+    if not recipeID then return false end
+    local figures = ns.CraftProfit:For(recipeID)
+    if not figures then return false end
+
+    local owner = Try(Field(tooltip, "GetOwner"), tooltip)
+    local shown = Try(Field(tooltip, "IsShown"), tooltip)
+    if owner ~= row or not shown then
+        Try(Field(tooltip, "SetOwner"), tooltip, row, "ANCHOR_RIGHT")
+        self.ownsTooltip = row
+    else
+        Try(Field(tooltip, "AddLine"), tooltip, " ")
+    end
+
+    local white, label = 1, 0.78
+    for _, line in ipairs(ns.CraftProfit.Lines(figures)) do
+        local left = line.label
+        if line.makes then left = left .. "  |cffa0a4ab" .. line.makes .. "|r" end
+        Try(Field(tooltip, "AddDoubleLine"), tooltip, left, line.value, label, label, label, white, white, white)
+    end
+    Try(Field(tooltip, "Show"), tooltip)
+    return true
+end
+
+function RecipeValue:HookRowHover(row)
+    if hovered[row] ~= nil then return hovered[row] end
+    local hook = Field(row, "HookScript")
+    if type(hook) ~= "function" then
+        hovered[row] = false
+        return false
+    end
+    local ok = pcall(hook, row, "OnEnter", function(self)
+        pcall(RecipeValue.AddHoverLines, RecipeValue, self)
+    end)
+    if ok then
+        pcall(hook, row, "OnLeave", function(self)
+            local tip = _G.GameTooltip
+            if RecipeValue.ownsTooltip == self and type(tip) == "table" then
+                RecipeValue.ownsTooltip = nil
+                if Try(Field(tip, "GetOwner"), tip) == self then
+                    Try(Field(tip, "Hide"), tip)
+                end
+            end
+        end)
+    end
+    hovered[row] = ok
+    return ok
+end
+
 --- Write one row's value, or take it away.
 -- @return outcome, placement -- outcome is "valued", "unpriced", "unresolved"
 --   or "nolabel"; placement is how a shown value had to be positioned.
 function RecipeValue:DecorateRow(row)
     local recipeID = self:RecipeForRow(row)
+    if recipeID and self:ShowsProfit() then self:HookRowHover(row) end
     local text = recipeID and self:TextFor(recipeID) or nil
 
     local label = labels[row]
