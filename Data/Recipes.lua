@@ -1041,6 +1041,48 @@ function Recipes.KeepUnread(fresh, saved)
     return merged
 end
 
+--- The professions the game's professions book names: { [name] = true,
+--- [skillLineID] = true }, or nil when the client won't say.
+function Recipes.BookProfessions()
+    if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then return nil end
+    local ok, a, b, c, d, e, f = pcall(GetProfessions)
+    if not ok then return nil end
+    local named = {}
+    for _, index in ipairs({ a or false, b or false, c or false, d or false, e or false, f or false }) do
+        if type(index) == "number" then
+            local got, name, _, _, _, _, _, line = pcall(GetProfessionInfo, index)
+            if got then
+                if type(name) == "string" and name ~= "" then named[name .. ""] = true end
+                if type(line) == "number" then named[line + 0] = true end
+            end
+        end
+    end
+    return named
+end
+
+--- May an all-unlearned read replace these saved professions? Only once
+--- the login reads are over (skill levels arrive after login and read as
+--- zero until then), and only when the professions book, where the client
+--- has one, names none of the saved learned ones.
+function Recipes.DroppedAll(saved)
+    if not Recipes.loginSettled then return false end
+    local book = Recipes.BookProfessions()
+    if not book then return true end
+    for _, profession in ipairs(type(saved) == "table" and saved or {}) do
+        if type(profession) == "table" and profession.learned then
+            if (profession.name and book[profession.name])
+                or (profession.skillLineID and book[profession.skillLineID]) then
+                return false
+            end
+            local english = Recipes.EnglishProfessionName(profession)
+            for skillLineID, name in pairs(Recipes.SKILL_LINE_PROFESSIONS or {}) do
+                if name == english and book[skillLineID] then return false end
+            end
+        end
+    end
+    return true
+end
+
 --- Re-read professions into the cache, refusing to make things worse.
 --
 -- At PLAYER_LOGIN the profession list is already enumerable but the skill
@@ -1065,18 +1107,27 @@ function Recipes:RefreshProfessions()
         return false
     end
 
+    -- A character who dropped every profession reads all unlearned for good,
+    -- and that read was never trusted, so the old professions stayed saved
+    -- (a priest who once had Enchanting was still named the enchanter to
+    -- mail gear to, 2026-11-14). It is trusted once the login reads are done
+    -- and the professions book names none of the saved ones.
+    local droppedAll = not AnyLearned(fresh) and AnyLearned(record.professions)
+        and Recipes.DroppedAll(record.professions)
+
     if AnyLearned(fresh) then
         record.professions = Recipes.KeepUnread(fresh, record.professions)
-    elseif not AnyLearned(record.professions) then
+    elseif droppedAll or not AnyLearned(record.professions) then
         record.professions = fresh
     end
 
     -- Which skill lines are learned, for hiding the crafts of a dropped
-    -- profession. Taken only from a read that found something learned: at
-    -- login everything reads as unlearned until skill levels arrive, and
-    -- trusting that would hide every craft this character has.
+    -- profession. Taken only from a read that found something learned, or
+    -- one DroppedAll trusts: at login everything reads as unlearned until
+    -- skill levels arrive, and trusting that would hide every craft this
+    -- character has.
     local lines, linesLearned = ReadProfessionLines()
-    if linesLearned then
+    if linesLearned or (droppedAll and next(lines)) then
         -- The sub-craft index is built from the crafts not dropped, so it is
         -- rebuilt when the lines change. Left alone, a dropped profession's
         -- crafts stayed on offer as sub-crafts until the next harvest.
@@ -1127,6 +1178,12 @@ function Recipes:OnEnable()
         -- about whether this session's skill levels have arrived yet.
         local _, freshLearned = Recipes:RefreshProfessions()
         if freshLearned or attempts >= 5 then
+            -- From now on an all-unlearned read may mean every profession
+            -- was dropped (see DroppedAll); the last try is read that way.
+            if not Recipes.loginSettled then
+                Recipes.loginSettled = true
+                if not freshLearned then Recipes:RefreshProfessions() end
+            end
             if Recipes.professionTimer then
                 Recipes.professionTimer:Cancel()
                 Recipes.professionTimer = nil
