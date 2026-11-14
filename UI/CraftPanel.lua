@@ -1455,7 +1455,9 @@ function CraftPanel:GetNextReadyHere()
     local ready = {}
 
     for _, entry in ipairs(ns.Queue:GetAll()) do
-        if ns.Crafting:GetReadiness(entry.recipeID) then
+        local can = ns.Crafting.CanCraftNext and ns.Crafting:CanCraftNext(entry)
+        if can == nil then can = ns.Crafting:GetReadiness(entry.recipeID) end
+        if can then
             -- No open set means the client would not say which profession is
             -- showing. Offering the craft is then the best available guess,
             -- and matches what the Queue tab does.

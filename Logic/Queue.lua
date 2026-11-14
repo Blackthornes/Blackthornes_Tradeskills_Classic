@@ -814,6 +814,15 @@ function Queue:RebuildDependencies()
     -- sub-crafts are done together (OrderSubCrafts).
     derived = OrderSubCrafts(MergeSubCrafts(derived), manual)
 
+    -- A paused sub-craft stays paused when the sub-crafts are worked out again.
+    local pausedBefore = {}
+    for _, entry in ipairs(queue) do
+        if entry.isDependency and entry.paused then pausedBefore[Queue.EntryKey(entry)] = true end
+    end
+    for _, entry in ipairs(derived) do
+        if pausedBefore[Queue.EntryKey(entry)] then entry.paused = true end
+    end
+
     for index = #queue, 1, -1 do
         queue[index] = nil
     end
@@ -825,6 +834,9 @@ function Queue:RebuildDependencies()
     for _, entry in ipairs(manual) do
         queue[#queue + 1] = entry
     end
+
+    -- The order the player set with Move Up and Move Down (ApplyOrder).
+    self:ApplyOrder()
 
     -- Said once, when buying first turns cheaper, not on every rebuild.
     for _, entry in ipairs(derived) do
@@ -1201,6 +1213,7 @@ function Queue:Clear()
     for i = #queue, 1, -1 do
         queue[i] = nil
     end
+    if ns.db then ns.db.queueOrder = nil end
     -- Clear all empties the shopping list too, so nothing is left to buy
     -- for a list the player just threw away.
     self:ClearBuys()
@@ -1274,6 +1287,194 @@ function Queue:Notify()
     if ns.AccountLink and ns.AccountLink.ListsChanged then
         pcall(ns.AccountLink.ListsChanged, ns.AccountLink)
     end
+end
+
+--------------------------------------------------------------------------------
+-- Pause and the player's own order
+--------------------------------------------------------------------------------
+
+-- The owner said build it (2026-11-14, from a mockup): Pause and Resume on a
+-- row, and Move to Top, Move Up and Move Down. Pause is `entry.paused`
+-- (saved on the entry; a sub-craft keeps it through a rebuild, by
+-- EntryKey). The order is `ns.db.queueOrder`, a list of EntryKeys, nil
+-- until the player moves a row and emptied by Clear all. Never rename
+-- either. A part (a sub-craft feeding a craft) never goes below the craft
+-- it feeds.
+
+--- One key per row: manual or sub-craft, recipe and crafter.
+function Queue.EntryKey(entry)
+    return ("%s:%s:%s"):format(entry.isDependency and "s" or "m",
+        tostring(entry.recipeID), tostring(entry.crafter))
+end
+
+--- Is `part` a sub-craft that goes into `entry`?
+function Queue.IsPartOf(part, entry)
+    return part ~= entry and part.isDependency and type(part.forRecipes) == "table"
+        and part.forRecipes[entry.recipeID] == true or false
+end
+
+--- Rows this one waits on: itself paused, or a part of it (or of a part)
+--- paused. A paused part makes its craft wait.
+-- @return true when held, and true when held only by a part
+function Queue:Held(entry)
+    if entry.paused then return true, false end
+    local queue, seen, stack = self:GetAll(), { [entry] = true }, { entry }
+    while #stack > 0 do
+        local current = table.remove(stack)
+        for _, other in ipairs(queue) do
+            if not seen[other] and Queue.IsPartOf(other, current) then
+                if other.paused then return true, true end
+                seen[other] = true
+                stack[#stack + 1] = other
+            end
+        end
+    end
+    return false, false
+end
+
+--- Pause or resume one row.
+function Queue:SetPaused(entry, paused)
+    if not entry then return false end
+    entry.paused = paused and true or nil
+    self:Notify()
+    return true
+end
+
+--- Lay the queue out in the player's saved order, never a part below the
+--- craft it feeds. Rows not in the saved order follow the row before them.
+function Queue:ApplyOrder()
+    local saved = ns.db and ns.db.queueOrder
+    if type(saved) ~= "table" or #saved == 0 then return end
+    local queue = self:GetAll()
+    if #queue < 2 then return end
+
+    local index = {}
+    for i, key in ipairs(saved) do
+        if index[key] == nil then index[key] = i end
+    end
+    local pref, last = {}, 0
+    for i, entry in ipairs(queue) do
+        local at = index[Queue.EntryKey(entry)]
+        if at then
+            pref[entry], last = at, at
+        else
+            pref[entry] = last + 0.0001 * i
+        end
+    end
+
+    local left, ordered = {}, {}
+    for _, entry in ipairs(queue) do left[#left + 1] = entry end
+    while #left > 0 do
+        local pick, pickAt
+        for i, entry in ipairs(left) do
+            local free = true
+            for _, other in ipairs(left) do
+                if Queue.IsPartOf(other, entry) then free = false break end
+            end
+            if free and (not pick or pref[entry] < pref[left[pick]]) then pick = i end
+        end
+        -- A loop among the parts: take the first in the saved order.
+        if not pick then
+            for i, entry in ipairs(left) do
+                if not pickAt or pref[entry] < pickAt then pick, pickAt = i, pref[entry] end
+            end
+        end
+        ordered[#ordered + 1] = table.remove(left, pick)
+    end
+    for i, entry in ipairs(ordered) do queue[i] = entry end
+end
+
+--- Has the player set an order of their own?
+function Queue:HasOwnOrder()
+    local saved = ns.db and ns.db.queueOrder
+    return type(saved) == "table" and #saved > 0
+end
+
+local function IndexOf(queue, entry)
+    for i, other in ipairs(queue) do
+        if other == entry then return i end
+    end
+end
+
+--- Can this row go up one? Not past a part of its own.
+function Queue:CanMoveUp(entry)
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    return i ~= nil and i > 1 and not Queue.IsPartOf(queue[i - 1], entry)
+end
+
+--- Can this row go down one? Not past the craft it feeds.
+function Queue:CanMoveDown(entry)
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    return i ~= nil and i < #queue and not Queue.IsPartOf(entry, queue[i + 1])
+end
+
+--- Can this row go to the top? Only when something above it is not a part
+--- of its own.
+function Queue:CanMoveTop(entry)
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    if not i then return false end
+    return self:TopSpot(entry) < i
+end
+
+--- Where Move to Top puts a row: first, or right after the last of its parts.
+function Queue:TopSpot(entry)
+    local queue, spot = self:GetAll(), 1
+    for i, other in ipairs(queue) do
+        if other ~= entry and self:Feeds(other, entry) then spot = math.max(spot, i + 1) end
+    end
+    local at = IndexOf(queue, entry)
+    if at and spot > at then spot = at end
+    return spot
+end
+
+--- Does `part` go into `entry`, straight in or through other parts?
+function Queue:Feeds(part, entry)
+    local queue, seen, stack = self:GetAll(), {}, { entry }
+    while #stack > 0 do
+        local current = table.remove(stack)
+        for _, other in ipairs(queue) do
+            if not seen[other] and Queue.IsPartOf(other, current) then
+                if other == part then return true end
+                seen[other] = true
+                stack[#stack + 1] = other
+            end
+        end
+    end
+    return false
+end
+
+local function SaveOrder(queue)
+    local keys = {}
+    for i, entry in ipairs(queue) do keys[i] = Queue.EntryKey(entry) end
+    ns.db.queueOrder = keys
+end
+
+--- Move a row: "top", "up" or "down". True when it moved.
+function Queue:Move(entry, how)
+    if not (ns.db and entry) then return false end
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    if not i then return false end
+    if how == "up" then
+        if not self:CanMoveUp(entry) then return false end
+        queue[i], queue[i - 1] = queue[i - 1], queue[i]
+    elseif how == "down" then
+        if not self:CanMoveDown(entry) then return false end
+        queue[i], queue[i + 1] = queue[i + 1], queue[i]
+    elseif how == "top" then
+        if not self:CanMoveTop(entry) then return false end
+        local spot = self:TopSpot(entry)
+        table.remove(queue, i)
+        table.insert(queue, spot, entry)
+    else
+        return false
+    end
+    SaveOrder(queue)
+    self:Notify()
+    return true
 end
 
 --------------------------------------------------------------------------------
