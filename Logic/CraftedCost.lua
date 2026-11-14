@@ -128,16 +128,48 @@ end
 local function RecipeFor(cache, itemID)
     if not cache.recipeByItem then
         cache.recipeByItem = {}
+        cache.skillByItem = {}
         for _, record in pairs((ns.db and ns.db.characters) or {}) do
             for recipeID, recipe in pairs(type(record) == "table" and record.recipes or {}) do
-                if type(recipe) == "table" and recipe.outputItemID
-                    and not cache.recipeByItem[recipe.outputItemID] then
-                    cache.recipeByItem[recipe.outputItemID] = recipe.recipeID or recipeID
+                local output = type(recipe) == "table" and recipe.outputItemID
+                if output and not cache.recipeByItem[output] then
+                    cache.recipeByItem[output] = recipe.recipeID or recipeID
+                end
+                if output and not cache.skillByItem[output] and type(recipe.skillLineID) == "number" then
+                    cache.skillByItem[output] = recipe.skillLineID
                 end
             end
         end
     end
     return cache.recipeByItem[itemID]
+end
+
+--- The profession that makes `itemID`, by the English name the addon keeps
+--- (Data/Recipes.lua's SKILL_LINE_PROFESSIONS), or nil when no recipe of
+--- yours makes it or its skill line is not known. Worked out as it is read,
+--- nothing saved. `cache` is a NewSaleCache, so one pass looks once.
+function CraftedCost:ProfessionOf(itemID, cache)
+    if not itemID then return nil end
+    cache = cache or self:NewSaleCache()
+    cache.professions = cache.professions or {}
+    local known = cache.professions[itemID]
+    if known ~= nil then return known or nil end
+
+    local lines = ns.Recipes and ns.Recipes.SKILL_LINE_PROFESSIONS or {}
+    local english
+    local recipeID = RecipeFor(cache, itemID)
+    if recipeID then
+        english = lines[cache.skillByItem[itemID]]
+        -- A recipe saved without its skill line: the account's recipe book
+        -- may know it.
+        if not english and ns.RecipeBook and ns.RecipeBook.Get then
+            local ok, record = pcall(ns.RecipeBook.Get, ns.RecipeBook, recipeID)
+            if ok and type(record) == "table" then english = lines[record.skillLineID] end
+        end
+    end
+
+    cache.professions[itemID] = english or false
+    return english
 end
 
 --- Today's material cost of one `itemID`, or false when it cannot be priced.
