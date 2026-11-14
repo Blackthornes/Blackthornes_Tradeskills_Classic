@@ -194,6 +194,27 @@ check("in green", Line(lines, "Profit per craft").color, "profit")
 check("pays for itself", Line(lines, "Pays for itself")[2], "after 8 crafts")
 check("no Demand line without a reading", Line(lines, "Demand"), nil)
 
+-- A reagent that binds on pickup has no price anywhere (Demonic Rune in
+-- Felcloth Robe, a player's report 2026-11-14): the rest is shown, plus that
+-- reagent by name, and still no profit is made up.
+do
+  local oldLeather, oldBound = prices[LEATHER], ns.Util.IsBoundOnPickup
+  prices[LEATHER] = nil
+  itemInfo[LEATHER] = { "Demonic Rune", 7 }
+  ns.Util.IsBoundOnPickup = function(id) return id == LEATHER end
+  local bop = Book:TooltipLines(PATTERN_BOOTS)
+  check("a bound reagent: the rest, plus it by name", Line(bop, "Cost to make")[2],
+    "10c, plus 7 Demonic Rune you get yourself")
+  check("still shown dim", Line(bop, "Cost to make")[3], true)
+  check("no profit made up", Line(bop, "Profit per craft"), nil)
+  ns.Util.IsBoundOnPickup = function() return false end
+  check("an unscanned reagent still says so", Line(Book:TooltipLines(PATTERN_BOOTS), "Cost to make")[2],
+    "materials not scanned")
+  ns.Util.IsBoundOnPickup = oldBound
+  itemInfo[LEATHER] = nil
+  prices[LEATHER] = oldLeather
+end
+
 -- How well the item it makes sells, as on My crafts.
 local oldDemand = ns.Demand
 ns.Demand = {

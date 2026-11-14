@@ -439,7 +439,8 @@ local function NewView(opts)
 
         detail.worthHeading:Show()
         local rows = {}
-        rows[#rows + 1] = { L["Cost to make"], value.cost and Money(value.cost) or L["not scanned"],
+        rows[#rows + 1] = { L["Cost to make"], value.cost and Money(value.cost)
+            or (value.costDetail and value.costDetail.onlyBound and ns.RecipeBook:CostText(value)) or L["not scanned"],
             value.cost and "text" or "dim", main = true }
         if record.outputItemID then
             rows[#rows + 1] = { L["Sells for, after the cut"],

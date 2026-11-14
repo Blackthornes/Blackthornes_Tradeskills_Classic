@@ -209,7 +209,9 @@ function EnchantTooltip:LinesFor(spellID)
     if not ok or type(cost) ~= "table" then return lines end
 
     lines[#lines + 1] = { L["Materials"],
-        cost.priceable and cost.total and Money(cost.total) or L["materials not scanned"],
+        cost.priceable and cost.total and Money(cost.total)
+            or (ns.RecipeBook and ns.RecipeBook.CostText and ns.RecipeBook:CostText({ costDetail = cost }))
+            or L["materials not scanned"],
         not cost.priceable }
 
     local short = {}
