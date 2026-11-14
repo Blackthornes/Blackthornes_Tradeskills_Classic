@@ -164,6 +164,50 @@ check("totals add up", MP:Summary(now - 3600, now + 1).total.profit,
   s.methods.crafted.profit + s.methods.flipped.profit + s.methods.other.profit
   + s.methods.vendored.profit + s.methods.disenchanted.profit)
 
+print("\nby profession")
+local profs = { [BOLT] = "Tailoring" }
+ns.CraftedCost.ProfessionOf = function(_, id) return profs[id] end
+ledger.entries = {
+  { kind = "sold", itemID = BOLT, net = 1000, deposit = 0, t = now - 100, quantity = 1, cost = 800 },
+  { kind = "sold", itemID = SWORD, net = 500, deposit = 0, t = now - 100, quantity = 1, cost = 100 },
+}
+s = MP:Summary(now - 3600, now + 1)
+local profList = s.methods.crafted.professions or {}
+check("two profession rows", #profList, 2)
+check("a known one first", profList[1] and profList[1].profession, "Tailoring")
+check("no profession goes last", profList[2] and profList[2].key, MP.OTHER_CRAFTS)
+ns.CraftedCost.ProfessionOf = nil
+
+print("\nnames for items with no ID")
+ledger.entries = {
+  { kind = "sold", name = "Mystery", net = 100, deposit = 0, t = now - 100, quantity = 1 },
+  { kind = "sold", name = "Mystery", net = 200, deposit = 0, t = now - 90, quantity = 1 },
+}
+s = MP:Summary(now - 3600, now + 1)
+local otherItems = s.methods.other.list or {}
+check("one row for the name", #otherItems, 1)
+check("it keeps the name", otherItems[1] and otherItems[1].name, "Mystery")
+
+print("\nby character")
+ns.Util.CharacterName = function(key) return ({ A = "Ana Stone", B = "Bo Reed" })[key] or "" end
+ledger.entries = {
+  { kind = "sold", itemID = LOOT, net = 100, deposit = 0, t = now - 100, quantity = 1, who = "A" },
+  { kind = "sold", itemID = LOOT, net = 300, deposit = 0, t = now - 100, quantity = 1, who = "B" },
+}
+local vlog = MP:GetLog()
+vlog.events[#vlog.events + 1] = { t = now - 50, m = "vendored", id = LOOT, n = 1, inc = 7 }
+s = MP:Summary(now - 3600, now + 1, { who = "A" })
+check("only A's sale", s.total.income, 100)
+local all = MP:Summary(now - 3600, now + 1)
+check("no vendor sales for one character", s.methods.vendored.n, 0)
+check("all keeps the vendor sale", all.methods.vendored.n > 0, true)
+check("and both auction sales", all.methods.other.income, 400)
+local sellers = MP:Sellers()
+check("two sellers", #sellers, 2)
+check("by name", sellers[1] and sellers[1].name, "Ana Stone")
+table.remove(vlog.events)
+ns.Util.CharacterName = nil
+
 print("\nkeeping")
 local log = MP:GetLog()
 log.events[#log.events + 1] = { t = now - 500 * 86400, m = "vendored", id = LOOT, n = 1, inc = 1 }

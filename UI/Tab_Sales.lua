@@ -46,7 +46,7 @@ local VIEWS = {
 }
 
 local state = { view = "sales", search = "", selected = nil, period = "week", who = "all",
-    salesPeriod = "all" }
+    salesPeriod = "all", methodsWho = "all" }
 
 -- By item's columns, right to left (a player asked for a running count of
 -- how many of each item sold; the owner said build it from a mockup,
@@ -210,6 +210,7 @@ local function CreateRow(row)
     row.when = Theme.CreateLabel(row, "tiny", "dim", "RIGHT")
     row.when:SetPoint("TOPRIGHT", -12, -19)
     row.when:SetWidth(115)
+    row.indent = 0
 
     -- By item's columns, shown only on its rows.
     row.cells = {}
@@ -218,6 +219,31 @@ local function CreateRow(row)
         cell:SetWordWrap(false)
         cell:Hide()
         row.cells[column.key] = cell
+    end
+end
+
+-- How far in a step under Profit by method sits: a profession under
+-- Crafted, and that profession's items under it.
+local INDENT = 16
+
+--- Move a row's icon, fold and two lines in by `level` steps.
+local function SetIndent(row, level)
+    level = level or 0
+    if row.indent == level then return end
+    row.indent = level
+    local x = level * INDENT
+
+    row.icon:ClearAllPoints()
+    row.icon:SetPoint("LEFT", 8 + x, 0)
+    row.fold:ClearAllPoints()
+    row.fold:SetPoint("LEFT", 13 + x, 0)
+    row.detail:ClearAllPoints()
+    row.detail:SetPoint("TOPLEFT", 40 + x, -19)
+    row.detail:SetPoint("TOPRIGHT", row, "TOPRIGHT", -130, -19)
+    if not row.columnMode then
+        row.name:ClearAllPoints()
+        row.name:SetPoint("TOPLEFT", 40 + x, -4)
+        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -130, -4)
     end
 end
 
@@ -238,7 +264,7 @@ local function SetColumnMode(row, on)
         row.columnsVersion = ns.Columns.version
     else
         for _, cell in pairs(row.cells) do cell:Hide() end
-        row.name:SetPoint("TOPLEFT", 40, -4)
+        row.name:SetPoint("TOPLEFT", 40 + (row.indent or 0) * INDENT, -4)
         row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -130, -4)
     end
 end
@@ -544,11 +570,39 @@ local function UpdateMethodRow(row, data)
     row.when:SetTextColor(Theme.Unpack("dim"))
 end
 
+--- What a profession under Crafted is called: the client's own name for
+--- it, or Other Crafts for the crafts no profession is known for.
+local function ProfessionText(sub)
+    if not sub.profession then return L["Other Crafts"] end
+    local auctions = ns.Auctions
+    if auctions and auctions.ProfessionLabel then
+        local ok, label = pcall(auctions.ProfessionLabel, auctions, sub.profession)
+        if ok and type(label) == "string" and label ~= "" then return label end
+    end
+    return sub.profession
+end
+
+--- A profession under Crafted: its profit, and what it is made of.
+local function UpdateProfessionRow(row, data)
+    Theme.SetItemIcon(row.icon, nil)
+    row.fold:Show()
+    pcall(row.fold.SetTexture, row.fold, data.folded
+        and [[Interface\Buttons\UI-PlusButton-Up]] or [[Interface\Buttons\UI-MinusButton-Up]])
+
+    row.name:SetText(ProfessionText(data.sub))
+    row.name:SetTextColor(Theme.Unpack("text"))
+
+    row.amount:SetText(SignedMoney(data.sub.profit))
+    row.detail:SetText(MethodDetail(data.sub, L["%d sold"]))
+    row.detail:SetTextColor(Theme.Unpack("muted"))
+    row.when:SetText("")
+end
+
 --- One item under its method.
 local function UpdateMethodItemRow(row, data)
     Theme.SetItemIcon(row.icon, data.itemID)
 
-    row.name:SetText(data.itemID and ItemLabel(data.itemID) or L["unknown item"])
+    row.name:SetText(ItemLabel(data.itemID, data.item and data.item.name))
     ApplyNameColor(row.name, data.itemID)
 
     row.amount:SetText(SignedMoney(data.item.profit))
@@ -558,8 +612,9 @@ local function UpdateMethodItemRow(row, data)
 end
 
 local function UpdateRow(row, data)
-    row.fold:SetShown(data.methodRow and true or false)
-    if data.haul or data.methodRow or data.methodItem then SetColumnMode(row, false) end
+    row.fold:SetShown((data.methodRow or data.professionRow) and true or false)
+    SetIndent(row, data.indent or 0)
+    if data.haul or data.methodRow or data.professionRow or data.methodItem then SetColumnMode(row, false) end
     if data.haul then
         UpdateVisitRow(row, data)
         return
@@ -567,6 +622,11 @@ local function UpdateRow(row, data)
 
     if data.methodRow then
         UpdateMethodRow(row, data)
+        return
+    end
+
+    if data.professionRow then
+        UpdateProfessionRow(row, data)
         return
     end
 
@@ -979,6 +1039,8 @@ local function ApplyLayout()
     widgets.period:SetShown(gold or methods or sales)
     widgets.period:Select(CurrentPeriod())
     widgets.who:SetShown(gold)
+    widgets.character:SetShown(methods)
+    widgets.characterLabel:SetShown(methods)
 
     -- The By item view's three numbers and its column headings sit over
     -- the list, which starts below them.
@@ -1046,6 +1108,29 @@ end
 
 --- Profit by method (Logic/MethodProfit.lua): each way of making money, its
 --- items beneath it, and the totals in the panel.
+--- Fill the Character: menu with this realm's sellers, All Characters
+--- first. A character picked before that sold nothing now goes back to all.
+local function UpdateCharacterMenu()
+    local menu = widgets.character
+    if not menu then return end
+    local options = { { text = L["All Characters"], value = "all" } }
+    local found = state.methodsWho == "all"
+    local sellers = ns.MethodProfit and ns.MethodProfit.Sellers and ns.MethodProfit:Sellers() or {}
+    local function Measure(text)
+        return Theme.MeasureText and Theme.MeasureText("small", text) or 0
+    end
+    local widest = Measure(options[1].text)
+    for _, seller in ipairs(sellers) do
+        options[#options + 1] = { text = seller.name, value = seller.key }
+        if seller.key == state.methodsWho then found = true end
+        widest = math.max(widest, Measure(seller.name))
+    end
+    if not found then state.methodsWho = "all" end
+    menu:SetWidth(math.max(140, widest + 30))
+    menu:SetOptions(options)
+    menu:SetValue(state.methodsWho)
+end
+
 local function RefreshMethods()
     awaitingItemData = false
     FillPickedDays()
@@ -1053,18 +1138,35 @@ local function RefreshMethods()
     if not ns.MethodProfit then return end
 
     local from, to = ns.MethodProfit.Range(state.period, state.fromDay, state.toDay)
-    local summary = ns.MethodProfit:Summary(from, to)
+    UpdateCharacterMenu()
+    local who = state.methodsWho ~= "all" and state.methodsWho or nil
+    local summary = ns.MethodProfit:Summary(from, to, { who = who })
     local total = summary.total
 
     local data = {}
     local folded = FoldedMethods()
+    local function AddItems(list, key, uncounted, indent)
+        for _, item in ipairs(list) do
+            data[#data + 1] = { methodItem = true, key = key, itemID = item.itemID, name = item.name,
+                item = item, uncounted = uncounted, indent = indent }
+        end
+    end
     for _, method in ipairs(ns.MethodProfit.METHODS) do
         local group = summary.methods[method.key]
         if group.n > 0 then
             data[#data + 1] = { methodRow = true, method = method, group = group, folded = folded[method.key] }
-            for _, item in ipairs(folded[method.key] and {} or group.list) do
-                data[#data + 1] = { methodItem = true, key = method.key,
-                    itemID = item.itemID, item = item }
+            if folded[method.key] then
+                -- folded: nothing under it
+            elseif group.professions and #group.professions > 0 then
+                -- Crafted opens into its professions, each with its items.
+                for _, sub in ipairs(group.professions) do
+                    local key = method.key .. ":" .. tostring(sub.key)
+                    data[#data + 1] = { professionRow = true, foldKey = key, sub = sub,
+                        folded = folded[key], indent = 1 }
+                    if not folded[key] then AddItems(sub.list, method.key, group.uncounted, 2) end
+                end
+            else
+                AddItems(group.list, method.key, group.uncounted, 0)
             end
         end
     end
@@ -1445,6 +1547,29 @@ local function Build(container)
     who:Select(state.who)
     widgets.who = who
 
+    -- Profit by method's Character: menu, filled as the view draws.
+    local character = Widgets.CreateDropdown(toolbar, {}, function(value)
+        state.methodsWho = value or "all"
+        Refresh()
+    end, { width = 140 })
+    character:SetPoint("RIGHT", 0, 0)
+    widgets.character = character
+
+    local characterLabel = Theme.CreateLabel(toolbar, "small", "muted")
+    characterLabel:SetPoint("RIGHT", character, "LEFT", -6, 0)
+    characterLabel:SetText(L["Character:"])
+    widgets.characterLabel = characterLabel
+
+    local function CharacterTip(owner)
+        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(L["Sold by your characters on this realm."], 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end
+    if character.HookScript then
+        character:HookScript("OnEnter", CharacterTip)
+        character:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
     local search = Widgets.CreateSearchBox(toolbar, L["Search sales"], function(text)
         state.search = text or ""
         Refresh()
@@ -1559,7 +1684,7 @@ local function Build(container)
         createRow = CreateRow,
         updateRow = UpdateRow,
         onEnter = function(row, data)
-            if data.methodRow then return end
+            if data.methodRow or data.professionRow then return end
             if data.haul then
                 GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
                 GameTooltip:SetText(L["Click to see this visit's report again"], 1, 1, 1)
@@ -1579,12 +1704,17 @@ local function Build(container)
         end,
         -- The item the detail pane is showing is lit, as on every other tab.
         isSelected = function(data)
-            if data.haul or data.methodRow or data.methodItem or not state.selected then return false end
+            if data.haul or data.methodRow or data.professionRow or data.methodItem or not state.selected then return false end
             return SelectionKey(data) == state.selected
         end,
         onClick = function(data)
             if data.methodRow then
                 ToggleMethod(data.method.key)
+                Refresh()
+                return
+            end
+            if data.professionRow then
+                ToggleMethod(data.foldKey)
                 Refresh()
                 return
             end
