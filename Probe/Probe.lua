@@ -377,6 +377,8 @@ function Probe:PrintReport()
     Line("craft PROTECTED", Yes(caps.tradeskill.craftRecipeSecure))
     Line("quality functions", Yes(caps.tradeskill.hasQualityFunctions))
     Line("quality tiers in use", Yes(caps.tradeskill.qualityTiersObserved))
+    -- Crafts that need a tool or station nearby (2026-11-14).
+    if ns.Crafting and ns.Crafting.ProbeText then Line("tools needed nearby", ns.Crafting:ProbeText()) end
     -- Goblin Gold's all-time numbers (2026-10-20): what the game's
     -- Statistics give an addon.
     if ns.GoldGoal and ns.GoldGoal.STATISTICS then

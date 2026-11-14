@@ -80,11 +80,154 @@ function Crafting:GetReadiness(recipeID)
         return false, L["need materials"]
     end
 
+    local tool = self:ToolMissing(recipeID)
+    if tool then
+        return false, L.Format("Needs a %s", tool)
+    end
+
     if not self.isTradeSkillOpen then
         return true, L["open your profession"]
     end
 
     return true
+end
+
+--------------------------------------------------------------------------------
+-- Crafts that need a tool or a station
+--------------------------------------------------------------------------------
+
+-- The owner said build it (2026-11-14, from a mockup): Craft Next stuck on a
+-- craft that needs a Spinning Wheel, an anvil or a forge, since readiness
+-- looked at materials only. The game's own answer comes first
+-- (C_TradeSkillUI.GetRecipeRequirements, not yet seen on Forever); when it
+-- says nothing, the game's refusal right after a craft starts teaches it,
+-- and that craft is skipped until you move to another zone or subzone.
+-- Kept in memory only.
+
+-- How long after a craft starts its refusal still counts, in seconds.
+Crafting.REFUSAL_WAIT = 3
+
+--- Where you stand, as the zone and subzone together.
+function Crafting.ZoneKey()
+    local zone, sub = "", ""
+    if type(GetZoneText) == "function" then
+        local ok, text = pcall(GetZoneText)
+        if ok and type(text) == "string" then zone = text end
+    end
+    if type(GetSubZoneText) == "function" then
+        local ok, text = pcall(GetSubZoneText)
+        if ok and type(text) == "string" then sub = text end
+    end
+    return zone .. "|" .. sub
+end
+
+--- What the game says this recipe needs nearby that is not here, or nil.
+-- @return name, or nil; and true when the game gave an answer at all
+function Crafting:GameRequirement(recipeID)
+    local api = _G.C_TradeSkillUI
+    if type(api) ~= "table" or type(api.GetRecipeRequirements) ~= "function" then return nil, false end
+    local ok, list = pcall(api.GetRecipeRequirements, recipeID)
+    if not ok or type(list) ~= "table" then return nil, false end
+    local answered = false
+    for _, need in ipairs(list) do
+        if type(need) == "table" then
+            answered = true
+            local okMet, met = pcall(function() return need.met == true end)
+            local okName, name = pcall(function() return type(need.name) == "string" and need.name ~= "" and need.name or nil end)
+            if okMet and not met then
+                return (okName and name) or L["station"], true
+            end
+        end
+    end
+    return nil, answered
+end
+
+--- The tool or station this craft needs and you are not near, or nil.
+function Crafting:ToolMissing(recipeID)
+    local name, answered = self:GameRequirement(recipeID)
+    if name then return name end
+    local learned = self.needsTool and self.needsTool[recipeID]
+    if not learned then return nil end
+    -- The game says everything it needs is here: it is not skipped.
+    if answered then
+        self.needsTool[recipeID] = nil
+        return nil
+    end
+    if learned.zone ~= Crafting.ZoneKey() then
+        self.needsTool[recipeID] = nil
+        return nil
+    end
+    return learned.name
+end
+
+--- The name in the game's "Requires %s" line, or nil when it is another message.
+function Crafting.ToolFromError(message)
+    if type(message) ~= "string" then return nil end
+    local template = _G.SPELL_FAILED_REQUIRES_SPELL_FOCUS
+    if type(template) ~= "string" or not template:find("%%s") then template = "Requires %s" end
+    local pattern = "^" .. template:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%s", "(.+)", 1) .. "$"
+    local ok, name = pcall(string.match, message, pattern)
+    if ok and name and name ~= "" then return name end
+    return nil
+end
+
+--- A UI error after a craft started here: a "Requires X" line means the craft
+--- needs X nearby, so it is skipped until you move.
+function Crafting:OnUIError(_, _, message)
+    local started = self.lastStart
+    if not started or (GetTime() - started.at) > Crafting.REFUSAL_WAIT then return end
+    local okText, text = pcall(function() return message .. "" end)
+    local name = okText and Crafting.ToolFromError(text)
+    if not name then return end
+    self.needsTool = self.needsTool or {}
+    self.needsTool[started.recipeID] = { name = name, zone = Crafting.ZoneKey() }
+    self.lastStart = nil
+    if self.active and self.active.recipeID == started.recipeID then
+        self.active = nil
+        self:StopWatching()
+    end
+    if ns.Queue and ns.Queue.Notify then ns.Queue:Notify() end
+    if ns.UI then ns.UI:RefreshActiveTab() end
+    if ns.CraftPanel and ns.CraftPanel.RequestRefresh then ns.CraftPanel:RequestRefresh() end
+end
+
+--- A new zone or subzone: crafts skipped for a tool are looked at again.
+function Crafting:OnZoneChanged()
+    if not self.needsTool or next(self.needsTool) == nil then return end
+    local here, moved = Crafting.ZoneKey(), false
+    for recipeID, learned in pairs(self.needsTool) do
+        if learned.zone ~= here then
+            self.needsTool[recipeID] = nil
+            moved = true
+        end
+    end
+    if moved then
+        if ns.UI then ns.UI:RefreshActiveTab() end
+        if ns.CraftPanel and ns.CraftPanel.RequestRefresh then ns.CraftPanel:RequestRefresh() end
+    end
+end
+
+--- For /bts probe: whether the game says what a recipe needs nearby.
+function Crafting:ProbeText()
+    local api = _G.C_TradeSkillUI
+    if type(api) ~= "table" or type(api.GetRecipeRequirements) ~= "function" then
+        return "no, learned from the game's refusal"
+    end
+    local first = ns.Queue and ns.Queue:GetAll()[1]
+    if not first then return "yes (queue a craft to test one)" end
+    local ok, list = pcall(api.GetRecipeRequirements, first.recipeID)
+    if not ok then return "yes, but it raised an error" end
+    if type(list) ~= "table" then return "yes, answered " .. type(list) end
+    local parts = {}
+    for _, need in ipairs(list) do
+        if type(need) == "table" then
+            local okText, text = pcall(function()
+                return tostring(need.name) .. "=" .. tostring(need.met)
+            end)
+            parts[#parts + 1] = okText and text or "(secret)"
+        end
+    end
+    return ("yes, %d for the first craft%s"):format(#parts, #parts > 0 and (": " .. table.concat(parts, ", ")) or "")
 end
 
 --- How many queued entries you could make right now.
@@ -538,6 +681,11 @@ function Crafting:OnEnable()
         ns.RegisterEvent(self, "TRADE_SKILL_SHOW", self.OnTradeSkillShow)
         ns.RegisterEvent(self, "TRADE_SKILL_CLOSE", self.OnTradeSkillClose)
     end
+    -- A craft refused for a missing tool, and moving on from where it was.
+    ns.RegisterEvent(self, "UI_ERROR_MESSAGE", self.OnUIError)
+    ns.RegisterEvent(self, "ZONE_CHANGED", self.OnZoneChanged)
+    ns.RegisterEvent(self, "ZONE_CHANGED_INDOORS", self.OnZoneChanged)
+    ns.RegisterEvent(self, "ZONE_CHANGED_NEW_AREA", self.OnZoneChanged)
 
     -- Only while a profession window is open: bags change constantly otherwise,
     -- and a looted item is not a completed craft. Or while a batch the addon
@@ -611,6 +759,7 @@ function Crafting:Start(recipeID, count, secureClick)
         startedAt = GetTime(),
     }
 
+    self.lastStart = { recipeID = recipeID, at = GetTime() }
     local ok, err
     if era then
         local shown
