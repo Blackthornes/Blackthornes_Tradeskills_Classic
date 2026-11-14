@@ -189,6 +189,24 @@ function CraftProfit:Forget()
     kept = {}
 end
 
+--- An item's plain name in its quality colour, never a bracketed link.
+function CraftProfit.ItemName(itemID)
+    local getInfo = (type(C_Item) == "table" and C_Item.GetItemInfo) or _G.GetItemInfo
+    local name, _, quality = Try(getInfo, itemID)
+    if type(name) ~= "string" or name == "" then
+        if type(C_Item) == "table" and type(C_Item.RequestLoadItemDataByID) == "function" then
+            Try(C_Item.RequestLoadItemDataByID, itemID)
+        end
+        local L = ns.L
+        return L and L.Format and L.Format("item %d", itemID) or ("item " .. tostring(itemID))
+    end
+    if ns.Util and ns.Util.ColorItemName then
+        local colored = Try(ns.Util.ColorItemName, itemID, name, quality)
+        if type(colored) == "string" and colored ~= "" then return colored end
+    end
+    return name
+end
+
 --- The bound mats by count and name: "4 Demonic Rune".
 function CraftProfit.BoundNames(figures)
     local parts = {}
@@ -197,12 +215,7 @@ function CraftProfit.BoundNames(figures)
         for _, entry in ipairs(figures.reagents) do
             if entry.itemID == itemID then quantity = quantity + (entry.quantity or 0) end
         end
-        local name = ns.Util and ns.Util.GetItemLabel and Try(ns.Util.GetItemLabel, itemID)
-        if type(name) ~= "string" or name == "" then
-            local getInfo = (type(C_Item) == "table" and C_Item.GetItemInfo) or _G.GetItemInfo
-            name = Try(getInfo, itemID)
-        end
-        if type(name) ~= "string" or name == "" then name = "item:" .. itemID end
+        local name = CraftProfit.ItemName(itemID)
         parts[#parts + 1] = quantity > 1 and (quantity .. " " .. name) or name
     end
     return table.concat(parts, ", ")

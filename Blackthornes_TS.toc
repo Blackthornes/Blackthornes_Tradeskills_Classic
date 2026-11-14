@@ -156,6 +156,7 @@ UI\SellMarked.lua
 UI\CastBarOnTop.lua
 UI\CraftProgress.lua
 UI\RecipeValue.lua
+UI\CraftProfitCard.lua
 UI\ItemTooltip.lua
 UI\VendorPriceTip.lua
 UI\EnchantTooltip.lua
