@@ -571,6 +571,7 @@ local DEFAULTS = {
         preferTsmPrices = false,
         -- The TSM price "market" reads, typed by the player (2026-11-13):
         -- `tsmPriceSource`, nil or empty for DBRecent; never rename it.
+        -- `tsmGearPriceSource`, nil or empty for the TSM Price Source; never rename it.
         -- See TSMPrices:MarketSource.
         -- Then Auctionator's (asked 2026-10-12). See Logic/AuctionatorPrices.lua.
         auctionatorPrices = true,

@@ -76,6 +76,13 @@ local function GreyPreferTSM(widgets, tsmOn)
         source.editBox:EnableMouse(tsmOn and true or false)
         if not tsmOn then source.editBox:ClearFocus() end
     end
+    -- "TSM BoE Price Source:" too.
+    local gearRow, gear = widgets.tsmGearRow, widgets.tsmGearPriceSource
+    if gearRow then gearRow:SetAlpha(tsmOn and 1 or 0.4) end
+    if gear then
+        gear.editBox:EnableMouse(tsmOn and true or false)
+        if not tsmOn then gear.editBox:ClearFocus() end
+    end
 end
 
 local widgets = {}
@@ -2069,6 +2076,43 @@ local function Build(outer)
     widgets.tsmSourceNote:SetWidth(COLUMN_WIDTH)
     widgets.tsmSourceNote:SetWordWrap(true)
 
+    -- A second TSM price for gear that binds when worn (a player asked, the
+    -- owner said build it, 2026-11-14). `tsmGearPriceSource`, account wide,
+    -- nil or empty reads the TSM Price Source; never rename it. See
+    -- TSMPrices:GearSource.
+    local gearRow = CreateRow(pages.sharing, 2, L["TSM BoE Price Source:"],
+        L["Used for gear that binds when worn. Leave it empty to use your TSM Price Source."])
+    widgets.tsmGearPriceSource = Widgets.CreateSearchBox(gearRow, "DBRecent")
+    widgets.tsmGearPriceSource:SetWidth(150)
+    widgets.tsmGearPriceSource:SetPoint("TOPLEFT", CONTROL_X, 0)
+    if widgets.tsmGearPriceSource.icon then
+        widgets.tsmGearPriceSource.icon:Hide()
+        widgets.tsmGearPriceSource.editBox:SetPoint("TOPLEFT", 6, 0)
+        widgets.tsmGearPriceSource.hint:SetPoint("LEFT", 6, 0)
+    end
+    widgets.tsmGearRow = gearRow
+    local function SaveGearSource(editBox)
+        local text = (editBox:GetText() or ""):match("^%s*(.-)%s*$")
+        local was = Config:Get("tsmGearPriceSource") or ""
+        if text == was then return end
+        Config:Set("tsmGearPriceSource", text ~= "" and text or nil)
+        if ns.TSMPrices then ns.TSMPrices:Forget() end
+        UI:RefreshActiveTab()
+    end
+    widgets.tsmGearPriceSource.editBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+    widgets.tsmGearPriceSource.editBox:HookScript("OnEditFocusLost", SaveGearSource)
+    widgets.tsmGearPriceSource.editBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(Config:Get("tsmGearPriceSource") or "")
+        self:ClearFocus()
+    end)
+
+    widgets.tsmGearNote = Theme.CreateLabel(pages.sharing.content, "tiny", "warn")
+    Place(pages.sharing, 2, widgets.tsmGearNote, -4)
+    widgets.tsmGearNote:SetWidth(COLUMN_WIDTH)
+    widgets.tsmGearNote:SetWordWrap(true)
+
     local auctionatorRow = CreateRow(pages.sharing, 2, L["Auctionator Prices:"],
         L["Uses Auctionator prices for items nothing else has priced, or when its price is newer than your old one."])
     widgets.auctionatorPrices = Widgets.CreateCheckbox(auctionatorRow, L["On"], function(checked)
@@ -2622,6 +2666,16 @@ local function Refresh()
     end
     local refused = ns.TSMPrices and ns.TSMPrices:SourceRefused()
     widgets.tsmSourceNote:SetText(refused and L["TSM doesn't know that price. Using DBRecent."] or "")
+    local gearBox = widgets.tsmGearPriceSource.editBox
+    if not (gearBox.HasFocus and gearBox:HasFocus()) then
+        local saved = Config:Get("tsmGearPriceSource") or ""
+        if widgets.tsmGearPriceSource:GetText() ~= saved then widgets.tsmGearPriceSource:SetText(saved) end
+    end
+    if widgets.tsmGearPriceSource.hint and ns.TSMPrices then
+        widgets.tsmGearPriceSource.hint:SetText(ns.TSMPrices:MarketSource())
+    end
+    local gearRefused = ns.TSMPrices and ns.TSMPrices:GearSourceRefused()
+    widgets.tsmGearNote:SetText(gearRefused and L["TSM doesn't know that price. Using your TSM Price Source."] or "")
     widgets.auctionatorPrices:SetChecked(Config:Get("auctionatorPrices") ~= false)
     widgets.auctionatorStatus:SetText(ns.AuctionatorPrices and ns.AuctionatorPrices:Describe() or "")
 

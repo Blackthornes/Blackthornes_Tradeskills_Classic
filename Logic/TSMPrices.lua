@@ -24,6 +24,15 @@
 -- DBRecent has none either, quietly to DBMarket, so a price never goes
 -- blank. "min" and "lowest" stay DBMinBuyout.
 --
+-- "TSM BoE Price Source:" (a player asked, the owner said build it, 2026-11-14)
+-- names a second price for gear that binds when worn (item class 2 or 4,
+-- bind type 2, TSMPrices.IsBoEGear). Saved as `tsmGearPriceSource`
+-- (account wide, never rename it); nil or empty reads the TSM Price Source,
+-- so nothing changes until a player types one. A gear source TSM refuses,
+-- or one with no price for an item, falls back to the TSM Price Source.
+-- Gear whose bind type the client hasn't loaded yet reads the TSM Price
+-- Source and isn't kept, so it is asked again once it loads.
+--
 -- On unless unticked (`tsmPrices`, Settings, Sharing; never rename it).
 -- Prices are read many times a redraw, so each answer is kept CACHE_FOR
 -- seconds.
@@ -100,6 +109,47 @@ function TSMPrices:SourceRefused()
     return text ~= nil and self:Loaded() and not self:SourceValid(text)
 end
 
+--- The gear source the player typed, trimmed, or nil when the box is empty.
+function TSMPrices.GearTyped()
+    local text = ns.Config and ns.Config:Get("tsmGearPriceSource")
+    if type(text) ~= "string" then return nil end
+    text = text:match("^%s*(.-)%s*$")
+    if text == "" then return nil end
+    return text
+end
+
+--- True while a typed gear source is one TSM says it doesn't know.
+function TSMPrices:GearSourceRefused()
+    local text = self.GearTyped()
+    return text ~= nil and self:Loaded() and not self:SourceValid(text)
+end
+
+--- The source BoE gear reads, or nil when it reads the TSM Price Source.
+function TSMPrices:GearSource()
+    local text = self.GearTyped()
+    if not text or not self:SourceValid(text) then return nil end
+    if text:lower() == self:MarketSource():lower() then return nil end
+    return text
+end
+
+--- true for gear that binds when worn, false for anything else, nil while
+--- the client hasn't loaded the item's bind type.
+function TSMPrices.IsBoEGear(itemID)
+    local items = rawget(_G, "C_Item")
+    local instant = items and items.GetItemInfoInstant or rawget(_G, "GetItemInfoInstant")
+    if type(instant) ~= "function" then return false end
+    local ok, _, _, _, _, _, classID = pcall(instant, itemID)
+    if not ok then return false end
+    if classID ~= 2 and classID ~= 4 then return false end
+    local info = items and items.GetItemInfo or rawget(_G, "GetItemInfo")
+    if type(info) ~= "function" then return nil end
+    local got = { pcall(info, itemID) }
+    if not got[1] or got[2] == nil then return nil end
+    local bind = got[15]
+    if type(bind) ~= "number" then return nil end
+    return bind == 2
+end
+
 local function Read(api, source, itemID)
     local ok, value = pcall(api.GetCustomPriceValue, source, "i:" .. itemID)
     if not ok or type(value) ~= "number" then return nil end
@@ -129,11 +179,20 @@ function TSMPrices:GetValue(itemID, which)
         return entry[1] or nil
     end
 
-    local value = custom and Read(api, custom, itemID) or Read(api, source, itemID)
+    local value, keep = nil, true
+    if key == "market" then
+        local gear = self:GearSource()
+        if gear then
+            local boe = self.IsBoEGear(itemID)
+            if boe then value = Read(api, gear, itemID)
+            elseif boe == nil then keep = false end
+        end
+    end
+    value = value or (custom and Read(api, custom, itemID)) or Read(api, source, itemID)
     if not value and key == "market" and source ~= self.FALLBACK_SOURCE then
         value = Read(api, self.FALLBACK_SOURCE, itemID)
     end
-    kept[itemID] = { value or false, now }
+    if keep then kept[itemID] = { value or false, now } end
     return value
 end
 

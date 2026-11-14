@@ -9,7 +9,7 @@
 --   5. A TSM error, a non-number or a silly number counts as no price.
 --   6. Answers are kept for a while, so a redraw does not ask TSM again.
 
-local GLOBALS = { "TSM_API", "GetTime" }
+local GLOBALS = { "TSM_API", "GetTime", "C_Item" }
 local saved = {}
 for _, key in ipairs(GLOBALS) do saved[key] = _G[key] end
 
@@ -149,6 +149,58 @@ check("a check that raises is tried as typed", TSM:MarketSource() == "NotAPrice"
 TSM_API = nil
 check("without TSM nothing is refused", not TSM:SourceRefused())
 settings.tsmPriceSource = nil
+
+-- "TSM BoE Price Source:" (2026-11-14): a second price for gear that binds when worn.
+print("\nTSM gear source")
+local CLASS, BIND = { [4001] = 4, [4002] = 2, [4003] = 7, [4004] = 4 }, { [4001] = 2, [4002] = 1, [4003] = 0 }
+C_Item = {
+    GetItemInfoInstant = function(id) return id, "", "", "", 0, CLASS[id] end,
+    GetItemInfo = function(id)
+        if not BIND[id] then return nil end
+        return "item", nil, 2, 1, 1, "", "", 1, "", "", 0, CLASS[id], 0, BIND[id]
+    end,
+}
+reads = {}
+TSM_API = {
+    GetCustomPriceValue = function(source)
+        reads[#reads + 1] = source
+        if source == "DBRecent" then return 1234 end
+        if source == "DBMarket" then return 777 end
+        if source == "DBMinBuyout" then return 999 end
+    end,
+    IsCustomPriceValid = function(text) return valid[text] == true end,
+}
+valid.DBMinBuyout = true
+check("BoE armor is BoE gear", TSM.IsBoEGear(4001) == true)
+check("bind on pickup is not", TSM.IsBoEGear(4002) == false)
+check("a trade good is not", TSM.IsBoEGear(4003) == false)
+check("gear not loaded yet can't say", TSM.IsBoEGear(4004) == nil)
+settings.tsmGearPriceSource = "   "
+TSM:Forget()
+check("an empty gear box reads the TSM Price Source", TSM:GearSource() == nil and Prices:GetValue(4001) == 1234)
+settings.tsmGearPriceSource = " DBMarket "
+TSM:Forget()
+check("BoE gear reads the gear source", Prices:GetValue(4001) == 777 and reads[#reads] == "DBMarket")
+check("a trade good doesn't", Prices:GetValue(4003) == 1234 and reads[#reads] == "DBRecent")
+check("bind on pickup gear doesn't", Prices:GetValue(4002) == 1234 and reads[#reads] == "DBRecent")
+check("min still reads DBMinBuyout for gear", Prices:GetValue(4001, "min") == 999)
+check("gear not loaded yet reads the TSM Price Source", Prices:GetValue(4004) == 1234)
+CLASS[4004], BIND[4004] = 4, 2
+check("and isn't kept, so it is asked again", Prices:GetValue(4004) == 777)
+settings.tsmPriceSource = "DBMinBuyout"
+TSM:Forget()
+check("the main box still prices trade goods", Prices:GetValue(4003) == 999)
+check("while gear keeps its own", Prices:GetValue(4001) == 777)
+settings.tsmGearPriceSource = "dbmarket*1.1"
+TSM:Forget()
+check("a gear source with no price falls back to the TSM Price Source", Prices:GetValue(4001) == 999)
+settings.tsmGearPriceSource = "NotAGear"
+TSM:Forget()
+check("a gear source TSM doesn't know is refused", TSM:GearSourceRefused())
+check("and reads the TSM Price Source", Prices:GetValue(4001) == 999)
+settings.tsmGearPriceSource, settings.tsmPriceSource = nil, nil
+TSM_API = nil
+check("without TSM no gear source is refused", not TSM:GearSourceRefused())
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 print(("\n%d check(s) passed\n"):format(checks))
