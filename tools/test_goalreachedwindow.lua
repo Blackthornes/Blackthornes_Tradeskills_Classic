@@ -1,6 +1,7 @@
 -- The Goal reached window wears the house frame (UI audit, 2026-10-27):
 -- the gold rim, the Tradeskills plate and a red close gem that puts it
--- away, with Escape, its words and its Next Goal box as before.
+-- away, with Escape and its words as before. Since 2026-11-14 it only
+-- cheers: the new goal is asked for in its own small window.
 
 local GLOBALS = { "CreateFrame", "UIParent", "GameTooltip", "UISpecialFrames", "tinsert" }
 local saved = {}
@@ -84,7 +85,8 @@ for _, name in ipairs(UISpecialFrames) do
     if name == "BlackthornesTSGoldGoalReached" then escape = true end
 end
 check("Escape still closes it",                          escape, true)
-check("the Next Goal box is still there",                window.box ~= nil, true)
+check("the Next Goal box is gone",                      rawget(window, "box") == nil, true)
+check("a Done button",                                  window.done ~= nil, true)
 check("the three lines are still there",                 #window.lines, 3)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end

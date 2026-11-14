@@ -236,6 +236,9 @@ function GoldGoalUI:Build()
     frame:SetScript("OnEnter", function() GoldGoalUI:ShowCard() end)
     frame:SetScript("OnLeave", function() GoldGoalUI:HideCard() end)
     frame:SetScript("OnShow", function() GoldGoalUI:Refresh(true) end)
+    frame:SetScript("OnMouseUp", function(_, button)
+        if button == "RightButton" then GoldGoalUI:OpenMenu() end
+    end)
     Theme.TopSheen(frame, 0.06)
     Theme.Halo(frame, 6, 0.16)
     self.frame = frame
@@ -1300,7 +1303,7 @@ local function BuildGoalWindow()
     -- gem. Without it, the old accent border and sheen.
     local titan = ns.Titanforged
     local window = Theme.CreatePanel(UIParent, "window", not titan and "accent" or false)
-    window:SetSize(300, titan and 224 or 210)
+    window:SetSize(300, titan and 188 or 174)
     window:SetFrameStrata("DIALOG")
     window:SetPoint("TOP", UIParent, "TOP", 0, -150)
     window:EnableMouse(true)
@@ -1335,28 +1338,13 @@ local function BuildGoalWindow()
         window.lines[index] = line
     end
 
-    local nextLabel = Theme.CreateLabel(window, "small", "text")
-    nextLabel:SetText(L["Next Goal:"])
-
-    window.box = Widgets.CreateNumberBox(window, { width = 80, min = 1, max = 99999999 })
-    local unit = Theme.CreateLabel(window, "small", "muted")
-    unit:SetText("g")
-
-    -- Lined up across the middle, measured.
-    local rowWidth = Width(nextLabel) + 6 + 80 + 4 + Width(unit)
-    nextLabel:SetPoint("BOTTOMLEFT", window, "BOTTOM", -rowWidth / 2, 50)
-    window.box:SetPoint("LEFT", nextLabel, "RIGHT", 6, 0)
-    unit:SetPoint("LEFT", window.box, "RIGHT", 4, 0)
-
-    window.set = Widgets.CreateButton(window, L["Set"], function()
-        local gold = window.box:GetValue()
-        if gold and gold > 0 then ns.GoldGoal:SetGoalGold(gold) end
-        window:Hide()
-    end, { width = 90, height = 22, primary = true })
+    -- Cheer only: the new goal is asked for in the small Goblin Gold
+    -- window once this one goes (the owner, 2026-11-14).
     window.done = Widgets.CreateButton(window, L["Done"], function() window:Hide() end,
-        { width = 90, height = 22 })
-    window.set:SetPoint("BOTTOMRIGHT", window, "BOTTOM", -4, 14)
-    window.done:SetPoint("BOTTOMLEFT", window, "BOTTOM", 4, 14)
+        { width = 90, height = 22, primary = true })
+    window.done:SetPoint("BOTTOM", window, "BOTTOM", 0, 14)
+
+    window:HookScript("OnHide", function() GoldGoalUI:GoalWindowClosed() end)
 
     window:Hide()
     return window
@@ -1377,8 +1365,7 @@ function GoldGoalUI:ShowGoalWindow(cheer)
     if from then texts[#texts + 1] = L.Format("Mostly from %s", from) end
     for index, line in ipairs(window.lines) do line:SetText(texts[index] or "") end
 
-    local suggest = GoldGoal.NextGoal(GoldGoal:Total())
-    window.box:SetValue(math.floor(suggest / COPPER_PER_GOLD))
+    window.reached = cheer.goal
     window:Show()
 
     local motion = ns.Motion
@@ -1387,5 +1374,181 @@ function GoldGoalUI:ShowGoalWindow(cheer)
             window:SetAlpha(p)
             pcall(window.SetScale, window, 0.9 + 0.1 * (ns.Motion.EaseOutBack and ns.Motion.EaseOutBack(p) or p))
         end, { ease = false })
+    end
+end
+
+--------------------------------------------------------------------------------
+-- A new goal (the owner, 2026-11-14): once the cheer window goes with no new
+-- goal set, a small window under the bar asks for one and waits for an
+-- answer (Escape leaves it). Right-click the bar for Change Goal, which opens
+-- the same window. Nothing new is saved; a goal is set through SetGoalGold.
+--------------------------------------------------------------------------------
+
+GoldGoalUI.ASK_WIDTH = 280
+
+--- The cheer window went: ask for a new goal unless one was set meanwhile.
+function GoldGoalUI:GoalWindowClosed()
+    local window = self.goalWindow
+    local reached = window and window.reached
+    if window then window.reached = nil end
+    if not reached then return end
+    local goal = ns.GoldGoal and ns.GoldGoal:Goal()
+    if goal and goal ~= reached then return end
+    self:AskNewGoal(reached)
+end
+
+--- Show the "set a new goal" window, waiting out fights, the auction house
+--- and the game's panels.
+function GoldGoalUI:AskNewGoal(reached)
+    self.askFor = reached
+    local GoldGoal = ns.GoldGoal
+    if GoldGoal and GoldGoal.Busy and GoldGoal:Busy() then
+        if self.askWaiting then return end
+        self.askWaiting = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(GoldGoal.RETRY or 2, function()
+                self.askWaiting = nil
+                if self.askFor then self:AskNewGoal(self.askFor) end
+            end)
+        end
+        return
+    end
+    self:ShowAsk("reached", reached)
+end
+
+--- Right-click on the bar: the one row menu, with Change Goal.
+function GoldGoalUI:OpenMenu()
+    if not ns.RowMenu then return self:ShowAsk("change") end
+    return ns.RowMenu:Open({
+        { text = L["Change Goal"], run = function() GoldGoalUI:ShowAsk("change") end },
+    }, { title = L["GOBLIN GOLD"] })
+end
+
+local function BuildAskWindow()
+    local titan = ns.Titanforged
+    local window = Theme.CreatePanel(UIParent, "window", not titan and "accent" or false)
+    window:SetSize(GoldGoalUI.ASK_WIDTH, 120)
+    window:SetFrameStrata("DIALOG")
+    window:SetClampedToScreen(true)
+    window:EnableMouse(true)
+    window:SetMovable(true)
+    window:RegisterForDrag("LeftButton")
+    window:SetScript("OnDragStart", window.StartMoving)
+    window:SetScript("OnDragStop", window.StopMovingOrSizing)
+    window.top = titan and -30 or -14
+    if titan then
+        titan:Dress(window, { title = L["Goblin Gold"], close = function() GoldGoalUI:CloseAsk() end })
+    else
+        Theme.TopSheen(window, 0.08)
+    end
+    Theme.Halo(window, 8, 0.24)
+
+    window.first = Theme.CreateLabel(window, "normal", "text", "CENTER")
+    window.first:SetPoint("TOP", 0, window.top)
+    window.first:SetWidth(GoldGoalUI.ASK_WIDTH - 32)
+    window.second = Theme.CreateLabel(window, "small", "muted", "CENTER")
+    window.second:SetPoint("TOP", window.first, "BOTTOM", 0, -6)
+    window.second:SetWidth(GoldGoalUI.ASK_WIDTH - 32)
+
+    window.setNew = Widgets.CreateButton(window, L["Set New Goal"], function()
+        GoldGoalUI:ShowAsk("set", window.reached)
+    end, { width = 110, height = 22, primary = true })
+    window.notNow = Widgets.CreateButton(window, L["Not Now"], function() GoldGoalUI:CloseAsk() end,
+        { width = 90, height = 22 })
+    window.setNew:SetPoint("BOTTOMRIGHT", window, "BOTTOM", -4, 14)
+    window.notNow:SetPoint("BOTTOMLEFT", window, "BOTTOM", 4, 14)
+
+    window.boxLabel = Theme.CreateLabel(window, "small", "text")
+    window.boxLabel:SetText(L["New Goal:"])
+    window.box = Widgets.CreateNumberBox(window, { width = 80, min = 1, max = 99999999 })
+    window.unit = Theme.CreateLabel(window, "small", "muted")
+    window.unit:SetText("g")
+    local rowWidth = Width(window.boxLabel) + 6 + 80 + 4 + Width(window.unit)
+    window.boxLabel:SetPoint("BOTTOMLEFT", window, "BOTTOM", -rowWidth / 2, 48)
+    window.box:SetPoint("LEFT", window.boxLabel, "RIGHT", 6, 0)
+    window.unit:SetPoint("LEFT", window.box, "RIGHT", 4, 0)
+
+    window.set = Widgets.CreateButton(window, L["Set"], function() GoldGoalUI:SetFromAsk() end,
+        { width = 90, height = 22, primary = true })
+    window.cancel = Widgets.CreateButton(window, L["Cancel"], function() GoldGoalUI:CloseAsk() end,
+        { width = 90, height = 22 })
+    window.set:SetPoint("BOTTOMRIGHT", window, "BOTTOM", -4, 14)
+    window.cancel:SetPoint("BOTTOMLEFT", window, "BOTTOM", 4, 14)
+
+    window:Hide()
+    return window
+end
+
+local function Place(window)
+    window:ClearAllPoints()
+    local bar = GoldGoalUI.frame
+    if bar and bar:IsShown() then
+        window:SetPoint("TOP", bar, "BOTTOM", 0, -8)
+    else
+        window:SetPoint("TOP", UIParent, "TOP", 0, -150)
+    end
+end
+
+--- mode: "reached" (the question), "set" (the box after Set New Goal) or
+--- "change" (the box from the bar's menu, with the goal now above it).
+function GoldGoalUI:ShowAsk(mode, reached)
+    local window = self.askWindow or BuildAskWindow()
+    self.askWindow = window
+    window.mode = mode
+    window.reached = reached or window.reached
+    self.askFor = nil
+
+    local GoldGoal = ns.GoldGoal
+    local asking = mode == "reached"
+    window.setNew:SetShown(asking)
+    window.notNow:SetShown(asking)
+    window.boxLabel:SetShown(not asking)
+    window.box:SetShown(not asking)
+    window.unit:SetShown(not asking)
+    window.set:SetShown(not asking)
+    window.cancel:SetShown(not asking)
+
+    local goal = GoldGoal and GoldGoal:Goal()
+    if asking then
+        window.first:SetText(L.Format("You reached your goal of %s.", Money(window.reached or goal or 0, 1)))
+        window.second:SetText(L["Set a new goal to keep going."])
+        window.second:Show()
+    elseif mode == "change" then
+        window.first:SetText(goal and L.Format("Your goal now: %s", Money(goal, 1)) or L["Set a new goal to keep going."])
+        window.second:SetText("")
+        window.second:Hide()
+        window.box:SetValue(math.floor((goal or GoldGoal.NextGoal(GoldGoal:Total())) / COPPER_PER_GOLD))
+    else
+        window.first:SetText(L["Set a new goal to keep going."])
+        window.second:SetText("")
+        window.second:Hide()
+        window.box:SetValue(math.floor(GoldGoal.NextGoal(GoldGoal:Total()) / COPPER_PER_GOLD))
+    end
+
+    local texts = window.first:GetHeight() + (asking and (6 + window.second:GetHeight()) or 0)
+    window:SetHeight(math.max(110, -window.top + texts + 14 + (asking and 22 or 56) + 14))
+    Place(window)
+    window:Show()
+    local edit = window.box.editBox
+    if not asking and edit then
+        pcall(edit.SetFocus, edit)
+        pcall(edit.HighlightText, edit)
+    end
+end
+
+function GoldGoalUI:SetFromAsk()
+    local window = self.askWindow
+    if not window then return end
+    local gold = window.box:GetValue()
+    if not (gold and gold > 0) then return end
+    ns.GoldGoal:SetGoalGold(gold)
+    self:CloseAsk()
+end
+
+function GoldGoalUI:CloseAsk()
+    self.askFor = nil
+    if self.askWindow then
+        self.askWindow.reached = nil
+        self.askWindow:Hide()
     end
 end
