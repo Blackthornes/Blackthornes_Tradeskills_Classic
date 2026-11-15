@@ -4,6 +4,17 @@ Versions follow [semantic versioning](https://semver.org): the middle number
 moves for new behaviour, the last for fixes alone. The newest version goes at
 the top; a release is refused if its version has no section here.
 
+## 0.11.0
+
+- Road to 300 now covers Cooking, First Aid and Fishing.
+- The Sales tab has a By Item view.
+- The Sell list can hide items.
+- Item tooltips show what you paid.
+- Export and Import Prices.
+- Mute All Sounds quiets every Blackthornes sound at once.
+- Windows remember where you drag them.
+- Various bug fixes.
+
 ## 0.10.4
 
 - Various bug fixes.
