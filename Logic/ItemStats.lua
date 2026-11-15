@@ -29,6 +29,15 @@ local function Ask(module, fn, ...)
     return a, b, c
 end
 
+--- This realm's ledger entries, with the other account's shared sales
+--- when Share Sales is on (Mail:Entries), else the ledger alone.
+local function LedgerEntries()
+    local entries = Ask(ns.Mail, "Entries")
+    if type(entries) == "table" then return entries end
+    local ledger = Ask(ns.Mail, "GetLedger")
+    return type(ledger) == "table" and type(ledger.entries) == "table" and ledger.entries or {}
+end
+
 local function Number(value)
     return type(value) == "number" and value == value and value or nil
 end
@@ -219,11 +228,11 @@ local function Weeks(itemID, now)
     local weeks = {}
     for index = 1, ItemStats.WEEKS do weeks[index] = { units = 0, net = 0 } end
 
-    local ledger = Ask(ns.Mail, "GetLedger")
+    local entries = LedgerEntries()
     local names = Ask(ns.Mail, "NameIndex") or {}
     local any = false
 
-    for _, entry in ipairs(type(ledger) == "table" and ledger.entries or {}) do
+    for _, entry in ipairs(entries) do
         local t = Number(entry.t)
         if entry.kind == "sold" and t and t <= now and (entry.itemID or names[entry.name]) == itemID then
             local index = math.floor((now - t) / WEEK) + 1
@@ -348,8 +357,7 @@ end
 --- tab builds again only then.
 function ItemStats:Key(itemID)
     local record = ns.Prices and Ask(ns.Prices, "Get", itemID)
-    local ledger = Ask(ns.Mail, "GetLedger")
-    local entries = type(ledger) == "table" and ledger.entries or {}
+    local entries = LedgerEntries()
     local last = entries[#entries]
     return table.concat({
         tostring(itemID),

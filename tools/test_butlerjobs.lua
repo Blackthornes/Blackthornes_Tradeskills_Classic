@@ -106,6 +106,9 @@ check("for nobody else", #bag.forNames, 0)
 check("no vendor sells linen", bag.missing[1] and bag.missing[1].vendor, nil)
 vendorPrices[2996] = 10
 check("a vendor material says what one costs", Butler:Jobs()[1].steps[1].missing[1].vendor, 10)
+ns.Vendor.IsLimited = function(_, itemID) return itemID == 2996 end
+check("a shop with limited stock is never named", Butler:Jobs()[1].steps[1].missing[1].vendor, nil)
+ns.Vendor.IsLimited = nil
 vendorPrices[2996] = nil
 local send = jobs[1].steps[2]
 check("then mails the leather over", send.kind, "mail")

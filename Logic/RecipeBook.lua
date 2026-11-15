@@ -787,6 +787,28 @@ end
 --   price, priceHow  the cheapest way to get the recipe
 --   payback     crafts until the profit has paid for the recipe
 -- }
+--- The words for Cost to make. A craft whose only unpriced reagents bind on
+--- pickup shows what the rest cost, plus those reagents by name and count,
+--- since they can never be bought (a player's report, 2026-11-14).
+function RecipeBook:CostText(value)
+    local function Money(c) return ns.Util.FormatMoney(c, { short = true }) end
+    if value.cost then return Money(value.cost) end
+    local detail = value.costDetail
+    if not (detail and detail.onlyBound and detail.partial) then
+        return L["materials not scanned"]
+    end
+    local parts = {}
+    for _, itemID in ipairs(detail.bound) do
+        local quantity = 0
+        for _, entry in ipairs(detail.reagents or {}) do
+            if entry.itemID == itemID then quantity = quantity + (entry.quantity or 0) end
+        end
+        local name = ItemInfo(itemID) or ("item:" .. itemID)
+        parts[#parts + 1] = quantity > 1 and (quantity .. " " .. name) or name
+    end
+    return L.Format("%s, plus %s you get yourself", Money(detail.partial), table.concat(parts, ", "))
+end
+
 function RecipeBook:Value(record, extraItemID)
     if not record then return nil end
 
@@ -955,8 +977,7 @@ function RecipeBook:TooltipLines(itemID)
 
     local value = self:Value(record, itemID)
 
-    lines[#lines + 1] = { L["Cost to make"], value.cost and Money(value.cost) or L["materials not scanned"],
-        not value.cost }
+    lines[#lines + 1] = { L["Cost to make"], self:CostText(value), not value.cost }
 
     if not record.outputItemID then
         lines[#lines + 1] = { L["Makes"], L["no item to sell"], true }
@@ -978,9 +999,24 @@ function RecipeBook:TooltipLines(itemID)
         lines[#lines + 1] = { L["Vendors for"], Money(returns.vendor) }
     end
 
+    -- How well the item it makes sells (Logic/Demand.lua), so a player can
+    -- tell before buying the recipe (asked 2026-11-12).
+    if ns.Demand and ns.Demand.Get then
+        local ok, reading = pcall(ns.Demand.Get, ns.Demand, record.outputItemID)
+        if ok and reading then
+            lines[#lines + 1] = { L["Demand"], ns.Demand:Label(reading), color = ns.Demand:Color(reading) }
+        end
+    end
+
     if value.profit then
         local text = Money(value.profit)
-        if value.backWay and value.backWay ~= "auction" then
+        -- Always name the way that won, the AH too, in its colour (asked
+        -- 2026-11-12, so a player can see where the money comes from).
+        local Profit = ns.Profit
+        local word = value.backWay and Profit and Profit.WAY_LABELS and Profit.WAY_LABELS[value.backWay]
+        if word then
+            text = L.Format("%s  (by %s)", text, Profit.WayColored(value.backWay, word))
+        elseif value.backWay then
             text = L.Format("%s  (by %s)", text, WAY_NAMES[value.backWay] or value.backWay)
         end
         lines[#lines + 1] = { L["Profit per craft"], text, color = value.profit >= 0 and "profit" or "loss" }

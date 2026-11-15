@@ -4,6 +4,19 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
 local Queue = ns.NewModule("Queue")
 
 --------------------------------------------------------------------------------
@@ -82,7 +95,8 @@ function Queue:CanMail(fromKey, toKey)
     local from, to = CharacterRecord(fromKey), CharacterRecord(toKey)
     if not (from and to) then return false end
 
-    if from.realm and to.realm and from.realm ~= to.realm then return false end
+    local fromRealm, toRealm = RealmKey(from.realm), RealmKey(to.realm)
+    if fromRealm and toRealm and fromRealm ~= toRealm then return false end
     if from.faction and to.faction and from.faction ~= to.faction then return false end
     return true
 end
@@ -800,6 +814,15 @@ function Queue:RebuildDependencies()
     -- sub-crafts are done together (OrderSubCrafts).
     derived = OrderSubCrafts(MergeSubCrafts(derived), manual)
 
+    -- A paused sub-craft stays paused when the sub-crafts are worked out again.
+    local pausedBefore = {}
+    for _, entry in ipairs(queue) do
+        if entry.isDependency and entry.paused then pausedBefore[Queue.EntryKey(entry)] = true end
+    end
+    for _, entry in ipairs(derived) do
+        if pausedBefore[Queue.EntryKey(entry)] then entry.paused = true end
+    end
+
     for index = #queue, 1, -1 do
         queue[index] = nil
     end
@@ -811,6 +834,9 @@ function Queue:RebuildDependencies()
     for _, entry in ipairs(manual) do
         queue[#queue + 1] = entry
     end
+
+    -- The order the player set with Move Up and Move Down (ApplyOrder).
+    self:ApplyOrder()
 
     -- Said once, when buying first turns cheaper, not on every rebuild.
     for _, entry in ipairs(derived) do
@@ -1187,6 +1213,7 @@ function Queue:Clear()
     for i = #queue, 1, -1 do
         queue[i] = nil
     end
+    if ns.db then ns.db.queueOrder = nil end
     -- Clear all empties the shopping list too, so nothing is left to buy
     -- for a list the player just threw away.
     self:ClearBuys()
@@ -1255,6 +1282,199 @@ function Queue:Notify()
     if ns.FarmerGoals and ns.FarmerGoals.QueueChanged then
         ns.FarmerGoals:QueueChanged()
     end
+    -- The other account's copy of the craft queue list (Logic/AccountLink.lua,
+    -- Share Shopping Lists) follows it a few seconds later.
+    if ns.AccountLink and ns.AccountLink.ListsChanged then
+        pcall(ns.AccountLink.ListsChanged, ns.AccountLink)
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Pause and the player's own order
+--------------------------------------------------------------------------------
+
+-- The owner said build it (2026-11-14, from a mockup): Pause and Resume on a
+-- row, and Move to Top, Move Up and Move Down. Pause is `entry.paused`
+-- (saved on the entry; a sub-craft keeps it through a rebuild, by
+-- EntryKey). The order is `ns.db.queueOrder`, a list of EntryKeys, nil
+-- until the player moves a row and emptied by Clear all. Never rename
+-- either. A part (a sub-craft feeding a craft) never goes below the craft
+-- it feeds.
+
+--- One key per row: manual or sub-craft, recipe and crafter.
+function Queue.EntryKey(entry)
+    return ("%s:%s:%s"):format(entry.isDependency and "s" or "m",
+        tostring(entry.recipeID), tostring(entry.crafter))
+end
+
+--- Is `part` a sub-craft that goes into `entry`?
+function Queue.IsPartOf(part, entry)
+    return part ~= entry and part.isDependency and type(part.forRecipes) == "table"
+        and part.forRecipes[entry.recipeID] == true or false
+end
+
+--- Rows this one waits on: itself paused, or a part of it (or of a part)
+--- paused. A paused part makes its craft wait.
+-- @return true when held, and true when held only by a part
+function Queue:Held(entry)
+    if entry.paused then return true, false end
+    local queue, seen, stack = self:GetAll(), { [entry] = true }, { entry }
+    while #stack > 0 do
+        local current = table.remove(stack)
+        for _, other in ipairs(queue) do
+            if not seen[other] and Queue.IsPartOf(other, current) then
+                if other.paused then return true, true end
+                seen[other] = true
+                stack[#stack + 1] = other
+            end
+        end
+    end
+    return false, false
+end
+
+--- Pause or resume one row.
+function Queue:SetPaused(entry, paused)
+    if not entry then return false end
+    entry.paused = paused and true or nil
+    self:Notify()
+    return true
+end
+
+--- Lay the queue out in the player's saved order, never a part below the
+--- craft it feeds. Rows not in the saved order follow the row before them.
+function Queue:ApplyOrder()
+    local saved = ns.db and ns.db.queueOrder
+    if type(saved) ~= "table" or #saved == 0 then return end
+    local queue = self:GetAll()
+    if #queue < 2 then return end
+
+    local index = {}
+    for i, key in ipairs(saved) do
+        if index[key] == nil then index[key] = i end
+    end
+    local pref, last = {}, 0
+    for i, entry in ipairs(queue) do
+        local at = index[Queue.EntryKey(entry)]
+        if at then
+            pref[entry], last = at, at
+        else
+            pref[entry] = last + 0.0001 * i
+        end
+    end
+
+    local left, ordered = {}, {}
+    for _, entry in ipairs(queue) do left[#left + 1] = entry end
+    while #left > 0 do
+        local pick, pickAt
+        for i, entry in ipairs(left) do
+            local free = true
+            for _, other in ipairs(left) do
+                if Queue.IsPartOf(other, entry) then free = false break end
+            end
+            if free and (not pick or pref[entry] < pref[left[pick]]) then pick = i end
+        end
+        -- A loop among the parts: take the first in the saved order.
+        if not pick then
+            for i, entry in ipairs(left) do
+                if not pickAt or pref[entry] < pickAt then pick, pickAt = i, pref[entry] end
+            end
+        end
+        ordered[#ordered + 1] = table.remove(left, pick)
+    end
+    for i, entry in ipairs(ordered) do queue[i] = entry end
+end
+
+--- Has the player set an order of their own?
+function Queue:HasOwnOrder()
+    local saved = ns.db and ns.db.queueOrder
+    return type(saved) == "table" and #saved > 0
+end
+
+local function IndexOf(queue, entry)
+    for i, other in ipairs(queue) do
+        if other == entry then return i end
+    end
+end
+
+--- Can this row go up one? Not past a part of its own.
+function Queue:CanMoveUp(entry)
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    return i ~= nil and i > 1 and not Queue.IsPartOf(queue[i - 1], entry)
+end
+
+--- Can this row go down one? Not past the craft it feeds.
+function Queue:CanMoveDown(entry)
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    return i ~= nil and i < #queue and not Queue.IsPartOf(entry, queue[i + 1])
+end
+
+--- Can this row go to the top? Only when something above it is not a part
+--- of its own.
+function Queue:CanMoveTop(entry)
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    if not i then return false end
+    return self:TopSpot(entry) < i
+end
+
+--- Where Move to Top puts a row: first, or right after the last of its parts.
+function Queue:TopSpot(entry)
+    local queue, spot = self:GetAll(), 1
+    for i, other in ipairs(queue) do
+        if other ~= entry and self:Feeds(other, entry) then spot = math.max(spot, i + 1) end
+    end
+    local at = IndexOf(queue, entry)
+    if at and spot > at then spot = at end
+    return spot
+end
+
+--- Does `part` go into `entry`, straight in or through other parts?
+function Queue:Feeds(part, entry)
+    local queue, seen, stack = self:GetAll(), {}, { entry }
+    while #stack > 0 do
+        local current = table.remove(stack)
+        for _, other in ipairs(queue) do
+            if not seen[other] and Queue.IsPartOf(other, current) then
+                if other == part then return true end
+                seen[other] = true
+                stack[#stack + 1] = other
+            end
+        end
+    end
+    return false
+end
+
+local function SaveOrder(queue)
+    local keys = {}
+    for i, entry in ipairs(queue) do keys[i] = Queue.EntryKey(entry) end
+    ns.db.queueOrder = keys
+end
+
+--- Move a row: "top", "up" or "down". True when it moved.
+function Queue:Move(entry, how)
+    if not (ns.db and entry) then return false end
+    local queue = self:GetAll()
+    local i = IndexOf(queue, entry)
+    if not i then return false end
+    if how == "up" then
+        if not self:CanMoveUp(entry) then return false end
+        queue[i], queue[i - 1] = queue[i - 1], queue[i]
+    elseif how == "down" then
+        if not self:CanMoveDown(entry) then return false end
+        queue[i], queue[i + 1] = queue[i + 1], queue[i]
+    elseif how == "top" then
+        if not self:CanMoveTop(entry) then return false end
+        local spot = self:TopSpot(entry)
+        table.remove(queue, i)
+        table.insert(queue, spot, entry)
+    else
+        return false
+    end
+    SaveOrder(queue)
+    self:Notify()
+    return true
 end
 
 --------------------------------------------------------------------------------
@@ -1464,27 +1684,57 @@ function Queue:Ensure(recipeID, quantity)
 
     local _, existing = self:Find(recipeID, true)
     if existing then
-        if existing.quantity >= quantity then return true end
+        if existing.quantity >= quantity then
+            self:DropBoughtFor(recipeID, quantity)
+            return true
+        end
         if not self:SetQuantity(recipeID, quantity) then return nil, L["the queue would not take it"] end
+        self:DropBoughtFor(recipeID, quantity)
         return true
     end
     if not self:Add(recipeID, quantity) then return nil, L["the queue would not take it"] end
+    self:DropBoughtFor(recipeID, quantity)
     return true
+end
+
+--- A craft is queued now: lines put on the list to buy for that recipe
+--- (Equipment's Queue It lists a pattern's materials before it is learned)
+--- come off, since the queue's own shopping list counts them. Lines for
+--- more crafts than queued, and lines with no count (Learn next's), stay.
+--- Lines for the gear itself already went in Add (DropBuysFor).
+function Queue:DropBoughtFor(recipeID, quantity)
+    local buys, selfKey, dropped = Buys(false), SelfKey(), false
+    for index = #buys, 1, -1 do
+        local line = buys[index]
+        if type(line) == "table" and MineToSee(line, selfKey) and line.forRecipe == recipeID then
+            local crafts = tonumber(line.forRecipeCrafts)
+            if crafts and crafts <= quantity then
+                table.remove(buys, index)
+                dropped = true
+            end
+        end
+    end
+    if dropped then self:Notify() end
+    return dropped
 end
 
 --- What the queue holds for a piece of gear: "craft" when a craft of it is
 --- queued, "buy" when it or its materials are on the list to buy, else nil.
-function Queue:ForUpgrade(itemID)
-    itemID = tonumber(itemID)
+--- `recipeID` (optional, Equipment's since 2026-11-07) also finds materials
+--- listed for the recipe that makes it, before anyone knows it.
+function Queue:ForUpgrade(itemID, recipeID)
+    itemID, recipeID = tonumber(itemID), tonumber(recipeID)
     if not itemID then return nil end
     for _, entry in ipairs(self:GetAll()) do
         if not entry.isDependency then
+            if recipeID and entry.recipeID == recipeID then return "craft" end
             local recipe = ns.Recipes:GetAny(entry.recipeID)
             if recipe and recipe.outputItemID == itemID then return "craft" end
         end
     end
     for _, line in ipairs(self:GetBuys()) do
         if line.forItem == itemID then return "buy" end
+        if recipeID and line.forRecipe == recipeID then return "buy" end
     end
     return nil
 end
@@ -1588,6 +1838,38 @@ function Queue:GetTotals()
     end
 
     return totals
+end
+
+--- How long the whole queue takes to cast (a player asked, 2026-11-12):
+--- every entry, sub-crafts too, its count times one cast
+--- (CraftTime:GetCast: the player's own casts first, then the game's).
+--- A craft with no known cast is counted apart and never guessed.
+-- @return { seconds, timed, untimed, byCrafter = { [characterKey] = seconds },
+--   untimedBy = { [characterKey] = crafts } }; seconds is nil when no craft
+--   on the queue has a known time
+function Queue:GetCraftTime()
+    local result = { seconds = 0, timed = 0, untimed = 0, byCrafter = {}, untimedBy = {} }
+    local craftTime = ns.CraftTime
+
+    for _, entry in ipairs(self:GetAll()) do
+        local count = entry.quantity or 0
+        if count > 0 then
+            local crafter = self:GetCrafter(entry) or "?"
+            local cast = craftTime and craftTime:GetCast(entry.recipeID)
+            if cast then
+                local seconds = cast * count
+                result.seconds = result.seconds + seconds
+                result.timed = result.timed + count
+                result.byCrafter[crafter] = (result.byCrafter[crafter] or 0) + seconds
+            else
+                result.untimed = result.untimed + count
+                result.untimedBy[crafter] = (result.untimedBy[crafter] or 0) + count
+            end
+        end
+    end
+
+    if result.timed == 0 then result.seconds = nil end
+    return result
 end
 
 --- What each queued craft costs and earns for all the times it is queued.
@@ -1851,7 +2133,12 @@ function Queue:BuildShoppingList()
             -- Not one set to Buy on the Level Up tab, while it is listed.
             local skipVendor = auctionEach ~= nil and ns.Cost.SkipsVendor
                 and ns.Cost:SkipsVendor(itemID)
-            local fromVendor = vendor ~= nil and not skipVendor and (not auctionEach
+            -- A shop seen with limited stock sells a few now and then, so it
+            -- is never where the list sends you, even when nothing is listed
+            -- (a player was sent for Coarse Blasting Powder, 2026-11-09).
+            -- Standing at that shop, Buy materials still takes what it has.
+            local limited = vendor ~= nil and ns.Vendor:IsLimited(itemID)
+            local fromVendor = vendor ~= nil and not skipVendor and not limited and (not auctionEach
                 or vendor <= auctionEach or ns.Vendor:KeepsInStock(itemID))
             local unitCost = fromVendor and vendor or auctionEach
             local estimatedCost
@@ -1912,7 +2199,8 @@ function Queue:BuildShoppingList()
                 overpaid = ns.AHBuys and ns.AHBuys.Overpaid
                     and ns.AHBuys.Overpaid(paid, paidEstimate) or false,
                 fromVendor = fromVendor,
-                vendorLimited = fromVendor and ns.Vendor:IsLimited(itemID) or false,
+                -- A vendor sells it, but with limited stock (never fromVendor).
+                vendorLimited = limited == true,
                 source = source,
                 vendorUnit = vendor,
                 auctionUnit = auction,

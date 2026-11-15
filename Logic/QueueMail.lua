@@ -23,6 +23,24 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
+local function SameRealm(a, b)
+    local ka, kb = RealmKey(a), RealmKey(b)
+    return ka ~= nil and ka == kb
+end
+
 local QueueMail = ns.NewModule("QueueMail")
 
 -- How many items one mail carries. The client's own number where it has one.
@@ -238,6 +256,24 @@ local function OwnOutputs()
     return outputs
 end
 
+--- The linked characters this one can mail whose queues need something,
+--- by key. Empty unless Share Craft Queue is ticked here.
+function QueueMail:LinkedNeeders(selfKey)
+    local list = {}
+    if not (ns.Config and ns.Config:Get("linkShareQueue") == true) then return list end
+    selfKey = selfKey or SelfKey()
+    for key, record in pairs((ns.db and ns.db.characters) or {}) do
+        if type(record) == "table" and record.linkedFrom ~= nil
+            and type(record.queueNeeds) == "table" and next(record.queueNeeds)
+            and key ~= selfKey and not self:IsPlaying(key)
+            and ns.Queue:CanMail(selfKey, key) then
+            list[#list + 1] = key
+        end
+    end
+    table.sort(list)
+    return list
+end
+
 --- What the character logged in can send to whom, right now.
 --
 -- For each other character the queue gives crafts to: what those crafts
@@ -334,6 +370,20 @@ function QueueMail:GetDeliveries()
             local left = uses[toKey][itemID] - (theirMake[itemID] or 0)
                 - Queue:HeldBy(toKey, itemID)
             Give(toKey, itemID, left, (myMake[itemID] or 0) > 0 or canMake[itemID] == true)
+        end
+    end
+
+    -- A linked account's characters, for what their own queues still need
+    -- (Account Link's Share Craft Queue, both sides ticked; 2026-11-07). The
+    -- other account worked out the need against its own bags and mail, so
+    -- only what this account mailed since and has not seen arrive comes off.
+    for _, toKey in ipairs(self:LinkedNeeders(selfKey)) do
+        local needs = CharacterRecord(toKey).queueNeeds
+        local items = {}
+        for itemID in pairs(needs) do items[#items + 1] = itemID end
+        table.sort(items)
+        for _, itemID in ipairs(items) do
+            Give(toKey, itemID, needs[itemID] - self:InFlight(toKey, itemID), canMake[itemID] == true)
         end
     end
 
@@ -1222,7 +1272,7 @@ function QueueMail:FindCharacter(typed)
     for characterKey, record in pairs((ns.db and ns.db.characters) or {}) do
         if type(record) == "table" and type(record.name) == "string"
             and Named(record)
-            and (not realm or not record.realm or record.realm:gsub("%s", "") == realm:gsub("%s", "")) then
+            and (not realm or not record.realm or SameRealm(record.realm, realm)) then
             if found then return nil end
             found = characterKey
         end

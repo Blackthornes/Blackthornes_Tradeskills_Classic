@@ -51,6 +51,9 @@ local COLUMNS = {
     -- so the saved column choices still find it.
     { key = "time",    label = L["TIME"],    width = 44, justify = "CENTER", perHourOnly = true },
     { key = "perHour", label = L["A DAY"],   width = 74, money = true, perHourOnly = true },
+    -- Gold an hour by the best plan, buying the parts or making them
+    -- (Logic/HourPlans.lua). Shown with "Gold an Hour:" ticked.
+    { key = "goldHour", label = L["GOLD/HR"], width = 74, money = true, goldHourOnly = true },
     { key = "profit", label = L["PROFIT"], width = 74, money = true },
     -- Beside SELLS so the two read against each other. Only shown when
     -- something in the list can be disenchanted.
@@ -133,9 +136,13 @@ local squeezedKey = ""
 --- The list's own rules for a column, before any is set aside for room.
 local function ColumnWanted(column)
     if column.accountWideOnly then return state.accountWide end
-    if column.bestOnly then return Method() == "best" end
+    if column.bestOnly then
+        local method = Method()
+        return method == "best" or method == "vendordisenchant"
+    end
     if column.disenchantOnly then return state.showDisenchant end
     if column.perHourOnly then return ns.Config:Get("profitShowsPerHour") == true end
+    if column.goldHourOnly then return ns.HourPlans ~= nil and ns.HourPlans:IsOn() end
     return true
 end
 
@@ -262,6 +269,17 @@ end
 --- game says how long it is, and "--" for a recipe the character playing
 --- does not know. A day is "--" without a sales estimate.
 function UpdateTimeCells(cells, analysis)
+    local plans = analysis.hourPlans
+    local perHour = plans and plans.best and plans.best.perHour
+    if type(rawget(cells, "goldHour")) == "table" then
+        if perHour then
+            Theme.SetMoneyText(cells.goldHour, perHour, { short = true })
+            cells.goldHour:SetTextColor(Theme.ProfitColor(perHour))
+        else
+            cells.goldHour:SetText("--")
+            cells.goldHour:SetTextColor(Theme.Unpack("dim"))
+        end
+    end
     if analysis.perDay then
         Theme.SetMoneyText(cells.perHour, analysis.perDay, { short = true })
         cells.perHour:SetTextColor(Theme.ProfitColor(analysis.perDay))
@@ -567,6 +585,7 @@ end
 
 -- Defined below; the Price graph button redraws the pane with it.
 local UpdateDetail
+local ShowHourPlans
 
 --- The tooltip on "If disenchanted": what the craft breaks into, the chance
 --- of each, and what each is worth, as the Enchanting tab's pane showed it.
@@ -601,6 +620,87 @@ local function ShowBreaksInto(owner, analysis)
     else
         GameTooltip:AddLine(L["Rough chances for now. They get better as you disenchant."], 0.5, 0.5, 0.5, true)
     end
+    GameTooltip:Show()
+end
+
+--- A plan's "12c in 1.5s": what one craft earns and how long it takes.
+local function PlanEach(plan)
+    local money = Util.FormatMoney(plan.profit, { short = true, noColor = true })
+    local time = plan.seconds and ns.CraftTime and ns.CraftTime.Format(plan.seconds) or "?"
+    return L.Format("%s in %s", money, time)
+end
+
+--- A plan's name: buying every part, or making some of them.
+local function PlanName(plan)
+    return plan.kind == "buy" and L["Buy the parts"] or L["Make the parts"]
+end
+
+--- A part's name for the notes, coloured as the game colours it.
+local function PartName(itemID)
+    return Util.ColorItemName(itemID) or Util.GetItemLabel(itemID) or tostring(itemID)
+end
+
+--- The tooltip on the gold an hour rows: both plans, which wins and why,
+--- and the parts that only go one way.
+ShowHourPlans = function(owner, analysis)
+    local plans = analysis and analysis.hourPlans
+    if not (plans and plans.best) then return end
+
+    GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
+    GameTooltip:SetText(L["An hour"], 1, 1, 1)
+
+    local shown = {}
+    local function Line(plan)
+        if not plan or shown[plan] then return end
+        shown[plan] = true
+        local hour = plan.perHour and Util.FormatMoney(plan.perHour, { short = true, noColor = true }) or "?"
+        local r, g, b = 0.8, 0.8, 0.8
+        if plan == plans.best then r, g, b = Theme.Unpack("accent") end
+        GameTooltip:AddDoubleLine(PlanName(plan) .. (plan == plans.best and ("  " .. L["BEST"]) or ""),
+            hour, r, g, b, r, g, b)
+        GameTooltip:AddLine("   " .. PlanEach(plan), 0.6, 0.6, 0.6)
+        if plan.kind == "mix" then
+            local names = {}
+            for itemID in pairs(plan.made or {}) do names[#names + 1] = PartName(itemID) end
+            table.sort(names)
+            GameTooltip:AddLine("   " .. table.concat(names, ", "), 0.6, 0.6, 0.6, true)
+        end
+    end
+    Line(plans.best)
+    Line(plans.buy)
+    Line(plans.make)
+
+    -- Why the winner wins, when both plans can be weighed.
+    local buy, make = plans.buy, plans.make
+    if buy and make and buy.perHour and make.perHour then
+        if buy.perHour >= make.perHour and make.profit > buy.profit then
+            local first
+            for _, part in ipairs(plans.parts or {}) do
+                if make.made[part.itemID] then first = part.itemID; break end
+            end
+            if first then
+                GameTooltip:AddLine(L.Format("Making the %s earns more each time, but it takes longer. Buying it earns more an hour.",
+                    PartName(first)), 0.9, 0.9, 0.9, true)
+            end
+        elseif buy.perHour >= make.perHour then
+            GameTooltip:AddLine(L["Buying the parts earns more each time, and it's faster too."], 0.9, 0.9, 0.9, true)
+        end
+    end
+
+    local anyMade = false
+    for _, part in ipairs(plans.parts or {}) do
+        if part.canMake then anyMade = true end
+    end
+    for _, part in ipairs(plans.parts or {}) do
+        if not part.canBuy and part.canMake then
+            GameTooltip:AddLine(L.Format("Nobody sells %s right now, so you make it.", PartName(part.itemID)),
+                0.7, 0.7, 0.7, true)
+        elseif anyMade and part.canBuy and not part.canMake then
+            GameTooltip:AddLine(L.Format("You can't make %s, so you buy it.", PartName(part.itemID)),
+                0.7, 0.7, 0.7, true)
+        end
+    end
+    GameTooltip:AddLine(L["Only crafting time counts, not buying or selling."], 0.5, 0.5, 0.5, true)
     GameTooltip:Show()
 end
 
@@ -866,7 +966,8 @@ local function BuildDetail(parent)
     local summary = CreateFrame("Frame", nil, detail)
     summary:SetPoint("BOTTOMLEFT", 12, 84)
     summary:SetPoint("BOTTOMRIGHT", -12, 84)
-    -- Twelve rows of 17: the sale, what each way makes, then the time.
+    -- Twelve rows of 17: the sale, what each way makes, then the time;
+    -- fourteen while gold an hour shows (UpdateHourRows).
     summary:SetHeight(204)
     detail.summary = summary
     detail.summaryRows = {}
@@ -900,6 +1001,28 @@ local function BuildDetail(parent)
     -- How long one takes, sub-crafts included, and the profit an hour.
     detail.timeValue = SummaryRow(11, L["Craft time"])
     detail.perHourValue = SummaryRow(12, L["A day"])
+    -- Gold an hour, buying the parts or making them (only with "Gold an
+    -- Hour:" ticked): the best an hour, then the plan that earns it.
+    detail.hourValue, detail.hourLabel = SummaryRow(13, L["An hour"])
+    detail.planValue, detail.planLabel = SummaryRow(14, L["Buy the parts"])
+    local best = Theme.CreateLabel(summary, "small", "accent")
+    best:SetPoint("LEFT", detail.planLabel, "RIGHT", 6, 0)
+    best:SetText(L["BEST"])
+    detail.planBest = best
+    local hourHover = CreateFrame("Frame", nil, summary)
+    hourHover:SetPoint("TOPLEFT", detail.hourLabel, "TOPLEFT", 0, 2)
+    hourHover:SetPoint("BOTTOMRIGHT", detail.planValue, "BOTTOMRIGHT", 0, -2)
+    hourHover:EnableMouse(true)
+    hourHover:SetScript("OnEnter", function(self) ShowHourPlans(self, state.selected) end)
+    hourHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    detail.hourHover = hourHover
+    for index = 13, 14 do
+        detail.summaryRows[index].label:Hide()
+        detail.summaryRows[index].value:Hide()
+    end
+    best:Hide()
+    hourHover:Hide()
+    detail.summaryRoom = 12
 
     -- What the craft breaks into, with each chance, under the mouse on the
     -- "If disenchanted" line (from the Enchanting tab, 2026-10-07).
@@ -1128,6 +1251,42 @@ local function UpdateTimeRows(detail, analysis)
     end
 end
 
+--- The gold an hour rows: shown only with "Gold an Hour:" ticked and plans
+--- worked out. The summary grows by two rows while they show.
+local function UpdateHourRows(detail, analysis)
+    if type(rawget(detail, "hourValue")) ~= "table" then return end
+    local plans = analysis and analysis.hourPlans
+    local best = plans and plans.best
+    local rows = detail.summaryRows
+    for index = 13, 14 do
+        rows[index].label:SetShown(best ~= nil)
+        rows[index].value:SetShown(best ~= nil)
+    end
+    detail.planBest:SetShown(best ~= nil)
+    detail.hourHover:SetShown(best ~= nil)
+    local room = best and 14 or 12
+    if detail.summaryRoom ~= room then
+        detail.summaryRoom = room
+        detail.summary:SetHeight(room * SUMMARY_ROW_HEIGHT)
+    end
+    if not best then return end
+
+    detail.hourValue:SetText(Util.FormatMoney(best.perHour))
+    detail.hourValue:SetTextColor(Theme.ProfitColor(best.perHour))
+    detail.planLabel:SetText(PlanName(best))
+    detail.planValue:SetText(PlanEach(best))
+    detail.planValue:SetTextColor(Theme.Unpack("text"))
+end
+
+--- How many rows of room sit empty at the top of the summary.
+local function SummarySkipped(detail)
+    local shown = 0
+    for _, row in ipairs(detail.summaryRows) do
+        if row.label:IsShown() then shown = shown + 1 end
+    end
+    return math.max(0, (detail.summaryRoom or #detail.summaryRows) - shown)
+end
+
 local function LayoutSummary(detail)
     local rows = detail.summaryRows
     local shown = {}
@@ -1136,7 +1295,7 @@ local function LayoutSummary(detail)
         if row.label:IsShown() then shown[#shown + 1] = row end
     end
 
-    local skipped = #rows - #shown
+    local skipped = SummarySkipped(detail)
     for position, row in ipairs(shown) do
         local y = -(skipped + position - 1) * SUMMARY_ROW_HEIGHT
         row.label:SetPoint("TOPLEFT", 0, y)
@@ -1196,11 +1355,8 @@ local function UpdateGraph(detail, analysis)
     LayoutSummary(detail)
 
     -- Hidden summary rows leave their room at the top of the block.
-    local skipped = 0
-    for _, row in ipairs(detail.summaryRows) do
-        if not row.label:IsShown() then skipped = skipped + 1 end
-    end
-    if not detail.summary:IsShown() then skipped = #detail.summaryRows end
+    local skipped = SummarySkipped(detail)
+    if not detail.summary:IsShown() then skipped = detail.summaryRoom or #detail.summaryRows end
 
     detail.graph:ClearAllPoints()
     detail.graph:SetPoint("TOPLEFT", detail.reagentHeading, "BOTTOMLEFT", 0, -8)
@@ -1328,6 +1484,7 @@ function UpdateDetail(analysis)
 
     if not analysis.priceable then
         detail.summary:Hide()
+        UpdateHourRows(detail, nil)
         detail.subtitle:SetText(analysis.reason or L["cannot be priced"])
         detail.subtitle:SetTextColor(Theme.Unpack("warn"))
     end
@@ -1557,6 +1714,7 @@ function UpdateDetail(analysis)
         end
 
         UpdateTimeRows(detail, analysis)
+        UpdateHourRows(detail, analysis)
 
         LayoutSummary(detail)
     end
@@ -1829,6 +1987,14 @@ local function Refresh()
         ApplyHeadingLayout()
     end
 
+    -- GOLD/HR follows "Gold an Hour:", which is ticked on the Settings tab.
+    local goldHour = ns.HourPlans ~= nil and ns.HourPlans:IsOn()
+    if goldHour ~= state.goldHour then
+        state.goldHour = goldHour
+        layoutVersion = layoutVersion + 1
+        ApplyHeadingLayout()
+    end
+
     -- Rows set this again while they draw if an item is still uncached.
     awaitingItemData = false
     widgets.list:SetData(data)
@@ -2009,13 +2175,17 @@ local function BuildCrafts(container)
     for _, method in ipairs(ns.Profit.METHODS or {}) do
         if labels[method] then
             methodOptions[#methodOptions + 1] = { text = L.Format("Profit: %s", labels[method]), value = method }
+        elseif method == "vendordisenchant" then
+            -- The AH left out, for a player who finds it slow (asked 2026-11-12).
+            methodOptions[#methodOptions + 1] = { text = L["Profit: Vendor and DE"], value = method,
+                tooltip = L["Counts vendor and disenchant money. Leaves the AH out."] }
         end
     end
 
     local method = Widgets.CreateDropdown(toolbar, methodOptions, function(value)
         ns.Config:Set("profitBy", value)
 
-        -- VIA shows only when ranked by whichever pays most.
+        -- VIA shows only when more than one way can win.
         layoutVersion = layoutVersion + 1
         ApplyHeadingLayout()
 
@@ -2026,7 +2196,7 @@ local function BuildCrafts(container)
         if pane and pane.RequestRefresh and pane.IsShown and pane:IsShown() then
             pane:RequestRefresh()
         end
-    end, { width = 140 })
+    end, { width = 170 })
     method:SetPoint("LEFT", profession, "RIGHT", 8, 0)
     method:SetValue(Method() or "best")
     widgets.methodDropdown = method
@@ -2125,6 +2295,7 @@ local function BuildCrafts(container)
         via = function(a) return a.via end,
         time = function(a) return a.timeSeconds or a.craftSeconds end,
         perHour = function(a) return a.perDay end,
+        goldHour = function(a) return a.hourPlans and a.hourPlans.best and a.hourPlans.best.perHour end,
         demand = function(a)
             return ns.Demand and ns.Demand:Rank(ns.Demand:Get(a.outputItemID)) or 0
         end,

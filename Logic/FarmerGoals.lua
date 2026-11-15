@@ -59,7 +59,7 @@ local function Cheer()
     -- Settings: SOUNDS, Farmer goal set.
     if ns.Config and ns.Config:Get("goalSound") == false then return end
     local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-    pcall(PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
+    pcall(ns.PlaySound or PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
 end
 
 --- Hand one goal to Farmer. Returns the goal and whether it already

@@ -136,6 +136,37 @@ function MethodProfit:BuyCost(itemID)
     return math.floor(paid / units + 0.5)
 end
 
+--- What you paid for an item on the auction house, for its tooltip (a
+--- player asked, 2026-11-12): the newest buy still counted, and the average
+--- over every buy still counted. nil when there are none.
+-- @return { each, at, average, units, buys } or nil
+function MethodProfit:BoughtSummary(itemID)
+    local list = itemID and self:GetLog().buys[itemID]
+    if type(list) ~= "table" then return nil end
+
+    local since = Now() - self.BUY_LIFE
+    local newest
+    local units, paid, buys = 0, 0, 0
+    for _, buy in ipairs(list) do
+        local n, cost, at = type(buy) == "table" and tonumber(buy.n),
+            type(buy) == "table" and tonumber(buy.paid), type(buy) == "table" and tonumber(buy.at)
+        if n and n > 0 and cost and cost > 0 and at and at >= since then
+            units = units + n
+            paid = paid + cost
+            buys = buys + 1
+            if not newest or at >= newest.at then
+                newest = { each = math.floor(cost / n + 0.5), at = at }
+            end
+        end
+    end
+
+    if not newest then return nil end
+    newest.average = math.floor(paid / units + 0.5)
+    newest.units = units
+    newest.buys = buys
+    return newest
+end
+
 --- What one of an item cost you, and how that is known.
 -- @return each, "made" | "bought", or nil when it cost you nothing known
 function MethodProfit:CostOf(itemID)
@@ -260,41 +291,107 @@ local function NewGroup()
     return { n = 0, income = 0, cost = 0, unknown = 0, items = {} }
 end
 
-local function Add(group, itemID, units, income, cost)
+-- A sale with no item ID (the mail named something the client could not
+-- match) is kept under its name, so each shows as itself rather than all
+-- of them lumped as one "unknown item".
+local function Add(group, itemID, units, income, cost, name)
     group.n = group.n + units
     group.income = group.income + income
     group.cost = group.cost + (cost or 0)
     if not cost then group.unknown = group.unknown + units end
 
-    local item = group.items[itemID or 0]
+    local key = itemID or (type(name) == "string" and name ~= "" and ("name:" .. name)) or 0
+    local item = group.items[key]
     if not item then
         item = { itemID = itemID, n = 0, income = 0, cost = 0, unknown = 0 }
-        group.items[itemID or 0] = item
+        if not itemID and type(name) == "string" and name ~= "" then item.name = name end
+        group.items[key] = item
     end
     item.n = item.n + units
     item.income = item.income + income
     item.cost = item.cost + (cost or 0)
     if not cost then item.unknown = item.unknown + units end
+    return item
+end
+
+local function ByProfit(a, b)
+    if a.profit ~= b.profit then return a.profit > b.profit end
+    if (a.itemID or 0) ~= (b.itemID or 0) then return (a.itemID or 0) < (b.itemID or 0) end
+    return tostring(a.name or "") < tostring(b.name or "")
+end
+
+--- Was this sale made by `who`? Any of that character's records counts.
+local function SoldBy(entry, who)
+    if not who then return true end
+    local by = entry.who
+    if by == nil then return false end
+    if by == who then return true end
+    local characters = ns.Characters
+    if characters and characters.Same then
+        local ok, same = pcall(characters.Same, characters, by, who)
+        return ok and same == true
+    end
+    return false
+end
+
+--- Crafted, split by the profession that makes each item. Worked out from
+--- the items' own `profession` (nil goes under OTHER_CRAFTS).
+MethodProfit.OTHER_CRAFTS = "other"
+
+local function SplitByProfession(group)
+    local byKey, list = {}, {}
+    for _, item in ipairs(group.list) do
+        local key = item.profession or MethodProfit.OTHER_CRAFTS
+        local sub = byKey[key]
+        if not sub then
+            sub = NewGroup()
+            sub.key = key
+            sub.profession = item.profession
+            sub.list = {}
+            byKey[key] = sub
+            list[#list + 1] = sub
+        end
+        sub.n = sub.n + item.n
+        sub.income = sub.income + item.income
+        sub.cost = sub.cost + item.cost
+        sub.unknown = sub.unknown + item.unknown
+        sub.list[#sub.list + 1] = item
+    end
+    for _, sub in ipairs(list) do sub.profit = sub.income - sub.cost end
+    table.sort(list, function(a, b)
+        local aOther, bOther = a.key == MethodProfit.OTHER_CRAFTS, b.key == MethodProfit.OTHER_CRAFTS
+        if aOther ~= bOther then return bOther end
+        if a.profit ~= b.profit then return a.profit > b.profit end
+        return tostring(a.key) < tostring(b.key)
+    end)
+    group.professions = list
 end
 
 --- Everything made between `from` and `to`, by method.
+-- @param opts  optional { who = character key }: only that character's
+--   auction sales. Vendor sales and disenchants have no character, so they
+--   are left out while one is picked.
 -- @return { methods = { [key] = group }, total = group }, where a group is
 --   { n, income, cost, unknown, profit, list = { item, ... } } and each item
---   the same for one item, best profit first.
-function MethodProfit:Summary(from, to)
+--   the same for one item, best profit first. Crafted also has
+--   `professions`: the same groups, one a profession, each with its own
+--   `list`, "other" (no profession known) last.
+function MethodProfit:Summary(from, to, opts)
+    local who = type(opts) == "table" and opts.who or nil
     local methods = {}
     for _, method in ipairs(self.METHODS) do methods[method.key] = NewGroup() end
+    local costs = ns.CraftedCost and ns.CraftedCost:NewSaleCache() or {}
 
     -- Auction sales, from the ledger.
     local mail = ns.Mail
-    if mail and mail.GetLedger then
+    if mail and (mail.Entries or mail.GetLedger) then
         local names = mail.NameIndex and mail:NameIndex() or {}
-        local costs = ns.CraftedCost and ns.CraftedCost:NewSaleCache()
         local farmed = {}
 
-        for _, entry in ipairs(mail:GetLedger().entries) do
+        local entries = mail.Entries and mail:Entries() or mail:GetLedger().entries
+        for _, entry in ipairs(entries) do
             local t = tonumber(entry.t) or 0
-            if entry.kind == "sold" and t >= from and t < to then
+            if entry.kind == "sold" and t >= from and t < to and SoldBy(entry, who) then
                 local itemID = entry.itemID or names[entry.name]
                 local units = math.max(1, tonumber(entry.quantity) or 1)
                 local income = math.max(0, (entry.net or 0) - (entry.deposit or 0))
@@ -317,18 +414,25 @@ function MethodProfit:Summary(from, to)
                 -- No cost known, but you got it yourself: Farmed.
                 if key == "other" and self:Farmed(itemID, farmed) then key = "farmed" end
 
-                Add(methods[key], itemID, units, income, each and each * units or nil)
+                local item = Add(methods[key], itemID, units, income, each and each * units or nil, entry.name)
+                if key == "crafted" and item.profession == nil and ns.CraftedCost
+                    and ns.CraftedCost.ProfessionOf then
+                    item.profession = ns.CraftedCost:ProfessionOf(itemID, costs) or false
+                end
             end
         end
     end
 
-    -- Vendor sales and disenchants, as they were written down.
-    for _, event in ipairs(self:GetLog().events) do
-        local t = tonumber(event.t) or 0
-        local group = methods[event.m]
-        if group and t >= from and t < to then
-            Add(group, event.id, tonumber(event.n) or 1, tonumber(event.inc) or 0,
-                tonumber(event.c))
+    -- Vendor sales and disenchants, as they were written down. They have no
+    -- character, so only while everyone is picked.
+    if not who then
+        for _, event in ipairs(self:GetLog().events) do
+            local t = tonumber(event.t) or 0
+            local group = methods[event.m]
+            if group and t >= from and t < to then
+                Add(group, event.id, tonumber(event.n) or 1, tonumber(event.inc) or 0,
+                    tonumber(event.c))
+            end
         end
     end
 
@@ -340,12 +444,10 @@ function MethodProfit:Summary(from, to)
         group.list = {}
         for _, item in pairs(group.items) do
             item.profit = item.income - item.cost
+            if item.profession == false then item.profession = nil end
             group.list[#group.list + 1] = item
         end
-        table.sort(group.list, function(a, b)
-            if a.profit ~= b.profit then return a.profit > b.profit end
-            return (a.itemID or 0) < (b.itemID or 0)
-        end)
+        table.sort(group.list, ByProfit)
 
         total.n = total.n + group.n
         total.income = total.income + group.income
@@ -354,7 +456,59 @@ function MethodProfit:Summary(from, to)
     end
     total.profit = total.income - total.cost
 
+    SplitByProfession(methods.crafted)
+
     return { methods = methods, total = total }
+end
+
+--- The characters who sold something at auction on this realm, for the
+--- Character: menu: { { key, name } }, by name. Each character once, under
+--- the key it goes by now. Kept until the ledger moves.
+function MethodProfit:Sellers()
+    local mail = ns.Mail
+    if not (mail and (mail.Entries or mail.GetLedger)) then return {} end
+    local entries = mail.Entries and mail:Entries() or mail:GetLedger().entries
+    if self.sellersFor == entries and self.sellersCount == #entries and self.sellers then
+        return self.sellers
+    end
+
+    local raw, seen = {}, {}
+    for _, entry in ipairs(entries) do
+        local by = entry.kind == "sold" and entry.who
+        if type(by) == "string" and by ~= "" and not seen[by] then
+            seen[by] = true
+            raw[#raw + 1] = by
+        end
+    end
+
+    local characters = ns.Characters
+    local list = {}
+    for _, by in ipairs(raw) do
+        local key = by
+        if characters and characters.Canonical then
+            local ok, canonical = pcall(characters.Canonical, characters, by)
+            if ok and type(canonical) == "string" then key = canonical end
+        end
+        local found = false
+        for _, known in ipairs(list) do
+            if known.key == key then found = true break end
+            if characters and characters.Same then
+                local ok, same = pcall(characters.Same, characters, known.key, key)
+                if ok and same then found = true break end
+            end
+        end
+        if not found then
+            local name = Util and Util.CharacterName and Util.CharacterName(key) or ""
+            if name ~= "" then list[#list + 1] = { key = key, name = name } end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.name ~= b.name then return a.name < b.name end
+        return a.key < b.key
+    end)
+
+    self.sellersFor, self.sellersCount, self.sellers = entries, #entries, list
+    return list
 end
 
 --------------------------------------------------------------------------------

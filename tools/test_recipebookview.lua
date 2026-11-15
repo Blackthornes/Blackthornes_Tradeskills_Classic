@@ -165,6 +165,17 @@ local ench = Draw(rows[2])
 check("an enchant makes no item", ench.sells.text, "no item")
 check("an unpriced profit is a dash", ench.profit.text, "--")
 check("an unpriced cost is a dash", ench.cost.text, "--")
+check("no item, no demand", ench.demand.text, "--")
+check("no reading yet is a dash", boots.demand.text, "--")
+local oldDemand = ns.Demand
+ns.Demand = {
+  Get = function(_, id) return id == 2307 and { level = "high" } or nil end,
+  Label = function() return "High" end,
+  Color = function() return "profit" end,
+  Rank = function(_, reading) return reading and 3 or 0 end,
+}
+check("demand for the item it makes", Draw(rows[1]).demand.text, "High")
+ns.Demand = oldDemand
 check("a known one says so", Draw(rows[3]).learn.text, "Known")
 check("a known one keeps its rarity, faded", lastRow.name.color[3] .. "/" .. lastRow.name.color[4], "0.87/0.55")
 Draw(rows[1])

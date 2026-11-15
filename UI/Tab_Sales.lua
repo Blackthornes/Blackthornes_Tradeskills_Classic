@@ -45,7 +45,43 @@ local VIEWS = {
     { text = L["Gold in and out"], value = "gold" },
 }
 
-local state = { view = "sales", search = "", selected = nil, period = "week", who = "all" }
+local state = { view = "sales", search = "", selected = nil, period = "week", who = "all",
+    salesPeriod = "all", methodsWho = "all" }
+
+-- By item's columns, right to left (a player asked for a running count of
+-- how many of each item sold; the owner said build it from a mockup,
+-- 2026-11-10). SOLD counts every single item, so a stack of 20 is 20; SALES
+-- is how many auctions that was. `width` is the least each gets:
+-- Widgets.FitColumns widens it to fit the heading and a full amount.
+local COLUMNS = {
+    { key = "last",  label = L["LAST SOLD"], width = 64 },
+    { key = "each",  label = L["EACH"],      width = 84, money = true },
+    { key = "taken", label = L["TAKEN IN"],  width = 96, money = true },
+    { key = "sales", label = L["SALES"],     width = 44, justify = "CENTER" },
+    { key = "sold",  label = L["SOLD"],      width = 48, justify = "CENTER" },
+}
+
+-- Any column but the name can be hidden (UI/Columns.lua).
+if ns.Columns then ns.Columns:Register("sales", L["Sales: By Item"], COLUMNS) end
+
+--- The time chips' pick for the view showing. By item and Recent Sales keep
+--- their own (All Time until one is picked), so Gold in and out and Profit
+--- by method keep theirs.
+local TILE_HEIGHT, TILE_GAP = 46, 8
+
+local function Comma(n)
+    if Util.Comma then return Util.Comma(n) end
+    return tostring(n)
+end
+
+local function SalesView()
+    return state.view == "item" or state.view == "sales"
+end
+
+local function CurrentPeriod()
+    if SalesView() then return state.salesPeriod or "all" end
+    return state.period
+end
 
 -- Whose gold the line over Gold in and out follows (a player asked, the
 -- owner said yes from a mockup, 2026-10-22). All characters by default: it
@@ -174,9 +210,121 @@ local function CreateRow(row)
     row.when = Theme.CreateLabel(row, "tiny", "dim", "RIGHT")
     row.when:SetPoint("TOPRIGHT", -12, -19)
     row.when:SetWidth(115)
+    row.indent = 0
+
+    -- By item's columns, shown only on its rows.
+    row.cells = {}
+    for _, column in ipairs(COLUMNS) do
+        local cell = Theme.CreateLabel(row, "small", "muted", column.justify or "RIGHT")
+        cell:SetWordWrap(false)
+        cell:Hide()
+        row.cells[column.key] = cell
+    end
+end
+
+-- How far in a step under Profit by method sits: a profession under
+-- Crafted, and that profession's items under it.
+local INDENT = 16
+
+--- Move a row's icon, fold and two lines in by `level` steps.
+local function SetIndent(row, level)
+    level = level or 0
+    if row.indent == level then return end
+    row.indent = level
+    local x = level * INDENT
+
+    row.icon:ClearAllPoints()
+    row.icon:SetPoint("LEFT", 8 + x, 0)
+    row.fold:ClearAllPoints()
+    row.fold:SetPoint("LEFT", 13 + x, 0)
+    row.detail:ClearAllPoints()
+    row.detail:SetPoint("TOPLEFT", 40 + x, -19)
+    row.detail:SetPoint("TOPRIGHT", row, "TOPRIGHT", -130, -19)
+    if not row.columnMode then
+        row.name:ClearAllPoints()
+        row.name:SetPoint("TOPLEFT", 40 + x, -4)
+        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -130, -4)
+    end
+end
+
+--- Lay a row out for By item's columns, or back to its two lines.
+local function SetColumnMode(row, on)
+    if row.columnMode == on and (not on or row.columnsVersion == ns.Columns.version) then return end
+    row.columnMode = on
+
+    row.amount:SetShown(not on)
+    row.detail:SetShown(not on)
+    row.when:SetShown(not on)
+
+    row.name:ClearAllPoints()
+    if on then
+        local offset = ns.Columns:Place("sales", COLUMNS, row.cells, { gap = 8 })
+        row.name:SetPoint("LEFT", 40, 0)
+        row.name:SetPoint("RIGHT", row, "RIGHT", offset - 8, 0)
+        row.columnsVersion = ns.Columns.version
+    else
+        for _, cell in pairs(row.cells) do cell:Hide() end
+        row.name:SetPoint("TOPLEFT", 40 + (row.indent or 0) * INDENT, -4)
+        row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -130, -4)
+    end
+end
+
+--- What one of an item brought in, after the cut.
+local function EachOf(item)
+    if not item.soldUnits or item.soldUnits <= 0 then return nil end
+    return math.floor(item.net / item.soldUnits + 0.5)
+end
+
+--- One item as a line of By item's columns.
+local function UpdateItemColumns(row, item)
+    row.name:SetText(ItemLabel(item.itemID, item.name))
+    ApplyNameColor(row.name, item.itemID)
+
+    local cells = row.cells
+    cells.sold:SetText(Comma(item.soldUnits or 0))
+    cells.sold:SetTextColor(Theme.Unpack((item.soldUnits or 0) > 0 and "accent" or "dim"))
+    cells.sales:SetText(Comma(item.sold or 0))
+    cells.sales:SetTextColor(Theme.Unpack("muted"))
+    cells.taken:SetText(item.net ~= 0 and Util.FormatMoney(item.net, { short = true }) or "")
+    local each = EachOf(item)
+    cells.each:SetText(each and each > 0 and Util.FormatMoney(each, { short = true }) or "")
+    cells.last:SetText(Util.FormatAgeAgo(item.lastAt and (time() - item.lastAt)))
+    cells.last:SetTextColor(Theme.Unpack("dim"))
 end
 
 --- One event: a listing that sold, expired, or that you pulled.
+--- The By item row's hover: what sold in the period, and in all.
+local function ShowSoldTooltip(row, item)
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    local r, g, b = 1, 1, 1
+    if item.itemID and C_Item and C_Item.GetItemQualityByID then
+        local ok, quality = pcall(C_Item.GetItemQualityByID, item.itemID)
+        if ok and quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality] then
+            local color = ITEM_QUALITY_COLORS[quality]
+            r, g, b = color.r, color.g, color.b
+        end
+    end
+    GameTooltip:SetText(ItemLabel(item.itemID, item.name), r, g, b)
+
+    local units, sales = item.soldUnits or 0, item.sold or 0
+    local salesText = Comma(sales)
+    if sales > 0 and units > sales and units % sales == 0 then
+        salesText = L.Format("%d stacks of %d", sales, units / sales)
+    end
+    local tr, tg, tb = Theme.Unpack("text")
+    local mr, mg, mb = Theme.Unpack("muted")
+    GameTooltip:AddDoubleLine(L["Sold:"], Comma(units), mr, mg, mb, tr, tg, tb)
+    GameTooltip:AddDoubleLine(L["Sales:"], salesText, mr, mg, mb, tr, tg, tb)
+    local all = state.allTime and state.allTime[item.key]
+    if all then
+        GameTooltip:AddDoubleLine(L["All Time:"], L.Format("%d sold", all.soldUnits or 0),
+            mr, mg, mb, tr, tg, tb)
+    end
+    local dr, dg, db = Theme.Unpack("dim")
+    GameTooltip:AddLine(L["Click to see how it has done."], dr, dg, db)
+    GameTooltip:Show()
+end
+
 local function UpdateEventRow(row, entry)
     row.name:SetText(ItemLabel(entry.itemID, entry.name))
     ApplyNameColor(row.name, entry.itemID)
@@ -422,11 +570,39 @@ local function UpdateMethodRow(row, data)
     row.when:SetTextColor(Theme.Unpack("dim"))
 end
 
+--- What a profession under Crafted is called: the client's own name for
+--- it, or Other Crafts for the crafts no profession is known for.
+local function ProfessionText(sub)
+    if not sub.profession then return L["Other Crafts"] end
+    local auctions = ns.Auctions
+    if auctions and auctions.ProfessionLabel then
+        local ok, label = pcall(auctions.ProfessionLabel, auctions, sub.profession)
+        if ok and type(label) == "string" and label ~= "" then return label end
+    end
+    return sub.profession
+end
+
+--- A profession under Crafted: its profit, and what it is made of.
+local function UpdateProfessionRow(row, data)
+    Theme.SetItemIcon(row.icon, nil)
+    row.fold:Show()
+    pcall(row.fold.SetTexture, row.fold, data.folded
+        and [[Interface\Buttons\UI-PlusButton-Up]] or [[Interface\Buttons\UI-MinusButton-Up]])
+
+    row.name:SetText(ProfessionText(data.sub))
+    row.name:SetTextColor(Theme.Unpack("text"))
+
+    row.amount:SetText(SignedMoney(data.sub.profit))
+    row.detail:SetText(MethodDetail(data.sub, L["%d sold"]))
+    row.detail:SetTextColor(Theme.Unpack("muted"))
+    row.when:SetText("")
+end
+
 --- One item under its method.
 local function UpdateMethodItemRow(row, data)
     Theme.SetItemIcon(row.icon, data.itemID)
 
-    row.name:SetText(data.itemID and ItemLabel(data.itemID) or L["unknown item"])
+    row.name:SetText(ItemLabel(data.itemID, data.item and data.item.name))
     ApplyNameColor(row.name, data.itemID)
 
     row.amount:SetText(SignedMoney(data.item.profit))
@@ -436,7 +612,9 @@ local function UpdateMethodItemRow(row, data)
 end
 
 local function UpdateRow(row, data)
-    row.fold:SetShown(data.methodRow and true or false)
+    row.fold:SetShown((data.methodRow or data.professionRow) and true or false)
+    SetIndent(row, data.indent or 0)
+    if data.haul or data.methodRow or data.professionRow or data.methodItem then SetColumnMode(row, false) end
     if data.haul then
         UpdateVisitRow(row, data)
         return
@@ -447,12 +625,24 @@ local function UpdateRow(row, data)
         return
     end
 
+    if data.professionRow then
+        UpdateProfessionRow(row, data)
+        return
+    end
+
     if data.methodItem then
         UpdateMethodItemRow(row, data)
         return
     end
 
     Theme.SetItemIcon(row.icon, data.itemID)
+    local columns = state.view == "item" and not data.listing and not data.kind
+    SetColumnMode(row, columns and true or false)
+    if columns then
+        UpdateItemColumns(row, data)
+        return
+    end
+
     if data.listing then
         UpdateListingRow(row, data)
     elseif data.kind then
@@ -820,12 +1010,13 @@ end
 
 --- The period's name for the legend and footer.
 local function PeriodText()
-    if state.period == "pick" and state.fromDay and state.toDay then
+    local period = CurrentPeriod()
+    if period == "pick" and state.fromDay and state.toDay then
         local from, to = math.min(state.fromDay, state.toDay), math.max(state.fromDay, state.toDay)
         if from == to then return DayText(from) end
         return L.Format("%s to %s", DayText(from), DayText(to))
     end
-    return PERIOD_TEXT[state.period] or ""
+    return PERIOD_TEXT[period] or ""
 end
 
 --- Show the controls and panes the view needs, hide the rest.
@@ -837,11 +1028,30 @@ local function ApplyLayout()
     widgets.detail:SetShown(not gold)
     widgets.chart:SetShown(gold)
     widgets.legend:SetShown(gold)
+    local sales = SalesView()
     widgets.search:SetShown(not gold and not methods)
-    widgets.period:SetShown(gold or methods)
+    widgets.search:ClearAllPoints()
+    if sales then
+        widgets.search:SetPoint("RIGHT", 0, 0)
+    else
+        widgets.search:SetPoint("LEFT", 0, 0)
+    end
+    widgets.period:SetShown(gold or methods or sales)
+    widgets.period:Select(CurrentPeriod())
     widgets.who:SetShown(gold)
+    widgets.character:SetShown(methods)
+    widgets.characterLabel:SetShown(methods)
 
-    local picking = (gold or methods) and state.period == "pick"
+    -- The By item view's three numbers and its column headings sit over
+    -- the list, which starts below them.
+    local byItem = state.view == "item"
+    widgets.tiles:SetShown(byItem)
+    widgets.headings:SetShown(byItem)
+    widgets.list:ClearAllPoints()
+    widgets.list:SetPoint("TOPLEFT", byItem and widgets.headings or widgets.divider, "BOTTOMLEFT", 0, -4)
+    widgets.list:SetPoint("BOTTOMRIGHT", widgets.container, "BOTTOMRIGHT", -DETAIL_WIDTH - 16, 42)
+
+    local picking = (gold or methods or sales) and CurrentPeriod() == "pick"
     widgets.fromDay:SetShown(picking)
     widgets.toLabel:SetShown(picking)
     widgets.toDay:SetShown(picking)
@@ -854,7 +1064,7 @@ end
 
 --- The day menus, when dates are being picked.
 local function FillPickedDays()
-    if state.period ~= "pick" then return end
+    if CurrentPeriod() ~= "pick" then return end
 
     local options = DayOptions()
     widgets.fromDay:SetOptions(options)
@@ -898,6 +1108,29 @@ end
 
 --- Profit by method (Logic/MethodProfit.lua): each way of making money, its
 --- items beneath it, and the totals in the panel.
+--- Fill the Character: menu with this realm's sellers, All Characters
+--- first. A character picked before that sold nothing now goes back to all.
+local function UpdateCharacterMenu()
+    local menu = widgets.character
+    if not menu then return end
+    local options = { { text = L["All Characters"], value = "all" } }
+    local found = state.methodsWho == "all"
+    local sellers = ns.MethodProfit and ns.MethodProfit.Sellers and ns.MethodProfit:Sellers() or {}
+    local function Measure(text)
+        return Theme.MeasureText and Theme.MeasureText("small", text) or 0
+    end
+    local widest = Measure(options[1].text)
+    for _, seller in ipairs(sellers) do
+        options[#options + 1] = { text = seller.name, value = seller.key }
+        if seller.key == state.methodsWho then found = true end
+        widest = math.max(widest, Measure(seller.name))
+    end
+    if not found then state.methodsWho = "all" end
+    menu:SetWidth(math.max(140, widest + 30))
+    menu:SetOptions(options)
+    menu:SetValue(state.methodsWho)
+end
+
 local function RefreshMethods()
     awaitingItemData = false
     FillPickedDays()
@@ -905,18 +1138,35 @@ local function RefreshMethods()
     if not ns.MethodProfit then return end
 
     local from, to = ns.MethodProfit.Range(state.period, state.fromDay, state.toDay)
-    local summary = ns.MethodProfit:Summary(from, to)
+    UpdateCharacterMenu()
+    local who = state.methodsWho ~= "all" and state.methodsWho or nil
+    local summary = ns.MethodProfit:Summary(from, to, { who = who })
     local total = summary.total
 
     local data = {}
     local folded = FoldedMethods()
+    local function AddItems(list, key, uncounted, indent)
+        for _, item in ipairs(list) do
+            data[#data + 1] = { methodItem = true, key = key, itemID = item.itemID, name = item.name,
+                item = item, uncounted = uncounted, indent = indent }
+        end
+    end
     for _, method in ipairs(ns.MethodProfit.METHODS) do
         local group = summary.methods[method.key]
         if group.n > 0 then
             data[#data + 1] = { methodRow = true, method = method, group = group, folded = folded[method.key] }
-            for _, item in ipairs(folded[method.key] and {} or group.list) do
-                data[#data + 1] = { methodItem = true, key = method.key,
-                    itemID = item.itemID, item = item }
+            if folded[method.key] then
+                -- folded: nothing under it
+            elseif group.professions and #group.professions > 0 then
+                -- Crafted opens into its professions, each with its items.
+                for _, sub in ipairs(group.professions) do
+                    local key = method.key .. ":" .. tostring(sub.key)
+                    data[#data + 1] = { professionRow = true, foldKey = key, sub = sub,
+                        folded = folded[key], indent = 1 }
+                    if not folded[key] then AddItems(sub.list, method.key, group.uncounted, 2) end
+                end
+            else
+                AddItems(group.list, method.key, group.uncounted, 0)
             end
         end
     end
@@ -955,6 +1205,35 @@ local function RefreshMethods()
         SignedMoney(total.profit), Util.FormatMoney(total.income, { short = true }), PeriodText()))
 end
 
+--- The three numbers over the By item list.
+local function UpdateTiles(items)
+    local units, sales, net, best = 0, 0, 0, nil
+    for _, item in ipairs(items) do
+        units = units + (item.soldUnits or 0)
+        sales = sales + (item.sold or 0)
+        net = net + (item.net or 0)
+        if (item.soldUnits or 0) > 0 and (not best or item.soldUnits > best.soldUnits
+            or (item.soldUnits == best.soldUnits and (item.net or 0) > (best.net or 0))) then
+            best = item
+        end
+    end
+
+    local tiles = widgets.tiles.items
+    tiles[1].value:SetText(Comma(units))
+    tiles[1].sub:SetText(L.Format("in %d sales", sales))
+    tiles[2].value:SetText(Util.FormatMoney(net, { short = true }))
+    tiles[2].sub:SetText(L["after the auction cut"])
+    if best then
+        tiles[3].value:SetText(ItemLabel(best.itemID, best.name))
+        ApplyNameColor(tiles[3].value, best.itemID)
+        tiles[3].sub:SetText(L.Format("%d sold", best.soldUnits))
+    else
+        tiles[3].value:SetText("-")
+        tiles[3].value:SetTextColor(Theme.Unpack("dim"))
+        tiles[3].sub:SetText("")
+    end
+end
+
 local function Refresh()
     if not widgets.list then return end
 
@@ -976,8 +1255,28 @@ local function Refresh()
     state.names = ns.Mail.NameIndex and ns.Mail:NameIndex() or nil
 
     local query = (state.search or ""):lower()
-    local items = ns.Mail:GetItems()
+
+    -- The sales views count only what sold in the period picked; All keeps
+    -- the history rolled up from before, too.
+    local from, to
+    if SalesView() and CurrentPeriod() ~= "all" then
+        FillPickedDays()
+        from, to = ns.MethodProfit.Range(CurrentPeriod(), state.fromDay, state.toDay)
+    end
+    local function InWindow(t)
+        if not from then return true end
+        return t ~= nil and t >= from and t < to
+    end
+
+    local items = ns.Mail:GetItems(from, to)
     local totals = Totals(items)
+
+    -- For the hover's All Time line.
+    if state.view == "item" then
+        state.allTime = {}
+        local everything = from and ns.Mail:GetItems() or items
+        for _, item in ipairs(everything) do state.allTime[item.key] = item end
+    end
 
     local data = {}
 
@@ -1027,15 +1326,17 @@ local function Refresh()
             end
         end
 
-        -- What came in, most first. An item that only ever came back sorts to
-        -- the bottom by that measure and is still shown: a craft that never
+        -- Most sold first, then what came in. An item that only ever came
+        -- back sorts to the bottom and is still shown: a craft that never
         -- sells is exactly the thing worth seeing.
         table.sort(data, function(a, b)
+            if (a.soldUnits or 0) ~= (b.soldUnits or 0) then return (a.soldUnits or 0) > (b.soldUnits or 0) end
             if a.net ~= b.net then return a.net > b.net end
             return (a.lastAt or 0) > (b.lastAt or 0)
         end)
+        if widgets.sorter then data = widgets.sorter:Sort(data) end
     else
-        local entries = ns.Mail:GetLedger().entries
+        local entries = ns.Mail:Entries()
         local salesOnly = state.view == "sales"
 
         -- Walked backwards: the ledger is appended to, so the end of it is the
@@ -1044,6 +1345,7 @@ local function Refresh()
             local entry = entries[index]
 
             if (not salesOnly or entry.kind == "sold")
+                and (not salesOnly or InWindow(entry.t))
                 and Matches(entry.itemID, entry.name, query) then
                 data[#data + 1] = entry
             end
@@ -1054,7 +1356,7 @@ local function Refresh()
         if #heard > 0 then
             for index = #heard, 1, -1 do
                 local entry = heard[index]
-                if Matches(entry.itemID, entry.name, query) then
+                if InWindow(entry.t) and Matches(entry.itemID, entry.name, query) then
                     data[#data + 1] = setmetatable({ kind = "heard" }, { __index = entry })
                 end
             end
@@ -1138,6 +1440,17 @@ local function Refresh()
         return
     end
 
+    if state.view == "item" then
+        UpdateTiles(items)
+        local count = 0
+        for _, item in ipairs(items) do
+            if (item.soldUnits or 0) > 0 then count = count + 1 end
+        end
+        widgets.summary:SetText(L.Format("%d items sold in %s", count, PeriodText()))
+        widgets.carried:Hide()
+        return
+    end
+
     local counted = totals.costed + totals.guessed
 
     local profitPart = ""
@@ -1198,11 +1511,13 @@ local function Build(container)
         periodTabs[#periodTabs + 1] = { key = period.value, text = period.text }
     end
     local period = Widgets.CreateTabStrip(toolbar, periodTabs, function(value)
-        state.period = value
+        -- The sales views keep their own period, so picking one there never
+        -- changes what the gold and method views show.
+        if SalesView() then state.salesPeriod = value else state.period = value end
         Refresh()
     end, { width = 560 })
     period:SetPoint("LEFT", 0, 0)
-    period:Select(state.period)
+    period:Select(CurrentPeriod())
     widgets.period = period
 
     local fromDay = Widgets.CreateDropdown(toolbar, {}, function(value)
@@ -1232,6 +1547,29 @@ local function Build(container)
     who:Select(state.who)
     widgets.who = who
 
+    -- Profit by method's Character: menu, filled as the view draws.
+    local character = Widgets.CreateDropdown(toolbar, {}, function(value)
+        state.methodsWho = value or "all"
+        Refresh()
+    end, { width = 140 })
+    character:SetPoint("RIGHT", 0, 0)
+    widgets.character = character
+
+    local characterLabel = Theme.CreateLabel(toolbar, "small", "muted")
+    characterLabel:SetPoint("RIGHT", character, "LEFT", -6, 0)
+    characterLabel:SetText(L["Character:"])
+    widgets.characterLabel = characterLabel
+
+    local function CharacterTip(owner)
+        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(L["Sold by your characters on this realm."], 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end
+    if character.HookScript then
+        character:HookScript("OnEnter", CharacterTip)
+        character:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
     local search = Widgets.CreateSearchBox(toolbar, L["Search sales"], function(text)
         state.search = text or ""
         Refresh()
@@ -1243,6 +1581,96 @@ local function Build(container)
     local divider = Theme.CreateDivider(container)
     divider:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -8)
     divider:SetPoint("TOPRIGHT", toolbar, "BOTTOMRIGHT", -DETAIL_WIDTH - 8, -8)
+    widgets.divider = divider
+    widgets.container = container
+
+    -- By item: three numbers over the list (Items Sold, Taken In, Best
+    -- Seller) for the period picked.
+    local tiles = CreateFrame("Frame", nil, container)
+    tiles:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -6)
+    tiles:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -6)
+    tiles:SetHeight(TILE_HEIGHT)
+    tiles.items = {}
+    for index = 1, 3 do
+        local tile = Theme.CreatePanel(tiles, "glassAlt")
+        tile:SetHeight(TILE_HEIGHT)
+        Theme.AccentStripe(tile, 3)
+        tile.label = Theme.CreateLabel(tile, "tiny", "dim")
+        tile.label:SetPoint("TOPLEFT", 10, -5)
+        tile.label:SetPoint("RIGHT", tile, "RIGHT", -6, 0)
+        tile.value = Theme.CreateLabel(tile, "large", "accent")
+        tile.value:SetPoint("TOPLEFT", tile.label, "BOTTOMLEFT", 0, -2)
+        tile.value:SetPoint("RIGHT", tile, "RIGHT", -6, 0)
+        tile.value:SetWordWrap(false)
+        tile.sub = Theme.CreateLabel(tile, "tiny", "dim")
+        tile.sub:SetPoint("TOPLEFT", tile.value, "BOTTOMLEFT", 0, -1)
+        tile.sub:SetPoint("RIGHT", tile, "RIGHT", -6, 0)
+        tile.sub:SetWordWrap(false)
+        tiles.items[index] = tile
+    end
+    tiles.items[1].label:SetText(L["Items Sold:"])
+    tiles.items[2].label:SetText(L["Taken In:"])
+    tiles.items[3].label:SetText(L["Best Seller:"])
+    local function PlaceTiles()
+        local width = tiles:GetWidth() or 0
+        if width <= 0 then return end
+        local each = (width - 2 * TILE_GAP) / 3
+        for index, tile in ipairs(tiles.items) do
+            tile:ClearAllPoints()
+            tile:SetPoint("TOPLEFT", tiles, "TOPLEFT", (index - 1) * (each + TILE_GAP), 0)
+            tile:SetWidth(each)
+        end
+    end
+    tiles:SetScript("OnSizeChanged", PlaceTiles)
+    PlaceTiles()
+    tiles:Hide()
+    widgets.tiles = tiles
+
+    -- Column headings over the By item list, lined up with the row cells.
+    if Widgets.FitColumns then Widgets.FitColumns(COLUMNS) end
+    local headings = CreateFrame("Frame", nil, container)
+    headings:SetHeight(14)
+    headings:SetPoint("TOPLEFT", tiles, "BOTTOMLEFT", 0, -6)
+    headings:SetPoint("TOPRIGHT", tiles, "BOTTOMRIGHT", 0, -6)
+    local itemHeading = Theme.CreateLabel(headings, "tiny", "dim")
+    itemHeading:SetPoint("LEFT", 40, 0)
+    itemHeading:SetText(L["ITEM"])
+    headings.cells = {}
+    for _, column in ipairs(COLUMNS) do
+        local cell = Theme.CreateLabel(headings, "tiny", "dim", column.justify or "RIGHT")
+        cell:SetText(column.label)
+        headings.cells[column.key] = cell
+    end
+    if ns.Columns then ns.Columns:Place("sales", COLUMNS, headings.cells, { gap = 8 }) end
+    headings:Hide()
+    widgets.headings = headings
+
+    -- Click a heading to sort by it; the list opens with the most sold first.
+    local sortLabels = { name = itemHeading }
+    for key, cell in pairs(headings.cells) do sortLabels[key] = cell end
+    widgets.sorter = Widgets.SortableHeadings and Widgets.SortableHeadings(sortLabels, {
+        name = function(item) return ItemLabel(item.itemID, item.name) end,
+        sold = function(item) return item.soldUnits or 0 end,
+        sales = function(item) return item.sold or 0 end,
+        taken = function(item) return item.net or 0 end,
+        each = function(item) return EachOf(item) or 0 end,
+        last = function(item) return item.lastAt or 0 end,
+    }, function() Refresh() end)
+    if widgets.sorter then
+        widgets.sorter:SetText({ "name" })
+        widgets.sorter.key = "sold"
+        widgets.sorter.ascending = false
+        widgets.sorter:Sync()
+    end
+
+    if ns.Columns then
+        ns.Columns:Attach(headings, "sales", widgets.sorter)
+        ns.Columns:OnChange("sales", function()
+            ns.Columns:Place("sales", COLUMNS, headings.cells, { gap = 8 })
+            if widgets.sorter then widgets.sorter:Sync() end
+            if widgets.list then widgets.list:Refresh() end
+        end)
+    end
 
     local carried = Theme.CreateLabel(container, "tiny", "dim")
     carried:SetPoint("BOTTOMLEFT", 8, 26)
@@ -1256,24 +1684,37 @@ local function Build(container)
         createRow = CreateRow,
         updateRow = UpdateRow,
         onEnter = function(row, data)
-            if data.methodRow then return end
+            if data.methodRow or data.professionRow then return end
             if data.haul then
                 GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
                 GameTooltip:SetText(L["Click to see this visit's report again"], 1, 1, 1)
                 GameTooltip:Show()
                 return
             end
+            if state.view == "item" and not data.listing and not data.kind then
+                ShowSoldTooltip(row, data)
+                return
+            end
             Widgets.ShowItemOnly(row, data.itemID, data.name)
         end,
         onLeave = function() GameTooltip:Hide() end,
+        -- Headings step left with the rows while the scrollbar shows.
+        onScrollbarShown = function(shown)
+            widgets.headings:SetPoint("TOPRIGHT", widgets.tiles, "BOTTOMRIGHT", shown and -10 or 0, -6)
+        end,
         -- The item the detail pane is showing is lit, as on every other tab.
         isSelected = function(data)
-            if data.haul or data.methodRow or data.methodItem or not state.selected then return false end
+            if data.haul or data.methodRow or data.professionRow or data.methodItem or not state.selected then return false end
             return SelectionKey(data) == state.selected
         end,
         onClick = function(data)
             if data.methodRow then
                 ToggleMethod(data.method.key)
+                Refresh()
+                return
+            end
+            if data.professionRow then
+                ToggleMethod(data.foldKey)
                 Refresh()
                 return
             end

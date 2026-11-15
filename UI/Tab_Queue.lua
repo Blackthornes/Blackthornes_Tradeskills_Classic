@@ -46,6 +46,9 @@ local QUANTITY_WIDTH = 42
 -- "Vendor" at the client's font, with the button's own insets.
 local ACTION_WIDTH = 54
 
+-- A craft's time on its row: "1h 05m" at the client's font, with room.
+local TIME_WIDTH = 48
+
 -- Disenchant next, left of Clear all, when Settings turns it on.
 local DE_NEXT_WIDTH = 230
 
@@ -55,6 +58,70 @@ end
 
 local widgets = {}
 
+--------------------------------------------------------------------------------
+-- Crafting Time hover (2026-11-12), shared with the craft pane's footer
+--------------------------------------------------------------------------------
+
+local QueueTimeTip = {}
+ns.QueueTimeTip = QueueTimeTip
+
+--- A character's whole name, or "You" for the one playing.
+function QueueTimeTip.Who(characterKey)
+    local characters = ns.Characters
+    if characters and characters.IsPlaying then
+        local ok, playing = pcall(characters.IsPlaying, characters, characterKey)
+        if ok and playing then return L["You"] end
+    end
+    local recipes = ns.Recipes
+    if recipes and recipes.GetCharacterName then
+        local ok, name = pcall(recipes.GetCharacterName, recipes, characterKey)
+        if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    return tostring(characterKey)
+end
+
+--- The lines: a time for each character, most first, then the crafts with
+--- no time yet. Each { left, right, untimed }.
+function QueueTimeTip.Lines(info)
+    local lines = {}
+    if not info then return lines end
+
+    local who = {}
+    for key, seconds in pairs(info.byCrafter or {}) do
+        who[#who + 1] = { name = QueueTimeTip.Who(key), seconds = seconds }
+    end
+    table.sort(who, function(a, b)
+        if a.seconds ~= b.seconds then return a.seconds > b.seconds end
+        return a.name < b.name
+    end)
+    for _, one in ipairs(who) do
+        lines[#lines + 1] = { left = one.name, right = ns.CraftTime.Format(one.seconds) }
+    end
+
+    if (info.untimed or 0) > 0 then
+        lines[#lines + 1] = { left = L["Not timed yet"], untimed = true,
+            right = info.untimed == 1 and L.Format("%d craft", info.untimed)
+                or L.Format("%d crafts", info.untimed) }
+    end
+    return lines
+end
+
+function QueueTimeTip.Show(owner, info)
+    if not info or ((info.timed or 0) == 0 and (info.untimed or 0) == 0) then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    GameTooltip:AddLine(L["Crafting Time"], 1, 0.82, 0)
+    for _, line in ipairs(QueueTimeTip.Lines(info)) do
+        if line.untimed then
+            GameTooltip:AddDoubleLine(line.left, line.right, 0.78, 0.64, 0.30, 0.78, 0.64, 0.30)
+        else
+            GameTooltip:AddDoubleLine(line.left, line.right, 0.9, 0.86, 0.75, 1, 1, 1)
+        end
+    end
+    GameTooltip:AddLine(L["Casting only. Walking and waiting aren't counted. A craft gets its time once you make one."],
+        0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+end
+
 -- Each queued craft's cost and profit for its whole count, worked out once
 -- per redraw (Queue:GetEntryCosts) so a row and the footer agree.
 local entryCosts = {}
@@ -63,15 +130,74 @@ local entryCosts = {}
 -- Craft rows
 --------------------------------------------------------------------------------
 
+local ARROW_TEXTURE = [[Interface\AddOns\]] .. (ns.ADDON_NAME or "Blackthornes_TS") .. [[\Media\Frame\SortArrow]]
+
+-- Shows the hover arrows on a row, each dim when that move isn't allowed.
+local function ShowArrows(row, shown)
+    if not row.up then return end
+    local entry = row.data
+    if not shown or not entry then
+        row.up:Hide()
+        row.down:Hide()
+        return
+    end
+    local canUp = ns.Queue.CanMoveUp and ns.Queue:CanMoveUp(entry)
+    local canDown = ns.Queue.CanMoveDown and ns.Queue:CanMoveDown(entry)
+    row.up.allowed, row.down.allowed = canUp and true or false, canDown and true or false
+    row.up:SetAlpha(canUp and 1 or 0.3)
+    row.down:SetAlpha(canDown and 1 or 0.3)
+    row.up:Show()
+    row.down:Show()
+end
+
+-- One of the two small arrows on a row's left, shown while the mouse is on
+-- the row (approved mockup, 2026-11-14). The arrow art points down.
+local function CreateMoveArrow(row, way)
+    local arrow = CreateFrame("Button", nil, row)
+    arrow:SetSize(14, 9)
+    arrow:SetPoint(way == "up" and "TOPLEFT" or "BOTTOMLEFT", row, way == "up" and "TOPLEFT" or "BOTTOMLEFT",
+        4, way == "up" and -2 or 2)
+    local tex = arrow:CreateTexture(nil, "ARTWORK")
+    tex:SetAllPoints()
+    tex:SetTexture(ARROW_TEXTURE)
+    if way == "up" then tex:SetTexCoord(0, 1, 1, 0) end
+    tex:SetVertexColor(Theme.Unpack("accent"))
+    arrow.texture = tex
+    arrow:SetScript("OnClick", function(self)
+        if self.allowed and row.data then ns.Queue:Move(row.data, way) end
+    end)
+    arrow:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(way == "up" and L["Move Up"] or L["Move Down"])
+        GameTooltip:Show()
+    end)
+    arrow:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        if not (row.IsMouseOver and row:IsMouseOver()) then ShowArrows(row, false) end
+    end)
+    arrow:Hide()
+    return arrow
+end
+
 local function CreateCraftRow(row)
+    row.up = CreateMoveArrow(row, "up")
+    row.down = CreateMoveArrow(row, "down")
+
     -- The item's icon beside its name, as the bags draw it.
     row.icon = Theme.CreateItemIcon(row, 16)
-    row.icon:SetPoint("LEFT", 8, 0)
+    row.icon:SetPoint("LEFT", 22, 0)
 
     row.name = Theme.CreateLabel(row, "small", "text")
-    row.name:SetPoint("LEFT", 28, 0)
-    -- Ends short of the action button, so a long name never draws under it.
-    row.name:SetPoint("RIGHT", row, "RIGHT", -(198 + ACTION_WIDTH + 6), 0)
+    row.name:SetPoint("LEFT", 42, 0)
+    -- Ends short of the time and the action button, so a long name never
+    -- draws under them.
+    row.name:SetPoint("RIGHT", row, "RIGHT", -(198 + ACTION_WIDTH + 6 + TIME_WIDTH + 6), 0)
+
+    -- How long this craft takes, its count times one cast (2026-11-12).
+    -- A gold "?" until it has been cast once and the game gives no time.
+    row.time = Theme.CreateLabel(row, "small", "text", "RIGHT")
+    row.time:SetPoint("RIGHT", -(198 + ACTION_WIDTH + 6), 0)
+    row.time:SetWidth(TIME_WIDTH)
 
     -- What the craft is for once made: AH, DE or Vendor. A click steps to
     -- the next, a right-click goes back to whichever pays most.
@@ -274,8 +400,38 @@ local function UpdateCraftRow(row, entry)
     if #who > 0 then texts[#texts + 1] = Note(plain, who[#who]) end
     texts[#texts + 1] = label
     texts[#texts + 1] = plain
+
+    -- Paused, needs a tool nearby, or next up: a tag and a note after the
+    -- name, the note dropped first when the row is short (2026-11-14).
+    local held = ns.Queue.Held and ns.Queue:Held(entry)
+    local tool = not held and ns.Crafting.ToolMissing and ns.Crafting:ToolMissing(entry.recipeID)
+    local tags
+    if held then
+        tags = { "|cff6fa8dc" .. L["Paused"] .. "|r |cff7a8089" .. L["Craft Next skips it."] .. "|r",
+            "|cff6fa8dc" .. L["Paused"] .. "|r" }
+    elseif tool then
+        local need = "|c" .. ns.COLORS.warn .. L.Format("Needs a %s", tool) .. "|r"
+        tags = { need .. " |cff7a8089" .. L.Format("Skipped until you're near a %s.", tool) .. "|r", need }
+    elseif widgets.nextEntry == entry then
+        tags = { "|cff7a8089" .. L["Next up."] .. "|r" }
+    end
+    if tags then
+        local tagged = {}
+        for _, tag in ipairs(tags) do
+            for _, text in ipairs(texts) do
+                tagged[#tagged + 1] = ("%s |cff7a8089·|r %s"):format(text, tag)
+            end
+        end
+        for _, text in ipairs(texts) do tagged[#tagged + 1] = text end
+        texts = tagged
+    end
     Theme.FitText(row.name, texts)
     ApplyNameColor(row, recipe and recipe.outputItemID)
+    local dim = (held or tool) and 0.55 or 1
+    row.icon:SetAlpha(dim)
+    row.name:SetAlpha(dim)
+    row.tool = tool
+    ShowArrows(row, row.IsMouseOver and row:IsMouseOver())
 
     -- Colour by whether it can be made, since nothing here can start one.
     local ready, reason = ns.Crafting:GetReadiness(entry.recipeID)
@@ -306,6 +462,15 @@ local function UpdateCraftRow(row, entry)
     row.boundRecipeID = entry.recipeID
 
     UpdateActionButton(row, entry)
+
+    local cast = ns.CraftTime and ns.CraftTime:GetCast(entry.recipeID)
+    if cast then
+        row.time:SetText(ns.CraftTime.Format(cast * (entry.quantity or 0)))
+        row.time:SetTextColor(Theme.Unpack("text"))
+    else
+        row.time:SetText("?")
+        row.time:SetTextColor(Theme.Unpack("accent"))
+    end
 
     local kept = entry.isDependency and entry.buyCheaper == true
     row.buyInstead:SetShown(kept)
@@ -474,7 +639,7 @@ local function ShowMaterialTooltip(row, line)
     ns.Widgets.ShowItemTooltip(row, "ANCHOR_RIGHT", line.itemID, Util.GetItemLabel(line.itemID))
     GameTooltip:AddLine(" ")
 
-    if line.fromVendor then
+    if line.fromVendor or line.vendorLimited then
         GameTooltip:AddLine(line.vendorLimited
             and L["Sold by a vendor (limited stock)"] or L["Sold by a vendor"], 0.78, 0.64, 0.30)
     end
@@ -653,6 +818,25 @@ local function SetCraftButton(button, label)
         button:SetText(L["Craft next"])
         button:SetEnabledState(false)
 
+        -- Everything left is paused or needs a tool: say so once in chat.
+        local allSet = true
+        for _, queued in ipairs(ns.Queue:GetAll()) do
+            local held = ns.Queue.Held and ns.Queue:Held(queued)
+            local tool = ns.Crafting.ToolMissing and ns.Crafting:ToolMissing(queued.recipeID)
+            if not held and not tool then allSet = false break end
+        end
+        if allSet then
+            local text = L["Everything left is paused or needs a tool nearby."]
+            button.tooltipText = text
+            label:SetText(text)
+            label:SetTextColor(Theme.Unpack("warn"))
+            if not widgets.toldAllSet then
+                widgets.toldAllSet = true
+                ns.Print(text)
+            end
+            return
+        end
+
         -- Report the first entry's actual obstacle rather than a generic one.
         local _, reason = ns.Crafting:GetReadiness(ns.Queue:GetAll()[1].recipeID)
 
@@ -661,6 +845,7 @@ local function SetCraftButton(button, label)
         label:SetTextColor(Theme.Unpack("warn"))
         return
     end
+    widgets.toldAllSet = nil
 
     local recipe = ns.Recipes:GetAny(entry.recipeID)
     local canMake = math.min(entry.quantity, ns.Profit:GetCraftableCount(entry.recipeID))
@@ -702,9 +887,11 @@ local function SetCraftButton(button, label)
         end
     end
 
-    button:SetText(L.Format("Craft %dx %s", canMake, (recipe and recipe.name) or L["item"]))
+    button:SetText(L.Format("Craft Next: %s", (recipe and recipe.name) or L["item"]))
     button:SetEnabledState(true)
-    button.tooltipText = CraftTooltip(slots)
+    local tip = CraftTooltip(slots)
+    local count = L.Format("Craft %dx %s", canMake, (recipe and recipe.name) or L["item"])
+    button.tooltipText = tip and (count .. "\n" .. tip) or count
 
     label:SetText(L.Format("%d of %d ready", ready, total))
     label:SetTextColor(Theme.Unpack("profit"))
@@ -759,7 +946,7 @@ local function AnnounceAltCrafts(lines)
     if found and type(PlaySound) == "function" and ns.Config:Get("altCraftSound") ~= false then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
         local kit = kits.LOOT_WINDOW_COIN_SOUND or 120
-        pcall(PlaySound, kit, "Master")
+        pcall(ns.PlaySound or PlaySound, kit, "Master")
     end
 end
 
@@ -859,6 +1046,11 @@ local function Refresh()
     end
 
     entryCosts = ns.Queue:GetEntryCosts()
+    -- The row Craft Next makes next says "Next up."
+    widgets.nextEntry = nil
+    if #entries > 0 and not ns.Crafting:IsBusy() then
+        widgets.nextEntry = ns.Crafting:GetNextReady()
+    end
     widgets.craftList:SetData(entries)
     local shopping = ns.Queue:GetShoppingList()
     -- A clicked heading's order over the list's own.
@@ -877,6 +1069,7 @@ local function Refresh()
     UpdateDisenchantNext()
 
     if #entries == 0 then
+        widgets.craftTime = nil
         widgets.summaryLabel:SetText("")
         -- Nothing queued, but gear may still be on the list to buy.
         widgets.shoppingLabel:SetText(#shopping > 0 and (unknown > 0
@@ -885,12 +1078,42 @@ local function Refresh()
         return
     end
 
-    widgets.summaryLabel:SetText(L.Format(totals.crafts == 1
-            and L["%d craft  ·  materials %s  ·  profit %s"] or L["%d crafts  ·  materials %s  ·  profit %s"],
-        totals.crafts,
-        Util.FormatMoney(totals.cost, { short = true }),
-        Util.FormatMoney(totals.profit, { short = true }))
-        .. (totals.priceable and "" or L["  (some unpriced)"]))
+    local craftTime = ns.Queue.GetCraftTime and ns.Queue:GetCraftTime()
+    widgets.craftTime = craftTime
+    local unpriced = totals.priceable and "" or L["  (some unpriced)"]
+
+    -- How many Craft Next passes over: "1 paused, 1 needs a tool".
+    local paused, tools = 0, 0
+    for _, entry in ipairs(entries) do
+        if ns.Queue.Held and ns.Queue:Held(entry) then
+            paused = paused + 1
+        elseif ns.Crafting.ToolMissing and ns.Crafting:ToolMissing(entry.recipeID) then
+            tools = tools + 1
+        end
+    end
+    local skipped = {}
+    if paused > 0 then skipped[#skipped + 1] = L.Format("%d paused", paused) end
+    if tools > 0 then
+        skipped[#skipped + 1] = L.Format(tools == 1 and L["%d needs a tool"] or L["%d need a tool"], tools)
+    end
+    if #skipped > 0 then
+        unpriced = unpriced .. "  ·  " .. table.concat(skipped, ", ")
+    end
+    if craftTime and craftTime.seconds then
+        widgets.summaryLabel:SetText(L.Format(totals.crafts == 1
+                and L["%d craft  ·  about %s  ·  materials %s  ·  profit %s"]
+                or L["%d crafts  ·  about %s  ·  materials %s  ·  profit %s"],
+            totals.crafts,
+            ns.CraftTime.Format(craftTime.seconds),
+            Util.FormatMoney(totals.cost, { short = true }),
+            Util.FormatMoney(totals.profit, { short = true })) .. unpriced)
+    else
+        widgets.summaryLabel:SetText(L.Format(totals.crafts == 1
+                and L["%d craft  ·  materials %s  ·  profit %s"] or L["%d crafts  ·  materials %s  ·  profit %s"],
+            totals.crafts,
+            Util.FormatMoney(totals.cost, { short = true }),
+            Util.FormatMoney(totals.profit, { short = true })) .. unpriced)
+    end
 
     widgets.shoppingLabel:SetText(unknown > 0
         and L.Format("To buy: %s  (+%d unpriced)", Util.FormatMoney(shoppingCost, { short = true }), unknown)
@@ -995,10 +1218,50 @@ local function Build(container)
 
         -- The item the craft makes, as the bags would show it.
         onEnter = function(row, entry)
+            ShowArrows(row, true)
             local recipe = ns.Recipes:GetAny(entry.recipeID)
             Widgets.ShowItemOnly(row, recipe and recipe.outputItemID, recipe and recipe.name)
+            if row.tool then
+                GameTooltip:AddLine(L.Format("You need to be near a %s to make this. Craft Next skips it until you are.",
+                    row.tool), 1, 0.82, 0.35, true)
+                GameTooltip:Show()
+            end
         end,
-        onLeave = function() GameTooltip:Hide() end,
+        onLeave = function(row)
+            GameTooltip:Hide()
+            -- Kept while the mouse moved onto one of the arrows.
+            if not (row and row.IsMouseOver and row:IsMouseOver()) then ShowArrows(row, false) end
+        end,
+
+        -- Right-click: move, pause or take it off (2026-11-14).
+        onClick = function(entry, _, mouseButton, row)
+            if mouseButton ~= "RightButton" or not ns.RowMenu then return end
+            local Queue = ns.Queue
+            local recipe = ns.Recipes:GetAny(entry.recipeID)
+            local held, byPart = Queue:Held(entry)
+            local lines = {
+                { text = L["Move to Top"], disabled = not Queue:CanMoveTop(entry),
+                    run = function() Queue:Move(entry, "top") end },
+                { text = L["Move Up"], disabled = not Queue:CanMoveUp(entry),
+                    run = function() Queue:Move(entry, "up") end },
+                { text = L["Move Down"], disabled = not Queue:CanMoveDown(entry),
+                    run = function() Queue:Move(entry, "down") end },
+            }
+            -- A craft waiting only on a paused part has nothing of its own to resume.
+            local own = held and not byPart
+            lines[#lines + 1] = { text = own and L["Resume"] or L["Pause"],
+                run = function() Queue:SetPaused(entry, not own) end }
+            lines[#lines + 1] = { text = L["Remove"], run = function()
+                if row and row.remove and row.data == entry then
+                    row.remove:Click()
+                elseif entry.isDependency then
+                    Queue:NeverMake(entry)
+                else
+                    Queue:Remove(entry.recipeID)
+                end
+            end }
+            ns.RowMenu:Open(lines, { title = ((recipe and recipe.name) or ""):upper() })
+        end,
     })
     craftList:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -4)
     craftList:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -MATERIALS_WIDTH - 16, 62)
@@ -1052,6 +1315,15 @@ local function Build(container)
     local summaryLabel = Theme.CreateLabel(container, "small", "text")
     summaryLabel:SetPoint("BOTTOMLEFT", 8, 10)
     widgets.summaryLabel = summaryLabel
+
+    -- Hovering the footer splits the time by character (2026-11-12).
+    local summaryHover = CreateFrame("Frame", nil, container)
+    summaryHover:SetAllPoints(summaryLabel)
+    summaryHover:EnableMouse(true)
+    summaryHover:SetScript("OnEnter", function(self)
+        if ns.QueueTimeTip then ns.QueueTimeTip.Show(self, widgets.craftTime) end
+    end)
+    summaryHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Materials panel
     local materials = Theme.CreatePanel(container, "window")

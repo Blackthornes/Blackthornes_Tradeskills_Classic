@@ -65,7 +65,7 @@ if type(Format) ~= "function" then Format = string.format end
 
 -- Raised when this file changes in a way an older copy cannot draw: the
 -- newest copy loaded builds the window.
-WhatsNew.FILE_VERSION = 6
+WhatsNew.FILE_VERSION = 7
 
 -- Seconds after login, so the window comes up once the game has settled.
 WhatsNew.DELAY = 5
@@ -802,6 +802,7 @@ function WhatsNew:Build()
     end)
 
     self.cards = {}
+    if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(frame, "shared.whatsnew") end
     return frame
 end
 

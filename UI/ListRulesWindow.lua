@@ -331,6 +331,7 @@ function ListRulesUI:Build()
 
     frame:SetHeight(-y + 22 + INSET)
     self.frame = frame
+    if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(frame, "ts.listrules") end
     return frame
 end
 

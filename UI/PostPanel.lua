@@ -639,6 +639,11 @@ function PostPanel:Build()
     self.header = header
     self.title = title
 
+    -- Dragged by its plate or header (a player asked, the owner said build
+    -- it, 2026-11-12): where it is dropped is kept beside the auction house
+    -- (PostPanel:SaveSpot) and it stays on screen.
+    self:MakeDraggable(frame, header)
+
     -- Everything under the title, so the collapse button can fold it away in
     -- one go and leave the title strip showing.
     local body = CreateFrame("Frame", nil, frame)
@@ -717,9 +722,35 @@ function PostPanel:Build()
     overcut:HookScript("OnLeave", function() GameTooltip:Hide() end)
     self.overcutBox = overcut
 
+    -- Crafted Only (a player asked, the owner said build it, 2026-11-08):
+    -- Sell shows only items your characters can make, and List Next and
+    -- List All follow it. Off unless ticked, kept between sessions.
+    local craftedOnly = Widgets.CreateCheckbox(body, L["Crafted Only"], function(checked)
+        ns.Config:Set("postCraftedOnly", checked and true or false)
+        PostPanel:Refresh()
+    end, PostPanel:CraftedOnly())
+    craftedOnly:SetPoint("TOPRIGHT", overcut, "TOPLEFT", -10, 0)
+    craftedOnly:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["Shows only things your characters can make. List Next lists only these too."], 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    craftedOnly:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    self.craftedOnlyBox = craftedOnly
+
+    -- Hidden (2026-11-06, the owner approved the mockup): the items the
+    -- player hid with a row's x, the only ones kept off Sell. Opens the
+    -- list to bring one back; shows on Sell only while something is hidden.
+    local hiddenButton = Widgets.CreateButton(body, L.Format("Hidden (%d)", 0), function(button)
+        if ns.HiddenItemsWindow then ns.HiddenItemsWindow:Toggle(PostPanel.frame) end
+    end, { height = 20 })
+    hiddenButton:SetPoint("RIGHT", craftedOnly, "LEFT", -10, 0)
+    hiddenButton:Hide()
+    self.hiddenButton = hiddenButton
+
     local summary = Theme.CreateLabel(body, "tiny", "muted")
     summary:SetPoint("TOPLEFT", switch, "BOTTOMLEFT", 0, -6)
-    summary:SetPoint("RIGHT", overcut, "LEFT", -8, 0)
+    summary:SetPoint("RIGHT", craftedOnly, "LEFT", -8, 0)
     summary:SetWordWrap(true)
     if summary.SetJustifyV then summary:SetJustifyV("TOP") end
     self.summary = summary
@@ -1039,9 +1070,10 @@ end
 
 --- The lines Sell shows now, Hide losses applied.
 function PostPanel:ShownLines()
-    local lines, toVendor = ns.Posting:GetPostable({ includeAll = true, showHeld = true })
+    local lines, toVendor = ns.Posting:GetPostable({ includeAll = true, showHeld = true, showNoted = true })
     local hidden = 0
     if self:HidingLosses() then lines, hidden = PostPanel.WithoutLosses(lines) end
+    if self:CraftedOnly() then lines = PostPanel.CraftedLines(lines) end
     return lines, hidden, toVendor or 0
 end
 
@@ -1507,6 +1539,73 @@ function PostPanel:Placement(auctionFrame)
     return side, left, fits
 end
 
+--------------------------------------------------------------------------------
+-- A spot of the player's own
+--------------------------------------------------------------------------------
+
+--- The spot the player dragged the drawer to, as an offset from the auction
+-- window's top right corner in the drawer's own units, or nil.
+function PostPanel:Spot()
+    local db = ns.db
+    local spot = db and db.postPanelSpot
+    if type(spot) == "table" and type(spot.x) == "number" and type(spot.y) == "number" then
+        return spot
+    end
+    return nil
+end
+
+--- Keep where the drawer was dropped, beside the auction window it sits by.
+function PostPanel:SaveSpot()
+    local frame = self.frame
+    local auctionFrame = ns.UI and ns.UI:FindAuctionFrame()
+    if not (frame and auctionFrame and ns.db) then return end
+    local ok, left, top, ours, right, atop, theirs = pcall(function()
+        return frame:GetLeft(), frame:GetTop(), frame:GetEffectiveScale(),
+            auctionFrame:GetRight(), auctionFrame:GetTop(), auctionFrame:GetEffectiveScale()
+    end)
+    if not (ok and left and top and right and atop and ours and theirs and ours > 0) then return end
+    ns.db.postPanelSpot = {
+        x = (left * ours - right * theirs) / ours,
+        y = (top * ours - atop * theirs) / ours,
+    }
+    self.dockedTo = nil
+    self:Redock()
+end
+
+--- Forget the dragged spot: the drawer goes back beside the auction house.
+function PostPanel:ResetSpot()
+    if ns.db then ns.db.postPanelSpot = nil end
+    self.dockedTo = nil
+    if self.frame and self.attached and not self.inOne then self:Redock() end
+end
+
+--- Let the drawer be dragged by itself and its header. Never in a fight.
+function PostPanel:MakeDraggable(frame, header)
+    if frame.SetMovable then frame:SetMovable(true) end
+    if frame.SetClampedToScreen then frame:SetClampedToScreen(true) end
+    local function Start()
+        if PostPanel.inOne then return end
+        if InCombatLockdown and InCombatLockdown() then return end
+        PostPanel.dragging = true
+        frame:StartMoving()
+    end
+    local function Stop()
+        if not PostPanel.dragging then return end
+        PostPanel.dragging = nil
+        frame:StopMovingOrSizing()
+        PostPanel:SaveSpot()
+    end
+    for _, piece in ipairs({ frame, header }) do
+        if piece and piece.RegisterForDrag then
+            pcall(piece.RegisterForDrag, piece, "LeftButton")
+            if piece.HookScript then
+                piece:HookScript("OnDragStart", Start)
+                piece:HookScript("OnDragStop", Stop)
+            end
+        end
+    end
+end
+
 --- Put the panel where Placement says, showing or hiding it to match.
 --
 -- Cheap enough for the one-second auction house ticker, which is what brings
@@ -1520,6 +1619,28 @@ function PostPanel:Redock()
 
     local auctionFrame = ns.UI:FindAuctionFrame()
     if not auctionFrame then return end
+
+    if self.dragging then return end
+
+    -- Dragged somewhere by the player: kept there, beside the auction house.
+    local spot = self:Spot()
+    if spot then
+        if self.dockedTo ~= auctionFrame or self.dockedSpotX ~= spot.x or self.dockedSpotY ~= spot.y then
+            frame:ClearAllPoints()
+            frame:SetPoint("TOPLEFT", auctionFrame, "TOPRIGHT", spot.x, spot.y)
+            self.dockedTo, self.dockedOffset, self.dockedLeft = auctionFrame, spot.x, nil
+            self.dockedSpotX, self.dockedSpotY = spot.x, spot.y
+            self:ApplyHeight(true)
+        end
+        if not frame:IsShown() then
+            frame:Show()
+            self:ApplyHeight(true)
+            self:Refresh()
+            if ns.Motion then ns.Motion:Open(frame, 0) end
+        end
+        return
+    end
+    self.dockedSpotX, self.dockedSpotY = nil, nil
 
     local host, left, fits = self:Placement(auctionFrame)
 
@@ -1690,6 +1811,20 @@ end
 PostPanel.view = "sell"
 
 --- Is Hide losses ticked? Off until the player ticks it.
+--- Crafted Only: true while Sell shows only items a recipe makes.
+function PostPanel:CraftedOnly()
+    return ns.Config ~= nil and ns.Config:Get("postCraftedOnly") == true
+end
+
+--- The lines whose item one of your characters' recipes makes.
+function PostPanel.CraftedLines(lines)
+    local kept = {}
+    for _, line in ipairs(lines or {}) do
+        if line.isCrafted then kept[#kept + 1] = line end
+    end
+    return kept
+end
+
 function PostPanel:HidingLosses()
     return ns.Config ~= nil and ns.Config:Get("postHideLosses") == true
 end
@@ -1950,17 +2085,37 @@ function PostPanel:Refresh()
             self.overcutBox:SetShown(showBox)
             self.overcutBox:SetChecked(ns.Config:Get("overcutting") == true)
         end
-        -- What sits at the summary line's right end: Hide losses on Sell,
-        -- Paste a list on Lists, nothing on Buy, where the summary has the
-        -- whole width rather than wrapping beside an empty space.
-        local beside = showBox and "box" or self.view == "lists" and "paste" or "none"
+        if self.craftedOnlyBox then
+            self.craftedOnlyBox:SetShown(showBox)
+            self.craftedOnlyBox:SetChecked(self:CraftedOnly())
+        end
+        -- Hidden: the items the player hid, on Sell while there are any.
+        local hiddenCount = 0
+        if self.hiddenButton then
+            hiddenCount = showBox and ns.Posting and ns.Posting.GetIgnored and #ns.Posting:GetIgnored() or 0
+            if hiddenCount > 0 then
+                self.hiddenButton:SetText(L.Format("Hidden (%d)", hiddenCount))
+                local width = Theme.TextWidth(self.hiddenButton.label)
+                self.hiddenButton:SetWidth(math.max(70, math.ceil((width or 60) + 16)))
+            end
+            self.hiddenButton:SetShown(hiddenCount > 0)
+        end
+        if ns.HiddenItemsWindow and ns.HiddenItemsWindow.Refresh then ns.HiddenItemsWindow:Refresh() end
+        -- What sits at the summary line's right end: Hide losses on Sell
+        -- (Hidden first while there is one), Paste a list on Lists, nothing
+        -- on Buy, where the summary has the whole width rather than
+        -- wrapping beside an empty space.
+        local beside = showBox and (hiddenCount > 0 and "hidden" or "box")
+            or self.view == "lists" and "paste" or "none"
         if self.summaryBeside ~= beside then
             if self.summary and self.frame then
                 local View = ns.ShoppingListsView
                 self.summary:ClearAllPoints()
                 self.summary:SetPoint("TOPLEFT", self.switch, "BOTTOMLEFT", 0, -6)
-                if beside == "box" then
-                    self.summary:SetPoint("RIGHT", self.overcutBox or self.hideLosses, "LEFT", -8, 0)
+                if beside == "hidden" then
+                    self.summary:SetPoint("RIGHT", self.hiddenButton, "LEFT", -8, 0)
+                elseif beside == "box" then
+                    self.summary:SetPoint("RIGHT", self.craftedOnlyBox or self.overcutBox or self.hideLosses, "LEFT", -8, 0)
                 elseif beside == "paste" and View and View.paste then
                     self.summary:SetPoint("RIGHT", View.paste, "LEFT", -8, 0)
                 else
@@ -2088,15 +2243,21 @@ function PostPanel:Refresh()
         return
     end
 
-    local total, losses, keptBack = 0, 0, 0
+    local total, losses, keptBack, notNow = 0, 0, 0, 0
     for _, line in ipairs(lines) do
-        if line.held then
+        if line.noted then
+            notNow = notNow + 1
+        elseif line.held then
             keptBack = keptBack + 1
         else
             total = total + (line.postTotal or 0)
             if line.atALoss then losses = losses + 1 end
         end
     end
+
+    -- Rows with a note stay on the list to see, but are not counted as
+    -- ready to sell.
+    local selling = #lines - notNow
 
     -- What it would all fetch, in gold beside the title, so it is still
     -- there to see with the drawer folded away; folded, the count too.
@@ -2105,10 +2266,10 @@ function PostPanel:Refresh()
     -- With the Potential Sale Total counter on, the header has the numbers, so the
     -- title and the summary leave the worth out, folded or not.
     if banding then
-        self:SetTitle(self:IsCollapsed() and L.Format("Ready to sell (%d)", #lines) or L["Ready to sell"])
+        self:SetTitle(self:IsCollapsed() and L.Format("Ready to sell (%d)", selling) or L["Ready to sell"])
     elseif self:IsCollapsed() then
-        self:SetTitle(L.Format("Ready to sell (%d) · %s", #lines, worth),
-            L.Format("Ready to sell (%d)", #lines))
+        self:SetTitle(L.Format("Ready to sell (%d) · %s", selling, worth),
+            L.Format("Ready to sell (%d)", selling))
     else
         self:SetTitle(L.Format("Ready to sell · %s", worth), L["Ready to sell"])
     end
@@ -2118,16 +2279,16 @@ function PostPanel:Refresh()
         Util.FormatMoney(total, { noColor = true, short = true }))
     local count
     if banding then
-        count = #lines == 1 and L.Format("%d item", #lines) or L.Format("%d items", #lines)
+        count = selling == 1 and L.Format("%d item", selling) or L.Format("%d items", selling)
     else
-        count = #lines == 1 and L.Format("%d item, about %s", #lines, about)
-            or L.Format("%d items, about %s", #lines, about)
+        count = selling == 1 and L.Format("%d item, about %s", selling, about)
+            or L.Format("%d items, about %s", selling, about)
     end
     self:SetSummary(count
         .. (hidden > 0 and ("  ·  " .. L.Format("%d hidden", hidden))
             or losses > 0 and ("  ·  |c%s%s|r"):format(ns.COLORS.loss, L.Format("%d at a loss", losses)) or "")
         .. (keptBack > 0 and ("  ·  " .. L.Format("%d kept for your other addons", keptBack)) or "")
-        .. (toVendor > 0 and ("  ·  " .. L.Format("%d for the vendor", toVendor)) or ""))
+        .. (notNow > 0 and ("  ·  " .. L.Format("%d not for now", notNow)) or ""))
 end
 
 --- The Favors switch shows only while a favor goal is set.

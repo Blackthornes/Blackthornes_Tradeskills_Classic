@@ -189,9 +189,42 @@ check("known by nobody", Line(lines, "Known by")[2], "nobody on this account")
 check("cost to make", Line(lines, "Cost to make")[2], "80c")
 check("sells for, after the cut", Line(lines, "Sells for")[2], "200c after the cut")
 check("disenchants for", Line(lines, "Disenchants for")[2], "120c")
-check("profit per craft", Line(lines, "Profit per craft")[2], "120c")
+check("profit per craft names the AH too", Line(lines, "Profit per craft")[2], "120c  (by auction)")
 check("in green", Line(lines, "Profit per craft").color, "profit")
 check("pays for itself", Line(lines, "Pays for itself")[2], "after 8 crafts")
+check("no Demand line without a reading", Line(lines, "Demand"), nil)
+
+-- A reagent that binds on pickup has no price anywhere (Demonic Rune in
+-- Felcloth Robe, a player's report 2026-11-14): the rest is shown, plus that
+-- reagent by name, and still no profit is made up.
+do
+  local oldLeather, oldBound = prices[LEATHER], ns.Util.IsBoundOnPickup
+  prices[LEATHER] = nil
+  itemInfo[LEATHER] = { "Demonic Rune", 7 }
+  ns.Util.IsBoundOnPickup = function(id) return id == LEATHER end
+  local bop = Book:TooltipLines(PATTERN_BOOTS)
+  check("a bound reagent: the rest, plus it by name", Line(bop, "Cost to make")[2],
+    "10c, plus 7 Demonic Rune you get yourself")
+  check("still shown dim", Line(bop, "Cost to make")[3], true)
+  check("no profit made up", Line(bop, "Profit per craft"), nil)
+  ns.Util.IsBoundOnPickup = function() return false end
+  check("an unscanned reagent still says so", Line(Book:TooltipLines(PATTERN_BOOTS), "Cost to make")[2],
+    "materials not scanned")
+  ns.Util.IsBoundOnPickup = oldBound
+  itemInfo[LEATHER] = nil
+  prices[LEATHER] = oldLeather
+end
+
+-- How well the item it makes sells, as on My crafts.
+local oldDemand = ns.Demand
+ns.Demand = {
+    Get = function(_, id) return id == BOOTS and { level = "high" } or nil end,
+    Label = function() return "High" end,
+    Color = function() return "profit" end,
+}
+check("demand for the item it makes", Line(Book:TooltipLines(PATTERN_BOOTS), "Demand")[2], "High")
+check("in its colour", Line(Book:TooltipLines(PATTERN_BOOTS), "Demand").color, "profit")
+ns.Demand = oldDemand
 accountWide[2158] = { outputItemID = BOOTS, knownBy = { "alt" } }
 Book.known = nil
 check("an alt who knows it is named", Line(Book:TooltipLines(PATTERN_BOOTS), "Known by")[2], "Ana")

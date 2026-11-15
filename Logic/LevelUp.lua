@@ -166,13 +166,18 @@ function LevelUp:GetReturns(recipe, costDetail)
     local method = LevelUp.Method()
     result.method = method
 
-    if method ~= "best" then
+    local Profit = ns.Profit
+    local ways = Profit and Profit.METHOD_WAYS and Profit.METHOD_WAYS[method]
+        or (method == "best" and { "vendor", "auction", "disenchant" })
+        or (method == "vendordisenchant" and { "vendor", "disenchant" }) or nil
+    if not ways then
         if result[method] then result.best, result.bestWay = result[method], method end
         return result
     end
 
     -- Ties go to the vendor, then the auction house: the surer sale.
-    for _, way in ipairs({ "vendor", "auction", "disenchant" }) do
+    -- "Vendor and DE" leaves the auction house out.
+    for _, way in ipairs(ways) do
         if result[way] and (not result.best or result[way] > result.best) then
             result.best, result.bestWay = result[way], way
         end
@@ -182,11 +187,13 @@ function LevelUp:GetReturns(recipe, costDetail)
 end
 
 --- How a craft's return is counted: the Profit tab's choice ("best",
---- "auction", "vendor" or "disenchant"), "best" when there is none.
+--- "auction", "vendor", "vendordisenchant" or "disenchant"), "best" when
+--- there is none.
 function LevelUp.Method()
     local Profit = ns.Profit
     local method = Profit and Profit.GetMethod and Profit:GetMethod() or nil
-    if method == "auction" or method == "vendor" or method == "disenchant" then return method end
+    if method == "auction" or method == "vendor" or method == "disenchant"
+        or method == "vendordisenchant" then return method end
     return "best"
 end
 

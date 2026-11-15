@@ -105,10 +105,20 @@
 --                  everything else is the last snapshot.
 --   bagsAt,        when each was last read (time()), nil when never; the
 --   bankAt, mailAt live bags say now.
+--   mailCount,     mail runs out (2026-11-09, Butler's "Mail Running
+--   mailSoonest,   Out"), as of mailAt: how many mails the box showed, the
+--   mailSoonCount, soonest days left of any (a number with a fraction, nil
+--   mailReturns,   for an empty box), how many run out within 3 days, and
+--   mailGone       of those how many go back to the sender or are gone for
+--                  good. All nil when the box was never read this way.
 --   gold, goldAt   copper on the character when last seen, and when
 --                  (the bags' snapshot time); live for the character
 --                  playing. nil when never recorded (2026-10-11, for
 --                  Butler's gold top-ups).
+--   mailMoney      copper waiting in that character's mailbox as of
+--                  mailAt, nil when never read this way (2026-11-10).
+--   clearedAt      when the player last cleared this character's saved
+--                  items (Butler:ClearHoldings), else nil.
 --
 -- At a mailbox and the bank (2026-10-11), Butler asks two more things:
 --
@@ -254,6 +264,24 @@
 
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
+
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
+local function SameRealm(a, b)
+    local ka, kb = RealmKey(a), RealmKey(b)
+    return ka ~= nil and ka == kb
+end
 
 local Butler = ns.NewModule("Butler")
 
@@ -960,7 +988,17 @@ local function Holdings()
                 mail = Counts(record.mail),
                 bankAt = Stamp(record.bankAt),
                 mailAt = Stamp(record.mailAt),
+                mailMoney = Stamp(record.mailMoney),
+                clearedAt = Stamp(record.clearedAt),
             }
+            local expiry = record.mailExpiry
+            if type(expiry) == "table" then
+                entry.mailCount = Stamp(expiry.count)
+                entry.mailSoonest = Stamp(expiry.soonest)
+                entry.mailSoonCount = Stamp(expiry.soon)
+                entry.mailReturns = Stamp(expiry.returns)
+                entry.mailGone = Stamp(expiry.gone)
+            end
             -- Gold as last seen, for Butler's gold top-ups (2026-10-11):
             -- the character playing's purse is live.
             entry.gold = type(record.gold) == "number" and record.gold or nil
@@ -1032,7 +1070,7 @@ local function CharacterNamed(name)
     for characterKey, record in pairs(Characters()) do
         if type(record) == "table" and not Playing(characterKey) and Matches(characterKey) then
             local score = (record.linkedFrom == nil and 2 or 0)
-                + ((realm and record.realm == realm) and 1 or 0)
+                + ((realm and SameRealm(record.realm, realm)) and 1 or 0)
             if not best or score > bestScore
                 or (score == bestScore and tostring(characterKey) < tostring(best)) then
                 best, bestScore = characterKey, score
@@ -1040,6 +1078,36 @@ local function CharacterNamed(name)
         end
     end
     return best
+end
+
+--- Butler's "Clear Items" on a character's jobs line (2026-11-10): forget
+-- that character's saved bags, bank, mail and gold (Recipes:ClearItems).
+-- `who` is a character key or its full name. Never the character playing.
+-- Never raises.
+-- @return true and the full name, or false and why
+function Butler:ClearHoldings(who)
+    local ok, done, name = pcall(function()
+        local recipes = ns.Recipes
+        if not (recipes and recipes.ClearItems) or type(who) ~= "string" then return false, "unknown" end
+        local records = Characters()
+        local key = records[who] and who or nil
+        if not key then
+            local wanted = who:lower()
+            for candidate in pairs(records) do
+                local full = recipes.GetCharacterName and recipes:GetCharacterName(candidate)
+                if type(full) == "string" and full:lower() == wanted then key = candidate break end
+            end
+        end
+        if not key then return false, "unknown" end
+        local full = recipes.GetCharacterName and recipes:GetCharacterName(key) or key
+        if key == SelfKey() or (ns.Characters and ns.Characters:IsPlaying(key)) then
+            return false, "playing"
+        end
+        if not recipes:ClearItems(key) then return false, "unknown" end
+        return true, full
+    end)
+    if ok then return done, name end
+    return false, "error"
 end
 
 --- Fill the game's Send Mail page for one of the player's characters.
@@ -1179,7 +1247,8 @@ end
 local function Holder(records, crafterKey, itemID, Playing, selfKey)
     local bestKey, bestCount = nil, 0
     for key, record in pairs(records) do
-        if key ~= crafterKey and type(record) == "table" and not record.linkedFrom and not Playing(key) then
+        if key ~= crafterKey and type(record) == "table" and not record.linkedFrom and not Playing(key)
+            and not Butler.Stale(record) then
             local count = 0
             if type(record.inventory) == "table" then count = count + (tonumber(record.inventory[itemID]) or 0) end
             if type(record.bank) == "table" then count = count + (tonumber(record.bank[itemID]) or 0) end
@@ -1200,6 +1269,19 @@ local function Holder(records, crafterKey, itemID, Playing, selfKey)
     return nil
 end
 
+--- True when a character's bags were last seen more than STALE_DAYS ago
+-- (2026-11-10, a player was sent to mail hundreds of items alts had long
+-- since used): what it held then is no reason to log in on it. A record
+-- never stamped stays as it was.
+Butler.STALE_DAYS = 30
+function Butler.Stale(record, now)
+    local at = type(record) == "table" and tonumber(record.inventoryAt) or nil
+    if not at then return false end
+    now = now or (type(time) == "function" and time()) or nil
+    if not now then return false end
+    return now - at > Butler.STALE_DAYS * 86400
+end
+
 --- Copper for one from a vendor, or nil when no vendor is known to sell it.
 local function VendorPrice(itemID)
     local vendor = ns.Vendor
@@ -1208,6 +1290,14 @@ local function VendorPrice(itemID)
     price = ok and tonumber(price) or nil
     if price and price > 0 then return price end
     return nil
+end
+
+--- True when the only shops seen selling it have limited stock.
+local function Limited(itemID)
+    local vendor = ns.Vendor
+    if not (vendor and vendor.IsLimited) then return false end
+    local ok, limited = pcall(vendor.IsLimited, vendor, itemID)
+    return ok and limited == true
 end
 
 local function Jobs()
@@ -1274,8 +1364,10 @@ local function Jobs()
                         -- `vendor`: copper for one when a vendor sells it, so
                         -- Butler lists it under Buy from a vendor (the owner,
                         -- 2026-10-13).
+                        -- Not a shop with limited stock: it sells a few
+                        -- now and then, so that goes under Buy or gather.
                         missing[#missing + 1] = { itemID = reagent.itemID, count = want - held,
-                            vendor = VendorPrice(reagent.itemID) }
+                            vendor = not Limited(reagent.itemID) and VendorPrice(reagent.itemID) or nil }
                     end
                 end
                 -- Bag slots making it frees, for the character playing only

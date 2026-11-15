@@ -362,7 +362,7 @@ function VendorFlips:AnnounceDeals()
     if (not ns.Config or ns.Config:Get("scanSounds") ~= false) and type(PlaySound) == "function" then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
         local sound = kits.LOOT_WINDOW_COIN_SOUND or kits.UI_EPICLOOT_TOAST
-        if sound then pcall(PlaySound, sound, "Master") end
+        if sound then pcall(ns.PlaySound or PlaySound, sound, "Master") end
     end
 
     return #rows

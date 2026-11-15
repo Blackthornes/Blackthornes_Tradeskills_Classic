@@ -15,7 +15,10 @@ for path in toc:gmatch("[^\r\n]+") do
             local n = 0
             for line in file:lines() do
                 n = n + 1
-                for args in line:gmatch("pcall%(PlaySound%a*,%s*(.-)%)%s*[%a%)]*$") do
+                -- Calls go through ns.PlaySound (Mute All Sounds), falling
+                -- back to the game's own when a test's ns has none.
+                local plain = line:gsub("ns%.PlaySound%a* or ", "")
+                for args in plain:gmatch("pcall%(PlaySound%a*,%s*(.-)%)%s*[%a%)]*$") do
                     seen = seen + 1
                     if not args:find('"Master"', 1, true) then
                         bad[#bad + 1] = path .. ":" .. n .. ": " .. line:match("^%s*(.-)%s*$")

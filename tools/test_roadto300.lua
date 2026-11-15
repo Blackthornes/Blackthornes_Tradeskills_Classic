@@ -18,7 +18,7 @@
 --   8. The list shows the steps left first, the done ones after.
 
 local GLOBALS = { "time", "GetTime", "UnitFactionGroup", "GetRealZoneText", "GetLocale",
-  "UnitLevel", "C_Timer", "C_Map" }
+  "UnitLevel", "C_Timer", "C_Map", "C_QuestLog", "GetProfessions", "GetProfessionInfo" }
 local saved = {}
 for _, key in ipairs(GLOBALS) do saved[key] = _G[key] end
 
@@ -53,11 +53,12 @@ ns.Util = {
     return names[id] or ("item " .. id)
   end,
   Uncolored = function(text) return text end,
+  GetVendorSellPrice = function(id) return ({ [5467] = 9, [6889] = 2 })[id] end,
 }
 
 local BAR, ROUGH, COARSE = 2840, 2835, 2836
 ns.RECIPE_BOOK = {
-  PROFESSIONS = { [164] = "Blacksmithing" },
+  PROFESSIONS = { [164] = "Blacksmithing", [185] = "Cooking" },
   RECIPES = {
     -- Rough Sharpening Stone, a starter: orange to 15, grey at 45.
     [1] = { 164, 1, 2862, 1, 1, { ROUGH, 1 }, "Rough Sharpening Stone", s = 1 },
@@ -69,6 +70,12 @@ ns.RECIPE_BOOK = {
     [4] = { 164, 75, 3478, 1, 1, { COARSE, 2 }, "Coarse Grinding Stone", t = 200 },
     -- Taught by nobody: never on the road.
     [5] = { 164, 30, 9999, 1, 1, { BAR, 1 }, "Dropped Thing" },
+    -- Cooking: Classic's Basic Campfire, Forever's remade one (grey at 5)
+    -- and Roasted Kodo Meat, known, from meat nobody lists.
+    [818] = { 185, 1, 0, 1, 1, { 4470, 1 }, "Basic Campfire", s = 1 },
+    [1229737] = { 185, 1, 279981, 1, 1, { 4470, 1 }, "Basic Campfire", f = 1, y = 1, g = 5, s = 1 },
+    [6414] = { 185, 35, 5474, 2, 2, { 5467, 1, 2678, 1 }, "Roasted Kodo Meat" },
+    [8604] = { 185, 1, 6888, 1, 1, { 6889, 1, 2678, 1 }, "Herb Baked Egg", s = 1 },
   },
   ITEMS = {},
 }
@@ -79,6 +86,9 @@ ns.LEARN_SPOTS = {
     [3] = { 35, 120, 150 },
     [4] = { 75, 300, 310 },
     [5] = { 30, 300, 310 },
+    [818] = { 1, 25, 75 },
+    [6414] = { 35, 75, 115 },
+    [8604] = { 1, 45, 85 },
   },
   TRAINERS = {
     [164] = {
@@ -93,7 +103,7 @@ ns.LEARN_SPOTS = {
   VENDORS = {},
 }
 
-local prices = { [BAR] = 20, [ROUGH] = 5, [COARSE] = 3 }
+local prices = { [BAR] = 20, [ROUGH] = 5, [COARSE] = 3, [4470] = 1, [2678] = 1 }
 ns.Prices = { GetValue = function(_, id) return prices[id] end, scanCount = 1 }
 ns.Vendor = {
   GetUnitPrice = function() return nil end,
@@ -112,7 +122,7 @@ ns.Recipes = {
   GetAny = function() return nil end,
   GetAll = function() return {} end,
   GetAccountWide = function()
-    return { [1] = { knownBy = { "me" } }, [2] = { knownBy = { "me" } } }
+    return { [1] = { knownBy = { "me" } }, [2] = { knownBy = { "me" } }, [6414] = { knownBy = { "me" } } }
   end,
   GetShortCharacterName = function(_, key) return key end,
   GetLearnedProfessions = function()
@@ -405,6 +415,117 @@ settings.roadPickBy = "junk"
 check("anything else reads as lowest", Road.PickBy(), "lowest")
 settings.roadPickBy = nil
 
+print("\nReal cost: a craft that sells for more than it costs")
+-- Alchemy at 87: both early crafts pay. The road used to stay on the elixir
+-- to grey, 144 crafts for 100 to 120.
+local function Potion(id, name, skill, yellow, grey, cost, back)
+  return { record = { recipeID = id, name = name, skill = skill, yellow = yellow, grey = grey,
+    reagents = { { itemID = BAR, quantity = 1 } } }, known = true,
+    price = { cost = cost, back = back, reagents = { { itemID = BAR, quantity = 1, unit = cost } } } }
+end
+local paying = Road:Plan({
+  line = 171, skill = 87, max = 150, level = 30, pickBy = "real", owned = {},
+  candidates = {
+    Potion(91, "Pays A", 50, 80, 120, 287, 318),
+    Potion(92, "Pays B", 80, 80, 100, 70, 118),
+    Potion(93, "Orange", 90, 120, 150, 300, 150),
+    Potion(94, "Later", 110, 135, 175, 350, 200),
+  },
+})
+local most, lowChance, reach = 0, 1, 0
+for _, step in ipairs(paying.steps) do
+  if not step.done and step.kind == "craft" then
+    most = math.max(most, step.to <= 125 and step.crafts or 0)
+    if step.recipeID == 91 or step.recipeID == 92 then
+      lowChance = math.min(lowChance, Road.Chance(step.record, step.to - 1))
+    end
+    reach = math.max(reach, step.to)
+  end
+end
+check("no long yellow step before 125", most < 40, true)
+check("a paying craft is left before its chance gets small", lowChance >= 0.1, true)
+check("the road still goes on", reach >= 150, true)
+check("a paying craft still wins while its chance is good", FirstCraft(paying).recipeID, 92)
+
+print("\none recipe on both sides of a trainer adds up")
+-- Alchemy 120 to 125, the trainer, then more of the same craft: queueing
+-- both steps set the queue to the second step's count (a player's report).
+local again = Road:Plan({
+  line = 171, skill = 120, max = 125, level = 40, owned = {},
+  candidates = { Potion(95, "Same", 100, 140, 160, 50, 0) },
+})
+local sames = {}
+for _, step in ipairs(again.steps) do
+  if not step.done and step.kind == "craft" then sames[#sames + 1] = step end
+end
+check("the road has the craft before and after the trainer", #sames >= 2 and sames[2].recipeID == 95, true)
+ensured, bought = {}, {}
+Road:QueueStep(sames[1])
+check("the first step queues its own crafts", ensured[95], sames[1].crafts)
+Road:QueueStep(sames[2])
+check("the second step adds to it", ensured[95], sames[1].crafts + sames[2].crafts)
+Road:QueueStep(sames[2])
+check("queueing it again adds nothing more", ensured[95], sames[1].crafts + sames[2].crafts)
+local learnAgain = Road:Plan({
+  line = 171, skill = 120, max = 125, level = 40, owned = {},
+  candidates = { (function() local c = Potion(96, "Learn", 100, 140, 160, 50, 0)
+    c.known = false c.place = { price = 0 } return c end)() },
+})
+local learns = {}
+for _, step in ipairs(learnAgain.steps) do
+  if not step.done and step.kind == "craft" then learns[#learns + 1] = step end
+end
+ensured, bought = {}, {}
+for _, step in ipairs(learns) do step.learn = step.learn or { price = 0 } Road:QueueStep(step) end
+local allNeeds, allCrafts = 0, 0
+for _, step in ipairs(learns) do allNeeds = allNeeds + step.needs[1].count allCrafts = allCrafts + step.crafts end
+check("materials for a recipe to learn add up too", bought[BAR] and bought[BAR][1], allNeeds)
+check("and the crafts tied to them", bought[BAR] and bought[BAR][2].crafts, allCrafts)
+
+print("\nCooking and First Aid: Expert from a book, Artisan from quests")
+local cookPlan = Road:Plan({ line = 185, skill = 125, max = 150, level = 31, candidates = {} })
+local expertBook
+for _, step in ipairs(cookPlan.steps) do
+  if step.kind == "trainer" and step.cap == 225 then expertBook = step end
+end
+check("Cooking's Expert is a step", expertBook ~= nil, true)
+check("it is learned from a book", expertBook and expertBook.how and expertBook.how.kind, "book")
+check("the book costs 1g", expertBook and expertBook.cost, 10000)
+local bookTexts = Road.Texts(expertBook, "Cooking", 31, 185)
+check("its title", bookTexts.title, "Learn Expert Cooking")
+check("its range", bookTexts.range, "at 125, raises your cap to 225")
+check("the Alliance seller", bookTexts.lines[1], "Buy Expert Cookbook from Shandrina in Ashenvale.")
+check("Show the Way goes to the seller", Road:PlaceFor(expertBook, 185).name, "Shandrina")
+
+local doneQuests = {}
+C_QuestLog = { IsQuestFlaggedCompleted = function(id) return doneQuests[id] == true end }
+local artisan = { kind = "trainer", rank = Road.RANKS[185][3], how = Road.RANKS[185][3].how,
+  at = 225, cap = 300, level = 35, locked = true }
+local artTexts = Road.Texts(artisan, "Cooking", 31, 185)
+check("Artisan's title", artTexts.title, "Learn Artisan Cooking")
+check("a level chip while too low", artTexts.chip, "level 35")
+check("starts with the first quest", artTexts.lines[1],
+  "Start with the quest I Know A Guy... from Daryl Riknussun in Ironforge.")
+check("says who teaches it", artTexts.lines[2], "It leads to Dirge Quikcleave in Tanaris, who teaches you.")
+check("and the level", artTexts.lines[3], "You're level 31.")
+check("no price is shown", artisan.cost, nil)
+doneQuests[6612] = true
+artisan.locked = nil
+artTexts = Road.Texts(artisan, "Cooking", 40, 185)
+check("the last quest once the first is done", artTexts.lines[1],
+  "Do the quest Clamlette Surprise for Dirge Quikcleave in Tanaris. Then they teach you.")
+check("Show the Way moves along", Road:PlaceFor(artisan, 185).name, "Dirge Quikcleave")
+UnitFactionGroup = function() return "Horde" end
+doneQuests = {}
+local aid = { kind = "trainer", rank = Road.RANKS[129][3], how = Road.RANKS[129][3].how, at = 225, cap = 300, level = 40 }
+check("Horde First Aid starts with Arnok", Road.Texts(aid, "First Aid", 40, 129).lines[1],
+  "Start with the quest Horde Trauma from Arnok in Orgrimmar.")
+local aidBook = { kind = "trainer", rank = Road.RANKS[129][2], how = Road.RANKS[129][2].how, at = 125, cap = 225, level = 1 }
+check("Horde First Aid book seller", Road.Texts(aidBook, "First Aid", 40, 129).lines[1],
+  "Buy Expert First Aid - Under Wraps from Balai Lok'Wein in Dustwallow Marsh.")
+UnitFactionGroup = function() return "Alliance" end
+C_QuestLog = nil
+
 print("\nthe Welcome card's picks order the roads")
 ns.Recipes.GetLearnedProfessions = function()
   return {
@@ -416,6 +537,164 @@ end
 check("gathering left out, by name", #Road:Professions(), 2)
 ns.Welcome:SetPicks({ 197 })
 check("a pick comes first", Road:Professions()[1].name, "Tailoring")
+
+print("\nCooking and First Aid in the list")
+ns.Welcome:SetPicks({})
+ns.Recipes.SKILL_LINE_PROFESSIONS = { [2938] = "Blacksmithing", [164] = "Blacksmithing",
+  [185] = "Cooking", [129] = "First Aid" }
+ns.Recipes.EnglishProfessionName = function(p)
+  return ns.Recipes.SKILL_LINE_PROFESSIONS[p.skillLineID] or p.name
+end
+ns.Recipes.GetLearnedProfessions = function()
+  return {
+    { name = "Blacksmithing", skillLineID = 2938, skillLevel = 62, maxSkillLevel = 75, learned = true },
+    { name = "Cooking", skillLineID = 2950, skillLevel = 40, maxSkillLevel = 75, learned = true },
+  }
+end
+local function HasLine(list, line)
+  for _, p in ipairs(list) do if p.line == line then return p end end
+end
+local cooking = HasLine(Road:Professions(), 185)
+check("Cooking under a second ID, by name", cooking and cooking.skill, 40)
+GetProfessions = function() return nil, nil, nil, nil, 5, 6 end
+GetProfessionInfo = function(index)
+  if index == 5 then return "Cooking", nil, 40, 75, nil, nil, 185 end
+  if index == 6 then return "First Aid", nil, 120, 150, nil, nil, 129 end
+end
+local list = Road:Professions()
+check("First Aid from the Professions book", HasLine(list, 129) and HasLine(list, 129).skill, 120)
+check("Cooking listed once", #list, 3)
+GetProfessionInfo = function(index)
+  if index == 6 then return "First Aid", nil, 0, 0, nil, nil, 129 end
+end
+check("an unlearned one is left out", HasLine(Road:Professions(), 129), nil)
+
+print("\nthe Cooking road uses real recipes")
+Road:Forget()
+local cookPlan = Road:Get({ line = 185, skill = 74, max = 150, name = "Cooking" })
+local usesOld, kodo, campfires = false, false, 0
+for _, step in ipairs(cookPlan.steps) do
+  if step.recipeID == 818 then usesOld = true end
+  if step.kind == "craft" and step.name == "Basic Campfire" and not step.done then campfires = campfires + 1 end
+  if step.name == "Roasted Kodo Meat" and not step.done then kodo = true end
+end
+check("Classic's Basic Campfire left out", usesOld, false)
+check("no campfire steps from 74", campfires, 0)
+check("Roasted Kodo Meat from meat nobody lists", kodo, true)
+check("goes past 75", (cookPlan.stuck or 300) > 75, true)
+local kodoPrice = Road.Price(ns.RecipeBook:Get(6414))
+check("unlisted meat priced at what a vendor pays", kodoPrice and kodoPrice.cost, 10)
+
+print("\nthe Cooking road after the cooking window was open")
+-- The window gives Cooking's second skill line, which ClassicLine does not
+-- know: the recipes it showed still belong on the Cooking road.
+ns.db.seenRecipes = {
+  [1229737] = { name = "Basic Campfire", skillLineID = 2950, reagents = { { itemID = 4470, quantity = 1 } } },
+  [6414] = { name = "Roasted Kodo Meat", outputItemID = 5474, skillLineID = 2950,
+    reagents = { { itemID = 5467, quantity = 1 }, { itemID = 2678, quantity = 1 } } },
+  [8604] = { name = "Herb Baked Egg", outputItemID = 6888, skillLineID = 2950,
+    reagents = { { itemID = 6889, quantity = 1 }, { itemID = 2678, quantity = 1 } } },
+}
+ns.RecipeBook:Invalidate()
+Road:Forget()
+cookPlan = Road:Get({ line = 185, skill = 74, max = 150, name = "Cooking" })
+usesOld, kodo, campfires = false, false, 0
+for _, step in ipairs(cookPlan.steps) do
+  if step.recipeID == 818 then usesOld = true end
+  if step.kind == "craft" and step.name == "Basic Campfire" and not step.done then campfires = campfires + 1 end
+  if step.name == "Roasted Kodo Meat" and not step.done then kodo = true end
+end
+check("seen: Classic's Basic Campfire left out", usesOld, false)
+check("seen: no campfire steps from 74", campfires, 0)
+check("seen: Roasted Kodo Meat on the road", kodo, true)
+check("seen: goes past 75", (cookPlan.stuck or 300) > 75, true)
+ns.db.seenRecipes = nil
+ns.RecipeBook:Invalidate()
+
+
+print("\nfishing: the road")
+check("1 to 75 is a catch a point", Road.FishCatches(1, 75), 74)
+check("75 to 100 takes more", Road.FishCatches(75, 100), 37)
+local fishPlan = Road.FishPlan({ skill = 95, max = 150, level = 15, side = "A", race = "Human",
+  farmer = false, owned = {} })
+check("eight steps: four ranks, four zones", #fishPlan.steps, 8)
+check("a fishing plan", fishPlan.fishing, true)
+check("Apprentice done", fishPlan.steps[1].done, true)
+check("Elwynn done", fishPlan.steps[2].done, true)
+check("Journeyman done", fishPlan.steps[3].done, true)
+local westfall = fishPlan.steps[4]
+check("now: Westfall", westfall.zone, "Westfall")
+check("from your skill", westfall.from, 95)
+check("marked current", westfall.current, true)
+check("the plan's current step", fishPlan.current, 4)
+check("catches 95 to 125", westfall.catches, Road.FishCatches(95, 125))
+check("no pace without Farmer", westfall.paced, nil)
+check("Westfall's fish never get away at 95", westfall.lure and westfall.lure.cover, nil)
+local stv = fishPlan.steps[6]
+check("then Stranglethorn Vale", stv.zone, "Stranglethorn Vale")
+check("a lure for the vale", stv.lure ~= nil and not stv.lure.cover, true)
+check("the best one you can buy", stv.lure and stv.lure.item, 6532)
+check("book step is a book", fishPlan.steps[5].how.kind, "book")
+check("quest step locked at 15", fishPlan.steps[7].locked, true)
+check("no queue for fishing", fishPlan.pickBy, "lowest")
+check("hours at least 1", Road.FishHours(fishPlan) >= 1, true)
+
+print("\nfishing: the words")
+local words = Road.Texts(westfall, "Fishing", 15, 356)
+check("title", words.title, "Fish in Westfall")
+check("range", words.range, "95 to 125")
+check("chip on the current one", words.chip, "Now")
+check("count line", words.lines[1], ("About %d more catches."):format(westfall.catches))
+local valeWords = Road.Texts(stv, "Fishing", 15, 356)
+check("not current: no chip", valeWords.chip, nil)
+check("lure tip", valeWords.tip, "Fish get away here until you reach 130. Put on a item 6532 (+75) first.")
+check("trainer title", Road.Texts(fishPlan.steps[1], "Fishing", 15, 356).title, "Train Apprentice Fishing")
+local quest = Road.Texts(fishPlan.steps[7], "Fishing", 15, 356)
+check("quest chip", quest.chip, "Level 35")
+check("quest says your level", quest.lines[#quest.lines], "You're level 15.")
+
+print("\nfishing: with Farmer")
+local paced = Road.FishPlan({ skill = 95, max = 150, level = 15, side = "A", race = "Human", owned = { [6530] = { 4 } },
+  farmer = { seconds = 12, best = { name = "Jangolode Mine", place = { kind = "spot", name = "Jangolode Mine",
+    zone = "Westfall", x = 40, y = 20 } } } })
+local pacedStep = paced.steps[4]
+check("your pace", pacedStep.each, 12)
+check("paced", pacedStep.paced, true)
+local pacedWords = Road.Texts(pacedStep, "Fishing", 15, 356)
+check("best spot line", pacedWords.lines[2], "Best spot you've fished here: Jangolode Mine.")
+check("show the way to it", Road:PlaceFor(pacedStep, 356).name, "Jangolode Mine")
+check("a lure in the bags first", paced.steps[6].lure.item, 6530)
+check("says how many you have", Road.Texts(paced.steps[6], "Fishing", 15, 356).tip,
+  "Fish get away here until you reach 130. Put on a item 6530 (+50) first. You have 4.")
+check("never a spot it doesn't know", Road:PlaceFor(westfall, 356), nil)
+
+print("\nskip a recipe")
+local function HasCandidate(id)
+  for _, c in ipairs(Road:Candidates(164)) do if c.record.recipeID == id then return true end end
+  return false
+end
+check("the belt is offered", HasCandidate(3), true)
+check("nothing skipped yet", #Road:SkippedOn(164), 0)
+local beforePlan = Road:Get(professions[1])
+check("skip needs a recipe ID", Road:Skip(nil), false)
+check("skip the belt", Road:Skip(3), true)
+check("kept by name", ns.db.roadSkipped[3], ns.RecipeBook:Get(3).name)
+check("it is skipped", Road:IsSkipped(3), true)
+check("another is not", Road:IsSkipped(4), false)
+check("the road leaves it out", HasCandidate(3), false)
+local skippedPlan = Road:Get(professions[1])
+check("the plan is worked out again", skippedPlan ~= beforePlan, true)
+local beltLeft = false
+for _, step in ipairs(skippedPlan.steps) do
+  if step.kind == "craft" and step.recipeID == 3 then beltLeft = true end
+end
+check("no step for it", beltLeft, false)
+check("listed for its profession", Road:SkippedOn(164)[1], 3)
+check("not for another", #Road:SkippedOn(185), 0)
+check("Show All brings it back", Road:ShowAllOn(164), 1)
+check("offered again", HasCandidate(3), true)
+check("nothing skipped after", Road:IsSkipped(3), false)
+check("Show All with nothing skipped", Road:ShowAllOn(164), 0)
 
 for _, key in ipairs(GLOBALS) do _G[key] = saved[key] end
 

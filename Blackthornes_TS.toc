@@ -51,6 +51,7 @@ Data\TravelZones.lua
 
 Logic\Cost.lua
 Logic\CraftTime.lua
+Logic\HourPlans.lua
 Logic\Disenchant.lua
 Logic\DisenchantLog.lua
 Logic\SkillUp.lua
@@ -79,12 +80,14 @@ Logic\MaterialFinder.lua
 Logic\MyAuctions.lua
 Logic\Crafting.lua
 Logic\Posting.lua
+Logic\CraftProfit.lua
 Logic\CraftedCost.lua
 Logic\SellOut.lua
 Logic\GoldLog.lua
 Logic\GoldGoal.lua
 Logic\MethodProfit.lua
 Logic\Transfer.lua
+Logic\PriceTransfer.lua
 Logic\SaleAlarm.lua
 Logic\MailHaul.lua
 Logic\Demand.lua
@@ -138,6 +141,7 @@ UI\LegacyBuyView.lua
 UI\SearchedPrice.lua
 UI\PostPanel.lua
 UI\SaleTotal.lua
+UI\HiddenItemsWindow.lua
 UI\PriceEditor.lua
 UI\ListRulesWindow.lua
 UI\KeepBox.lua
@@ -152,6 +156,7 @@ UI\SellMarked.lua
 UI\CastBarOnTop.lua
 UI\CraftProgress.lua
 UI\RecipeValue.lua
+UI\CraftProfitCard.lua
 UI\ItemTooltip.lua
 UI\VendorPriceTip.lua
 UI\EnchantTooltip.lua

@@ -214,10 +214,26 @@ local function Chime(big)
     if ns.Config and ns.Config:Get("disenchantSound") == false then return end
     local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
     local kit = big and (kits.LEVELUPSOUND or 888) or kits.UI_EPICLOOT_TOAST
-    if kit then pcall(PlaySound, kit, "Master") end
+    if kit then pcall(ns.PlaySound or PlaySound, kit, "Master") end
 end
 
 DisenchantLog._Flash, DisenchantLog._Chime = Flash, Chime
+
+--- Whether disenchant results go to chat ("Disenchant Results:" in
+-- Settings, `disenchantChat`; on unless unticked, a player asked
+-- 2026-11-13). Off, the chat lines stop; recording, the notes on screen
+-- and the chime go on as before.
+function DisenchantLog:ChatOn()
+    return not (ns.Config and ns.Config:Get("disenchantChat") == false)
+end
+
+function DisenchantLog:SetChat(on)
+    if ns.Config then ns.Config:Set("disenchantChat", on and true or false) end
+end
+
+local function Say(text)
+    if DisenchantLog:ChatOn() then ns.Print(text) end
+end
 
 --- Say what that disenchant gave and what it taught.
 function DisenchantLog:Announce(itemID, results, key, band, usual, newFinds, item)
@@ -239,7 +255,7 @@ function DisenchantLog:Announce(itemID, results, key, band, usual, newFinds, ite
         progress = L.Format("%s: %d recorded", kind, band.casts)
     end
 
-    ns.Print(L.Format("%s %s: %s%s. %s.",
+    Say(L.Format("%s %s: %s%s. %s.",
         Colour("profit", L["Disenchanted"]), Util.GetItemLabel(itemID), table.concat(parts, ", "),
             worth and L.Format(", worth %s", Util.FormatMoney(worth)) or "", Colour("muted", progress)))
 
@@ -258,7 +274,7 @@ function DisenchantLog:Announce(itemID, results, key, band, usual, newFinds, ite
             odds[index] = ("%s %d%%"):format(odd.name, math.floor(odd.chance * 100 + 0.5))
         end
 
-        ns.Print(L.Format("%s %s now uses your own results: %s. From now on, its value follows what you actually get.",
+        Say(L.Format("%s %s now uses your own results: %s. From now on, its value follows what you actually get.",
             Colour("accent", L["Learned:"]), kind, table.concat(odds, ", ")))
         Flash(L.Format("Learned: %s", kind))
         big = true
@@ -278,21 +294,21 @@ function DisenchantLog:Announce(itemID, results, key, band, usual, newFinds, ite
             odds[index] = ("%s %d%%"):format(odd.name, math.floor(odd.chance * 100 + 0.5))
         end
 
-        ns.Print(L.Format("%s %s does not break the way the table says for %s, so it now uses your own results: %s.",
+        Say(L.Format("%s %s does not break the way the table says for %s, so it now uses your own results: %s.",
             Colour("accent", L["Learned:"]), Util.GetItemLabel(itemID), kind, table.concat(odds, ", ")))
         Flash(L.Format("Learned: %s", Util.GetItemLabel(itemID)))
         big = true
     end
 
     for _, materialID in ipairs(newFinds or {}) do
-        ns.Print(L.Format("%s %s can come from %s.", Colour("accent", L["New find:"]),
+        Say(L.Format("%s %s can come from %s.", Colour("accent", L["New find:"]),
             MaterialLabel(materialID), kind))
         Flash(L.Format("New find: %s", MaterialLabel(materialID)))
     end
 
     local lucky = worth and usual and usual > 0 and worth >= usual * LUCKY
     if lucky then
-        ns.Print(L.Format("%s That one was worth %s; about %s is usual.",
+        Say(L.Format("%s That one was worth %s; about %s is usual.",
             Colour("accent", L["Lucky:"]), Util.FormatMoney(worth), Util.FormatMoney(usual)))
         if #(newFinds or {}) == 0 then
             Flash(L.Format("Lucky disenchant: %s", Util.FormatMoney(worth, { noColor = true })))
@@ -329,7 +345,7 @@ function DisenchantLog:Miss(reason)
     log.missed = log.missed + 1
     log.lastMiss = reason
 
-    ns.Print(L.Format("could not record that disenchant: %s. /bts delog has more.", reason))
+    Say(L.Format("could not record that disenchant: %s. /bts delog has more.", reason))
 end
 
 --------------------------------------------------------------------------------
@@ -733,6 +749,14 @@ end
 DisenchantLog._Report = Report
 
 ns.RegisterCommand("delog", L["your recorded disenchants; /bts delog reset clears them"], Report)
+
+ns.RegisterCommand("dechat", L["show what each disenchant gave in chat: /bts dechat on|off"], function(args)
+    local word = tostring(args or ""):lower():match("^(%S*)")
+    if word == "on" or word == "off" then DisenchantLog:SetChat(word == "on") end
+    ns.Print(DisenchantLog:ChatOn() and L["Disenchant results show in chat."]
+        or L["Disenchant results no longer show in chat."])
+    if ns.UI and ns.UI.RefreshActiveTab then pcall(ns.UI.RefreshActiveTab, ns.UI) end
+end)
 
 --------------------------------------------------------------------------------
 -- Setup

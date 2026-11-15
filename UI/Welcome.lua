@@ -70,6 +70,7 @@ function WelcomeUI:Build()
     self.notNow:SetPoint("RIGHT", self.show, "LEFT", -8, 0)
 
     self.frame = frame
+    if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(frame, "ts.welcome") end
     return frame
 end
 

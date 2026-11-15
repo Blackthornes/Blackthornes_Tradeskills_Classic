@@ -563,6 +563,23 @@ function Cost:GetCraftCost(recipeID, depth, visited, opts)
     visited[recipeID] = nil
 
     if not result.priceable then
+        -- What the priced reagents come to, and the unpriced ones that bind on
+        -- pickup and so can never be bought (Demonic Rune in Felcloth Robe,
+        -- a player's report 2026-11-14). The total stays nil, so no profit
+        -- is ever made up; a tooltip can still show the part it knows.
+        result.partial = result.total
+        result.bound = {}
+        local allBound = true
+        for _, unpricedID in ipairs(result.unpriced) do
+            local isBound = ns.Util and ns.Util.IsBoundOnPickup
+                and ns.Util.IsBoundOnPickup(unpricedID)
+            if isBound then
+                result.bound[#result.bound + 1] = unpricedID
+            else
+                allBound = false
+            end
+        end
+        result.onlyBound = allBound and #result.bound > 0
         result.total = nil
         result.perUnit = nil
         return result

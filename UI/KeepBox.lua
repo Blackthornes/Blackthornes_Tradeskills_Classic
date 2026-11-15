@@ -81,6 +81,7 @@ function KeepBox:Build()
     self.all:SetPoint("LEFT", self.save, "RIGHT", 8, 0)
 
     self.frame = frame
+    if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(frame, "ts.keepbox") end
     return frame
 end
 

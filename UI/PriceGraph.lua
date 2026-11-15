@@ -92,6 +92,19 @@ function PriceGraph.Series(itemID, windowKey, now)
             end
         end
         if #market >= 2 then return market, "market", tracked end
+
+        -- Then the daily market values kept for the trend, one a day,
+        -- each drawn at the end of its day (or now, for today).
+        local trend = record and type(record.trend) == "table" and record.trend or {}
+        local daily = {}
+        for index = 1, #trend - 1, 2 do
+            local day, value = trend[index], trend[index + 1]
+            if type(day) == "number" and type(value) == "number" and value > 0 then
+                local t = math.min(now, (day + 1) * 86400 - 1)
+                if t > now - window.seconds then daily[#daily + 1] = { t = t, p = value } end
+            end
+        end
+        if #daily >= 2 then return daily, "market", tracked end
     end
 
     return points, nil, tracked
@@ -267,6 +280,7 @@ local function HideDrawing(graph)
     graph.placed = nil
     graph.listedAt = nil
     graph.average = nil
+    graph.points = nil
 end
 
 local function Draw(graph, placed, low, high)
@@ -671,11 +685,14 @@ function PriceGraph.Create(parent, opts)
             self.lowLabel:SetText("")
             self.best.label:SetText("")
             self.best.why = nil
+            local after = self.opts and rawget(self.opts, "onRefresh")
+            if type(after) == "function" then pcall(after, self) end
             return
         end
 
         local points, kind, tracked = PriceGraph.Series(itemID, windowKey, now)
         self.kind = kind
+        self.points = kind and points or nil
 
         if not kind then
             self.highLabel:SetText("")
@@ -726,6 +743,10 @@ function PriceGraph.Create(parent, opts)
         self.best.label:SetTextColor(Theme.Unpack(best and best.ready and "gilt" or "dim"))
         Theme.FitText(self.best.label, texts, self.best:GetWidth())
         self.best.why = why
+
+        -- The pane around the graph can show lines from what it drew.
+        local after = self.opts and rawget(self.opts, "onRefresh")
+        if type(after) == "function" then pcall(after, self) end
     end
 
     --- Place the item icons, the one showing ringed in gold.
@@ -768,6 +789,57 @@ function PriceGraph.Create(parent, opts)
 end
 
 --- Redraw every graph showing: after a scan, or when the view changes.
+--- A "Price graph" button on a heading's line, at the pane's right edge,
+--- for panes that swap their materials for the graph. The heading's rule
+--- stops short of it.
+function PriceGraph.AddButton(pane, heading, onClick)
+    local button = Widgets.CreateButton(pane, L["Price graph"], onClick,
+        { width = 76, height = 16, fontSize = "tiny" })
+    button:SetPoint("TOPRIGHT", pane, "TOPRIGHT", -12, 0)
+    button:SetPoint("TOP", heading, "TOP", 0, 4)
+    local rule = rawget(heading, "rule")
+    if type(rule) == "table" then
+        rule:ClearAllPoints()
+        rule:SetPoint("LEFT", heading, "RIGHT", 6, 0)
+        rule:SetPoint("RIGHT", button, "LEFT", -6, 0)
+    end
+    return button
+end
+
+--- Word the button for what a click shows, growing it to fit.
+function PriceGraph.SetButton(button, showsGraph)
+    button:SetText(showsGraph and L["Materials"] or L["Price graph"])
+    button.tooltipText = not showsGraph
+        and L["The cheapest price hour by hour, and the best times to buy and sell"] or nil
+    local label = rawget(button, "label")
+    if type(label) ~= "table" or not Theme.TextWidth then return end
+    local text = Theme.TextWidth(label)
+    local ok, width = pcall(button.GetWidth, button)
+    if type(text) == "number" and ok and type(width) == "number" and text + 12 > width then
+        button:SetWidth(math.ceil(text + 12))
+    end
+end
+
+--- The average the graph shows, as money, then how the last price stands
+--- against it in green or red ("1g 20s +12%"). nil while nothing is drawn.
+function PriceGraph.AverageText(graph)
+    local average = graph and rawget(graph, "average")
+    if type(average) ~= "number" or average <= 0 then return nil end
+    local text = Util.FormatMoney(average, { short = true })
+    local points = rawget(graph, "points")
+    local last = type(points) == "table" and points[#points] or nil
+    if type(last) == "table" and type(last.p) == "number" and ns.Prices and ns.Prices.TrendText then
+        local trend, color = ns.Prices.TrendText((last.p - average) / average)
+        if trend then
+            local r, g, b = Theme.Unpack(color or "muted")
+            text = ("%s |cff%02x%02x%02x%s|r"):format(text,
+                math.floor((r or 1) * 255 + 0.5), math.floor((g or 1) * 255 + 0.5),
+                math.floor((b or 1) * 255 + 0.5), trend)
+        end
+    end
+    return text
+end
+
 function PriceGraph.RefreshAll()
     for _, graph in ipairs(PriceGraph.all) do
         if graph:IsVisible() and graph.selected then graph:Refresh() end

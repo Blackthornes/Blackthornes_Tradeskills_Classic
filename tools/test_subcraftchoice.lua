@@ -127,6 +127,20 @@ auction[POTION] = nil
 check("with nothing listed, the vendor is still a price", Cost:GetReagentUnitCost(POTION) == 240)
 auction[POTION] = 331
 
+print("\na shop with limited stock")
+Cost:SetSubCraftChoice(20, nil)
+local limitedNow = true
+ns.Vendor.IsLimited = function() return limitedNow end
+check("the shopping list never sends you there",
+    row(POTION) and row(POTION).fromVendor == false and row(POTION).vendorLimited == true)
+check("it is priced at the auction house", row(POTION).source == "auction")
+auction[POTION] = nil
+check("with nothing listed, still not the vendor",
+    row(POTION) and row(POTION).fromVendor == false and row(POTION).source ~= "vendor")
+auction[POTION] = 331
+limitedNow = false
+ns.Vendor.IsLimited = function() return limitedNow end
+
 print("\nback to Vendor")
 Cost:SetSubCraftChoice(20, nil)
 check("both marks gone", ns.db.neverSubCrafts[20] == nil and ns.db.alwaysSubCrafts[20] == nil)

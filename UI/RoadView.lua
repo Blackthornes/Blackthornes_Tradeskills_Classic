@@ -27,6 +27,14 @@ local state = { line = nil }
 local CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
 local widgets = {}
 
+-- Fishing's rows: the pole for a fish row, the lure line in the warn yellow.
+local FISHING_POLE = 6256
+local function WarnCode()
+    local c = Theme.colors and Theme.colors.warn or { 0.910, 0.757, 0.353 }
+    return ("|cff%02x%02x%02x"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5),
+        math.floor(c[3] * 255 + 0.5))
+end
+
 local function TierColorCode(tier)
     local skillUp = ns.SkillUp
     if skillUp and skillUp.GetTierColorCode then
@@ -130,6 +138,12 @@ local function UpdateRow(row, step)
     if step.kind == "craft" and step.outputItemID then
         Theme.SetItemIcon(row.icon, step.outputItemID)
         row.icon:Show()
+    elseif step.kind == "fish" then
+        Theme.SetItemIcon(row.icon, FISHING_POLE)
+        row.icon:Show()
+    elseif step.how and step.how.kind == "book" and step.how.item then
+        Theme.SetItemIcon(row.icon, step.how.item)
+        row.icon:Show()
     else
         row.icon:Hide()
     end
@@ -158,10 +172,21 @@ local function UpdateRow(row, step)
         row.cost:SetTextColor(Theme.Unpack("dim"))
     else
         row.cost:SetTextColor(Theme.Unpack("text"))
-        Theme.SetMoneyText(row.cost, step.cost or 0, { short = true })
+        if step.kind == "fish" then
+            -- Fishing costs time, not gold: the lures go in the footer.
+            row.cost:SetText("")
+        elseif step.how and step.cost == nil then
+            -- A rank taught at the end of a quest: its price isn't known.
+            row.cost:SetText("")
+        else
+            Theme.SetMoneyText(row.cost, step.cost or 0, { short = true })
+        end
     end
 
-    local text = table.concat(texts.lines, "\n")
+    local shown = {}
+    for i, line in ipairs(texts.lines) do shown[i] = line end
+    if texts.tip then shown[#shown + 1] = WarnCode() .. texts.tip .. "|r" end
+    local text = table.concat(shown, "\n")
     local lines = row.cells.lines
     lines:SetText(text)
     local ok, height = pcall(lines.GetStringHeight, lines)
@@ -177,6 +202,47 @@ local function UpdateRow(row, step)
         row.way:SetPoint("TOPRIGHT", row, "TOPRIGHT", -12, -22)
     end
     row.way:SetShown(place ~= nil and place ~= false)
+end
+
+--- A step's right-click menu (the house row menu), the usual action
+--- first: Queue Step, Show the Way, then Skip This Recipe (a player asked,
+--- the owner said build it, 2026-11-12). Only a craft step still to do.
+function RoadView.StepMenu(step)
+    if type(step) ~= "table" or step.done or step.kind ~= "craft" or not step.recipeID then return nil end
+    local profession = Picked()
+    local lines = {}
+    lines[#lines + 1] = { text = L["Queue Step"], run = function() RoadView:QueueStep(step) end }
+    local place = ns.RoadPlan:PlaceFor(step, profession and profession.line)
+    if place then
+        lines[#lines + 1] = { text = L["Show the Way"], run = function()
+            ns.RoadPlan:ShowTheWay(step, profession.line, profession.name)
+        end }
+    end
+    lines[#lines + 1] = { text = L["Skip This Recipe"], run = function()
+        RoadView:SkipStep(step)
+    end }
+    return lines
+end
+
+--- Skip This Recipe: the road leaves it out and picks the next one.
+function RoadView:SkipStep(step)
+    if not (step and step.recipeID) then return end
+    if ns.RoadPlan:Skip(step.recipeID, step.name) and self.built then self:Refresh() end
+end
+
+--- Show All: every skipped recipe of the profession shown comes back.
+function RoadView:ShowAll()
+    local profession = Picked()
+    if not profession then return end
+    ns.RoadPlan:ShowAllOn(profession.line)
+    if self.built then self:Refresh() end
+end
+
+--- "1 recipe skipped." / "3 recipes skipped.", or nil with none.
+function RoadView.SkippedText(count)
+    if not count or count <= 0 then return nil end
+    if count == 1 then return L["1 recipe skipped."] end
+    return L.Format("%d recipes skipped.", count)
 end
 
 --------------------------------------------------------------------------------
@@ -240,6 +306,14 @@ function RoadView:Build(view)
     widgets.total = Theme.CreateLabel(footer, "normal", "text")
     widgets.total:SetPoint("LEFT", widgets.totalLabel, "RIGHT", 8, 0)
 
+    -- Show All brings back the recipes skipped on this road.
+    widgets.showAll = Widgets.CreateButton(footer, L["Show All"], function()
+        RoadView:ShowAll()
+    end, { width = 80, height = 24 })
+    Fit(widgets.showAll)
+    widgets.showAll:SetPoint("RIGHT", widgets.queueAll, "LEFT", -8, 0)
+    widgets.showAll:Hide()
+
     widgets.saved = Theme.CreateLabel(footer, "small", "muted")
     widgets.saved:SetPoint("TOPLEFT", widgets.totalLabel, "BOTTOMLEFT", 0, -4)
     widgets.saved:SetPoint("RIGHT", widgets.queueAll, "LEFT", -12, 0)
@@ -254,6 +328,7 @@ function RoadView:Build(view)
         rowHeight = ROW_HEIGHT,
         createRow = CreateRow,
         updateRow = UpdateRow,
+        menu = RoadView.StepMenu,
         isSelected = function(step)
             local plan = RoadView.plan
             return plan ~= nil and plan.current ~= nil and plan.steps[plan.current] == step
@@ -317,12 +392,17 @@ function RoadView:Refresh()
         widgets.empty:Show()
         widgets.total:SetText("")
         widgets.saved:SetText("")
+        RoadView:PlaceShowAll(0)
         DrawMeter(nil)
         return
     end
 
     widgets.heading:SetText(("%s  %d / %d"):format(profession.name:upper(), profession.skill, profession.max))
     widgets.pickBy:SetValue(ns.RoadPlan.PickBy())
+    local fishing = profession.line == ns.RoadPlan.FISHING
+    widgets.pickBy:SetShown(not fishing)
+    widgets.pickByLabel:SetShown(not fishing)
+    widgets.queueAll:SetShown(not fishing)
 
     local plan = ns.RoadPlan:Get(profession, function()
         if widgets.list and widgets.list:IsVisible() then RoadView:Refresh() end
@@ -349,13 +429,43 @@ function RoadView:Refresh()
         widgets.empty:Hide()
     end
 
-    Theme.SetMoneyText(widgets.total, plan.total or 0, { short = true })
-    widgets.saved:SetText(RoadView.FootText(plan))
+    if plan.fishing then
+        widgets.total:SetText(RoadView.FishFoot(plan))
+    else
+        Theme.SetMoneyText(widgets.total, plan.total or 0, { short = true })
+    end
+    local skipped = #ns.RoadPlan:SkippedOn(profession.line)
+    widgets.saved:SetText(RoadView.FootText(plan, skipped))
+    self:PlaceShowAll(skipped)
+end
+
+--- Show All shows only while this road has a skipped recipe; the footer's
+--- words make room for it.
+function RoadView:PlaceShowAll(skipped)
+    local show = (skipped or 0) > 0
+    widgets.showAll:SetShown(show)
+    widgets.saved:ClearAllPoints()
+    widgets.saved:SetPoint("TOPLEFT", widgets.totalLabel, "BOTTOMLEFT", 0, -4)
+    local anchor = show and widgets.showAll
+        or (widgets.queueAll:IsShown() and widgets.queueAll) or nil
+    if anchor then
+        widgets.saved:SetPoint("RIGHT", anchor, "LEFT", -12, 0)
+    else
+        widgets.saved:SetPoint("RIGHT", widgets.saved:GetParent(), "RIGHT", 0, 0)
+    end
+end
+
+--- Fishing's footer: "about 4 hours of fishing, 1g 25s".
+function RoadView.FishFoot(plan)
+    local hours = ns.RoadPlan.FishHours(plan)
+    local money = Util.FormatMoney(plan.total or 0, { short = true })
+    if hours == 1 then return L.Format("about 1 hour of fishing, %s", money) end
+    return L.Format("about %d hours of fishing, %s", hours, money)
 end
 
 --- The footer's second line: what you own takes off, or where it stops,
 --- and with Real Cost what selling the crafts brings back.
-function RoadView.FootText(plan)
+function RoadView.FootText(plan, skipped)
     local lines = {}
     if (plan.saved or 0) > 0 then
         lines[#lines + 1] = L.Format("What you own already takes off %s.",
@@ -367,6 +477,8 @@ function RoadView.FootText(plan)
         lines[#lines + 1] = L.Format("Selling what you make brings back about %s.",
             Util.FormatMoney(plan.back, { short = true }))
     end
+    local skippedText = RoadView.SkippedText(skipped)
+    if skippedText then lines[#lines + 1] = skippedText end
     return table.concat(lines, "\n")
 end
 

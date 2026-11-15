@@ -407,6 +407,29 @@ Casts(1003, { { [LESSER_ASTRAL] = 1 }, { [LESSER_ASTRAL] = 1 }, { [STRANGE_DUST]
 check("three where the table's likeliest never came: its own results",
     select(2, Disenchant:GetOutcomes(1003)).byItem == true)
 
+print("\nquiet in chat")
+
+local settings = {}
+ns.Config = { Get = function(_, key) return settings[key] end,
+    Set = function(_, key, value) settings[key] = value end }
+check("results show in chat by default", Log:ChatOn() == true)
+Log:SetChat(false)
+check("the box unticked keeps them out", settings.disenchantChat == false and Log:ChatOn() == false)
+
+local learnedBand = { casts = Disenchant.LEARN_AFTER, got = { [STRANGE_DUST] = { times = 10 } } }
+local p0, f0, s0 = #printed, #flashed, #sounds
+Log:Announce(1002, { [STRANGE_DUST] = 5 }, CHEST_KEY, learnedBand, 100, { SMALL_GLIMMERING }, nil)
+Log:Miss("test")
+check("with the box unticked nothing is said in chat", #printed == p0)
+check("the screen notes still show", #flashed > f0)
+check("and the sound still plays", #sounds > s0)
+
+Log:SetChat(true)
+p0 = #printed
+Log:Announce(1002, { [STRANGE_DUST] = 5 }, CHEST_KEY, learnedBand, 100, nil, nil)
+check("ticked again, the result is said in chat", Said("Disenchanted", p0 + 1) ~= nil)
+ns.Config = nil
+
 C_Item, C_Container, GetTime, CreateFrame = saved.C_Item, saved.C_Container, saved.GetTime, saved.CreateFrame
 SpellIsTargeting, GetNumLootItems = saved.SpellIsTargeting, saved.GetNumLootItems
 GetLootSlotLink, GetLootSlotInfo, GetLootSourceInfo =

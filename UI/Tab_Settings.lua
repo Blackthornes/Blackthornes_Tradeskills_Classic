@@ -61,6 +61,30 @@ local PAGES = {
 }
 local DEFAULT_PAGE = "pricing"
 
+-- "Prefer TSM Prices:" only means something while TSM Prices is on, so it
+-- is greyed and takes no clicks while that is off.
+local function GreyPreferTSM(widgets, tsmOn)
+    local box, row = widgets.preferTsmPrices, widgets.preferTsmRow
+    if not box then return end
+    -- The row holds the label and the box, so its alpha greys both.
+    if row then row:SetAlpha(tsmOn and 1 or 0.4) else box:SetAlpha(tsmOn and 1 or 0.4) end
+    box:EnableMouse(tsmOn and true or false)
+    -- "TSM Price Source:" greys the same way.
+    local sourceRow, source = widgets.tsmSourceRow, widgets.tsmPriceSource
+    if sourceRow then sourceRow:SetAlpha(tsmOn and 1 or 0.4) end
+    if source then
+        source.editBox:EnableMouse(tsmOn and true or false)
+        if not tsmOn then source.editBox:ClearFocus() end
+    end
+    -- "TSM BoE Price Source:" too.
+    local gearRow, gear = widgets.tsmGearRow, widgets.tsmGearPriceSource
+    if gearRow then gearRow:SetAlpha(tsmOn and 1 or 0.4) end
+    if gear then
+        gear.editBox:EnableMouse(tsmOn and true or false)
+        if not tsmOn then gear.editBox:ClearFocus() end
+    end
+end
+
 local widgets = {}
 
 --- An Off / Shift / Always box (see the Look page) set to the saved mode,
@@ -1100,6 +1124,16 @@ local function Build(outer)
     widgets.minMargin:SetPoint("TOPLEFT", CONTROL_X, 0)
     AddUnit(marginRow, widgets.minMargin, "%")
 
+    -- Gold an hour, buy the parts or make them (a Discord player, the
+    -- owner said build it 2026-11-12, casting time only). Off unless ticked.
+    local hourRow = CreateRow(pages.pricing, 2, L["Gold an Hour:"],
+        L["Shows whether buying the parts or making them earns more an hour. Only crafting time counts, not buying or selling."])
+
+    widgets.goldAnHour = Widgets.CreateCheckbox(hourRow, L["On"], function(checked)
+        UI:SetGoldAnHour(checked == true)
+    end, false)
+    widgets.goldAnHour:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     CreateSection(pages.pricing, 2, L["PRICE AGE"])
     local staleRow = CreateRow(pages.pricing, 2, L["Prices Go Stale After:"],
         L["Older prices are greyed out but still used."])
@@ -1320,6 +1354,20 @@ local function Build(outer)
     FitButton(importButton)
     importButton:SetPoint("LEFT", exportButton, "RIGHT", 8, 0)
 
+    local exportPrices = Widgets.CreateButton(pages.queue.content, L["Export Prices"], function()
+        UI:ShowTransferDialog("exportPrices")
+    end, { width = 100, height = 22,
+           tooltip = L["Copy your recent auction prices as a code to use on another computer."] })
+    Place(pages.queue, 1, exportPrices, -8)
+    FitButton(exportPrices)
+
+    local importPrices = Widgets.CreateButton(pages.queue.content, L["Import Prices"], function()
+        UI:ShowTransferDialog("importPrices")
+    end, { width = 100, height = 22,
+           tooltip = L["Load a prices code. Only prices newer than yours are used."] })
+    FitButton(importPrices)
+    importPrices:SetPoint("LEFT", exportPrices, "RIGHT", 8, 0)
+
     CreateSection(pages.auction, 2, L["SCANNING"])
 
     local budgetRow = CreateRow(pages.auction, 2, L["Scan Speed:"],
@@ -1359,6 +1407,16 @@ local function Build(outer)
         if ns.RecipeValue then ns.RecipeValue:Refresh() end
     end, true)
     widgets.professionValue:SetPoint("TOPLEFT", CONTROL_X, -2)
+
+    local craftProfitRow = CreateRow(pages.look, 1, L["Craft Cost and Profit:"],
+        L["Show the profit beside each recipe in the game's profession window, and what the mats cost when you pick one."])
+
+    widgets.craftProfit = Widgets.CreateCheckbox(craftProfitRow, L["On"], function(checked)
+        Config:Set("craftProfitInProfessionWindow", checked)
+        if ns.RecipeValue then ns.RecipeValue:Refresh() end
+        if ns.CraftProfitCard then ns.CraftProfitCard:Refresh() end
+    end, true)
+    widgets.craftProfit:SetPoint("TOPLEFT", CONTROL_X, -2)
 
     -- Off, Shift or Always for each tooltip line (asked 2026-10-18, see
     -- UI/TooltipShift.lua). Whether the line is on stays in its own
@@ -1427,6 +1485,12 @@ local function Build(outer)
         widgets.crateTooltips = ShiftDropdown(crateTipRow, "crate", "tooltipCrateCosts")
     end
 
+    -- A player asked (2026-11-12): what you paid on the auction house.
+    local boughtTipRow = CreateRow(pages.tooltips, 1, L["Bought For on Tooltips:"],
+        L["What you last paid for an item on the auction house. Hold Shift for the average."])
+
+    widgets.boughtTooltips = ShiftDropdown(boughtTipRow, "bought", "tooltipBoughtFor")
+
     CreateSection(pages.look, 1, L["SHOWN IN THE GAME"])
     -- Its own row (a player's report, 2026-10-09): beside the tick box it
     -- started 340 pixels in and ran past the column into the next one.
@@ -1488,6 +1552,24 @@ local function Build(outer)
     end, { width = 60, height = 20 })
     roadOpen:SetPoint("TOPLEFT", CONTROL_X, -2)
     FitButton(roadOpen)
+
+    -- What comes up by itself (a player's request, 2026-11-05): ticked
+    -- unless unticked, so nothing changed for anyone.
+    CreateSection(pages.auction, 1, L["OPEN BY ITSELF"])
+
+    local ahRow = CreateRow(pages.auction, 1, L["Open at AH:"],
+        L["Opens Tradeskills when you open the auction house."])
+    widgets.openAtAuction = Widgets.CreateCheckbox(ahRow, L["On"], function(checked)
+        Config:Set("openAtAuction", checked)
+    end, true)
+    widgets.openAtAuction:SetPoint("TOPLEFT", CONTROL_X, -2)
+
+    local profRow = CreateRow(pages.auction, 1, L["Open at Professions:"],
+        L["Opens the craft pane beside your profession window."])
+    widgets.openAtProfessions = Widgets.CreateCheckbox(profRow, L["On"], function(checked)
+        Config:Set("openAtProfessions", checked)
+    end, true)
+    widgets.openAtProfessions:SetPoint("TOPLEFT", CONTROL_X, -2)
 
     local shopsRow = CreateRow(pages.auction, 1, L["Open With AH and Vendors:"],
         L["Opens this window with the auction house or a vendor."])
@@ -1642,6 +1724,14 @@ local function Build(outer)
         return box
     end
 
+    -- One box quiets every sound every Blackthornes addon plays, this
+    -- warning about saved data included (UI/SharedChoices.lua).
+    local muteRow = CreateRow(pages.general, 2, L["Mute All Sounds:"], nil)
+    widgets.muteSounds = Widgets.CreateCheckbox(muteRow, L["On"], function(checked)
+        UI:SetMuteSounds(checked)
+    end, false)
+    widgets.muteSounds:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     -- The sale alarm picks its sound (asked 2026-10-11: players found the
     -- raid warning too much and asked for an old cash register). Off is the
     -- saleAlarm switch; the sound is saleSound. Picking one plays it.
@@ -1698,7 +1788,7 @@ local function Build(outer)
         L["A cheer on the Stats tab when an item has its best week of sales yet, once a week."],
         function()
             local kit = type(SOUNDKIT) == "table" and SOUNDKIT.IG_QUEST_LIST_COMPLETE or 878
-            pcall(PlaySound, kit, "Master")
+            pcall(ns.PlaySound or PlaySound, kit, "Master")
         end)
 
     -- Which columns each list shows (asked 2026-10-09). The same tick list
@@ -1843,6 +1933,24 @@ local function Build(outer)
     goldPlace:SetPoint("TOPLEFT", CONTROL_X, -2)
     FitButton(goldPlace)
 
+    -- A window dragged off the screen comes back (a player's report, 2026-11-11).
+    local windowPlacesRow = CreateRow(pages.look, 2, L["Window Spots:"],
+        L["Puts every Blackthornes window back where it started. Your settings and data stay the same."])
+    local windowPlaces = Widgets.CreateButton(windowPlacesRow, L["Set Default"], function()
+        UI:ResetAllWindows()
+    end, { width = 60, height = 20 })
+    windowPlaces:SetPoint("TOPLEFT", CONTROL_X, -2)
+    FitButton(windowPlaces)
+
+    -- What each disenchant gave, in chat (a player asked, 2026-11-13).
+    CreateSection(pages.look, 2, L["DISENCHANT"])
+    local deChatRow = CreateRow(pages.look, 2, L["Disenchant Results:"],
+        L["Says in chat what each disenchant gave."])
+    widgets.disenchantChat = Widgets.CreateCheckbox(deChatRow, L["Show"], function(checked)
+        if ns.DisenchantLog then ns.DisenchantLog:SetChat(checked) else Config:Set("disenchantChat", checked) end
+    end, true)
+    widgets.disenchantChat:SetPoint("TOPLEFT", CONTROL_X, -2)
+
     -- Sharing (asked 2026-10-07): your characters on another account of
     -- yours, and prices within your guild. Logic/AccountLink.lua and
     -- Logic/GuildPrices.lua; every /bts share command has a control here.
@@ -1873,11 +1981,13 @@ local function Build(outer)
     end)
 
     widgets.linkShares = {}
-    local function ShareRow(key, label, description)
+    local function ShareRow(key, label, description, offByDefault)
         local row = CreateRow(pages.sharing, 1, label, description)
         local box = Widgets.CreateCheckbox(row, L["On"], function(checked)
             Config:Set(key, checked)
-        end, true)
+            if key == "linkShareSales" and checked and ns.AccountLink then ns.AccountLink:AskAgain() end
+            if key == "linkShareLists" and ns.AccountLink then ns.AccountLink:ListsTicked(checked) end
+        end, not offByDefault)
         box:SetPoint("TOPLEFT", CONTROL_X, -2)
         widgets.linkShares[key] = box
     end
@@ -1886,6 +1996,13 @@ local function Build(outer)
     ShareRow("linkShareBags", L["Share Bags, Bank and Mail:"], L["What your characters carry, bank and have in the mail."])
     ShareRow("linkShareGold", L["Share Gold:"], L["How much gold each of your characters has."])
     ShareRow("linkShareAuctions", L["Share Auctions:"], L["What your characters have listed, so Keep in stock counts it."])
+    -- Off unless ticked (the owner, 2026-11-07): see Logic/AccountLink.lua.
+    ShareRow("linkShareQueue", L["Share Craft Queue:"],
+        L["What your queued crafts still need, so your other account knows what to mail."], true)
+    ShareRow("linkShareSales", L["Share Sales:"],
+        L["What your other account sold, so your Sales tab shows both."], true)
+    ShareRow("linkShareLists", L["Share Shopping Lists:"],
+        L["Your shopping lists, so your other account can buy for you."], true)
 
     local syncButton = Widgets.CreateButton(pages.sharing.content, L["Sync"], function()
         if ns.AccountLink then ns.AccountLink:Check() end
@@ -1899,6 +2016,11 @@ local function Build(outer)
 
     -- Forget their characters is a typed command now (the owner,
     -- 2026-10-15): /bts forgetlinked confirm. Settings never deletes data.
+
+    widgets.linkSynced = Theme.CreateLabel(pages.sharing.content, "tiny", "text")
+    Place(pages.sharing, 1, widgets.linkSynced, -8)
+    widgets.linkSynced:SetWidth(COLUMN_WIDTH)
+    widgets.linkSynced:SetWordWrap(true)
 
     widgets.linkStatus = Theme.CreateLabel(pages.sharing.content, "tiny", "muted")
     Place(pages.sharing, 1, widgets.linkStatus, -8)
@@ -1975,6 +2097,7 @@ local function Build(outer)
     widgets.tsmPrices = Widgets.CreateCheckbox(tsmRow, L["On"], function(checked)
         Config:Set("tsmPrices", checked)
         if ns.TSMPrices then ns.TSMPrices:Forget() end
+        GreyPreferTSM(widgets, checked)
         UI:RefreshActiveTab()
     end, false)
     widgets.tsmPrices:SetPoint("TOPLEFT", CONTROL_X, -2)
@@ -1983,6 +2106,93 @@ local function Build(outer)
     Place(pages.sharing, 2, widgets.tsmStatus, -4)
     widgets.tsmStatus:SetWidth(COLUMN_WIDTH)
     widgets.tsmStatus:SetWordWrap(true)
+
+    -- TSM's price over your own once your scan is an hour old (the owner,
+    -- 2026-11-12). Off unless ticked, greyed while TSM Prices is off.
+    -- `preferTsmPrices`, account wide; never rename it. See Prices:PreferredTSM.
+    local preferRow = CreateRow(pages.sharing, 2, L["Prefer TSM Prices:"],
+        L["Uses TSM's price once your own scan is more than 1 hour old. Posting prices still come from your scans."])
+    widgets.preferTsmPrices = Widgets.CreateCheckbox(preferRow, L["On"], function(checked)
+        Config:Set("preferTsmPrices", checked)
+        if ns.TSMPrices then ns.TSMPrices:Forget() end
+        UI:RefreshActiveTab()
+    end, false)
+    widgets.preferTsmPrices:SetPoint("TOPLEFT", CONTROL_X, -2)
+    widgets.preferTsmRow = preferRow
+
+    -- The TSM price to read (a player asked, the owner said build it,
+    -- 2026-11-13): DBRecent unless the player types another, or one of
+    -- their own TSM custom prices. `tsmPriceSource`, account wide; never
+    -- rename it. Saved on Enter or leaving the box. See TSMPrices:MarketSource.
+    local sourceRow = CreateRow(pages.sharing, 2, L["TSM Price Source:"],
+        L["The TSM price to use, like DBRecent or DBMarket. You can also type one of your own TSM custom prices."])
+    widgets.tsmPriceSource = Widgets.CreateSearchBox(sourceRow, "DBRecent")
+    widgets.tsmPriceSource:SetWidth(150)
+    widgets.tsmPriceSource:SetPoint("TOPLEFT", CONTROL_X, 0)
+    if widgets.tsmPriceSource.icon then
+        widgets.tsmPriceSource.icon:Hide()
+        widgets.tsmPriceSource.editBox:SetPoint("TOPLEFT", 6, 0)
+        widgets.tsmPriceSource.hint:SetPoint("LEFT", 6, 0)
+    end
+    widgets.tsmSourceRow = sourceRow
+    local function SaveSource(editBox)
+        local text = (editBox:GetText() or ""):match("^%s*(.-)%s*$")
+        local was = Config:Get("tsmPriceSource") or ""
+        if text == was then return end
+        Config:Set("tsmPriceSource", text ~= "" and text or nil)
+        if ns.TSMPrices then ns.TSMPrices:Forget() end
+        UI:RefreshActiveTab()
+    end
+    widgets.tsmPriceSource.editBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+    widgets.tsmPriceSource.editBox:HookScript("OnEditFocusLost", SaveSource)
+    widgets.tsmPriceSource.editBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(Config:Get("tsmPriceSource") or "")
+        self:ClearFocus()
+    end)
+
+    widgets.tsmSourceNote = Theme.CreateLabel(pages.sharing.content, "tiny", "warn")
+    Place(pages.sharing, 2, widgets.tsmSourceNote, -4)
+    widgets.tsmSourceNote:SetWidth(COLUMN_WIDTH)
+    widgets.tsmSourceNote:SetWordWrap(true)
+
+    -- A second TSM price for gear that binds when worn (a player asked, the
+    -- owner said build it, 2026-11-14). `tsmGearPriceSource`, account wide,
+    -- nil or empty reads the TSM Price Source; never rename it. See
+    -- TSMPrices:GearSource.
+    local gearRow = CreateRow(pages.sharing, 2, L["TSM BoE Price Source:"],
+        L["Used for gear that binds when worn. Leave it empty to use your TSM Price Source."])
+    widgets.tsmGearPriceSource = Widgets.CreateSearchBox(gearRow, "DBRecent")
+    widgets.tsmGearPriceSource:SetWidth(150)
+    widgets.tsmGearPriceSource:SetPoint("TOPLEFT", CONTROL_X, 0)
+    if widgets.tsmGearPriceSource.icon then
+        widgets.tsmGearPriceSource.icon:Hide()
+        widgets.tsmGearPriceSource.editBox:SetPoint("TOPLEFT", 6, 0)
+        widgets.tsmGearPriceSource.hint:SetPoint("LEFT", 6, 0)
+    end
+    widgets.tsmGearRow = gearRow
+    local function SaveGearSource(editBox)
+        local text = (editBox:GetText() or ""):match("^%s*(.-)%s*$")
+        local was = Config:Get("tsmGearPriceSource") or ""
+        if text == was then return end
+        Config:Set("tsmGearPriceSource", text ~= "" and text or nil)
+        if ns.TSMPrices then ns.TSMPrices:Forget() end
+        UI:RefreshActiveTab()
+    end
+    widgets.tsmGearPriceSource.editBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+    widgets.tsmGearPriceSource.editBox:HookScript("OnEditFocusLost", SaveGearSource)
+    widgets.tsmGearPriceSource.editBox:SetScript("OnEscapePressed", function(self)
+        self:SetText(Config:Get("tsmGearPriceSource") or "")
+        self:ClearFocus()
+    end)
+
+    widgets.tsmGearNote = Theme.CreateLabel(pages.sharing.content, "tiny", "warn")
+    Place(pages.sharing, 2, widgets.tsmGearNote, -4)
+    widgets.tsmGearNote:SetWidth(COLUMN_WIDTH)
+    widgets.tsmGearNote:SetWordWrap(true)
 
     local auctionatorRow = CreateRow(pages.sharing, 2, L["Auctionator Prices:"],
         L["Uses Auctionator prices for items nothing else has priced, or when its price is newer than your old one."])
@@ -2014,6 +2224,8 @@ local function Build(outer)
     -- The buttons standing on their own, so the search finds them too.
     Searchable(pages.queue, exportButton, L["Export queue Copy your queue, settings and stock limits as a code"])
     Searchable(pages.queue, importButton, L["Import Load a code"])
+    Searchable(pages.queue, exportPrices, L["Export Prices Copy your recent auction prices to use on another computer"])
+    Searchable(pages.queue, importPrices, L["Import Prices Load prices from another computer, newer ones only"])
     Searchable(pages.sharing, syncButton, L["Sync now Contact your other account now and swap anything that changed"])
 
     -- About (UI/About.lua): the note on how the addons are made, then the
@@ -2444,6 +2656,7 @@ local function Refresh()
     widgets.autoScan:SetChecked(Config:Get("autoScan") ~= false)
     widgets.learnFromSearches:SetChecked(Config:Get("learnFromSearches") ~= false)
     widgets.professionValue:SetChecked(Config:Get("showValueInProfessionWindow") == true)
+    widgets.craftProfit:SetChecked(Config:Get("craftProfitInProfessionWindow") == true)
     ShowShiftMode(widgets.tooltipValue)
     ShowShiftMode(widgets.tooltipSalesShift)
     ShowShiftMode(widgets.tooltipTrend)
@@ -2457,7 +2670,10 @@ local function Refresh()
     ShowShiftMode(widgets.enchantTooltips)
     ShowShiftMode(widgets.disenchantTooltips)
     if widgets.crateTooltips then ShowShiftMode(widgets.crateTooltips) end
+    ShowShiftMode(widgets.boughtTooltips)
     widgets.openWithShops:SetChecked(Config:Get("openWithShops") == true)
+    widgets.openAtAuction:SetChecked(Config:Get("openAtAuction") ~= false)
+    widgets.openAtProfessions:SetChecked(Config:Get("openAtProfessions") ~= false)
     widgets.effects:SetValue(ns.Motion and ns.Motion.Level() or "full")
     local textSize = Config:Get("textSize")
     widgets.textSize:SetValue(Theme.TEXT_STEPS[textSize] and textSize or "normal", true)
@@ -2486,9 +2702,11 @@ local function Refresh()
     widgets.windowSize:SetValue(shown)
     widgets.mailReport:SetChecked(Config:Get("mailReport") ~= false)
     widgets.hideSaleChat:SetChecked(Config:Get("hideSaleChat") == true)
+    widgets.goldAnHour:SetChecked(Config:Get("profitGoldAnHour") == true)
     for key, box in pairs(widgets.sounds) do
         box:SetChecked(Config:Get(key) ~= false)
     end
+    widgets.muteSounds:SetChecked(ns.Muted and ns.Muted() or false)
     widgets.saleAlarm:Refresh()
     widgets.cooldownAlerts:SetChecked(Config:Get("cooldownAlerts") ~= false)
     widgets.tradeRequests:SetChecked(Config:Get("tradeRequests") == true)
@@ -2511,22 +2729,47 @@ local function Refresh()
         if widgets.linkNames:GetText() ~= saved then widgets.linkNames:SetText(saved) end
     end
     for key, box in pairs(widgets.linkShares) do
-        box:SetChecked(Config:Get(key) ~= false)
+        if key == "linkShareQueue" or key == "linkShareSales" or key == "linkShareLists" then
+            box:SetChecked(Config:Get(key) == true)
+        else
+            box:SetChecked(Config:Get(key) ~= false)
+        end
     end
     local friendBox = widgets.friendNames.editBox
     if not (friendBox.HasFocus and friendBox:HasFocus()) then
         local saved = Config:Get("friendNames") or ""
         if widgets.friendNames:GetText() ~= saved then widgets.friendNames:SetText(saved) end
     end
+    widgets.linkSynced:SetText(ns.AccountLink and ns.AccountLink:LastSyncedText() or "")
     widgets.linkStatus:SetText(ns.AccountLink and ns.AccountLink:Describe() or "")
     widgets.guildPrices:SetChecked(Config:Get("guildPrices") == true)
     widgets.guildCrafters:SetChecked(Config:Get("guildCrafters") == true)
     if widgets.shareData then widgets.shareData:SetChecked(Config:Get("shareData") == true) end
     widgets.guildStatus:SetText(ns.GuildPrices and ns.GuildPrices:Status() or "")
     widgets.realmPrices:SetChecked(Config:Get("realmPrices") == true)
+    if widgets.disenchantChat then widgets.disenchantChat:SetChecked(Config:Get("disenchantChat") ~= false) end
     widgets.realmStatus:SetText(ns.RealmPrices and ns.RealmPrices:Describe() or "")
     widgets.tsmPrices:SetChecked(Config:Get("tsmPrices") ~= false)
     widgets.tsmStatus:SetText(ns.TSMPrices and ns.TSMPrices:Describe() or "")
+    widgets.preferTsmPrices:SetChecked(Config:Get("preferTsmPrices") == true)
+    GreyPreferTSM(widgets, Config:Get("tsmPrices") ~= false)
+    local sourceBox = widgets.tsmPriceSource.editBox
+    if not (sourceBox.HasFocus and sourceBox:HasFocus()) then
+        local saved = Config:Get("tsmPriceSource") or ""
+        if widgets.tsmPriceSource:GetText() ~= saved then widgets.tsmPriceSource:SetText(saved) end
+    end
+    local refused = ns.TSMPrices and ns.TSMPrices:SourceRefused()
+    widgets.tsmSourceNote:SetText(refused and L["TSM doesn't know that price. Using DBRecent."] or "")
+    local gearBox = widgets.tsmGearPriceSource.editBox
+    if not (gearBox.HasFocus and gearBox:HasFocus()) then
+        local saved = Config:Get("tsmGearPriceSource") or ""
+        if widgets.tsmGearPriceSource:GetText() ~= saved then widgets.tsmGearPriceSource:SetText(saved) end
+    end
+    if widgets.tsmGearPriceSource.hint and ns.TSMPrices then
+        widgets.tsmGearPriceSource.hint:SetText(ns.TSMPrices:MarketSource())
+    end
+    local gearRefused = ns.TSMPrices and ns.TSMPrices:GearSourceRefused()
+    widgets.tsmGearNote:SetText(gearRefused and L["TSM doesn't know that price. Using your TSM Price Source."] or "")
     widgets.auctionatorPrices:SetChecked(Config:Get("auctionatorPrices") ~= false)
     widgets.auctionatorStatus:SetText(ns.AuctionatorPrices and ns.AuctionatorPrices:Describe() or "")
 
@@ -2583,6 +2826,17 @@ end
 
 --- Delete every stored price for this realm. The other realms keep their
 --- prices, so they keep their scan times and sizes too.
+-- Mute All Sounds: kept in this addon's settings and told to every sister.
+function UI:SetMuteSounds(on)
+    on = on == true
+    local at = ns.SharedChoices and ns.SharedChoices:SetMute(on) or nil
+    if ns.Config then
+        ns.Config:Set("muteSounds", on)
+        ns.Config:Set("muteSoundsAt", at)
+    end
+    if widgets and widgets.muteSounds then widgets.muteSounds:SetChecked(on) end
+end
+
 function UI:ClearPriceData()
     local realmKey = ns.Config:GetRealmKey()
     ns.db.prices[realmKey] = {}
@@ -2632,7 +2886,36 @@ local function Confirmed(args)
     return (args or ""):lower():match("^%s*confirm%s*$") ~= nil
 end
 
+--- Turns "Gold an Hour:" on or off and redraws what shows it.
+function UI:SetGoldAnHour(on)
+    ns.Config:Set("profitGoldAnHour", on == true)
+    if widgets.goldAnHour then widgets.goldAnHour:SetChecked(on == true) end
+    if UI.RefreshActiveTab then UI:RefreshActiveTab() end
+end
+
+ns.RegisterCommand("goldhour", L["show gold an hour for buying the parts or making them (on/off)"], function(args)
+    local argument = (args or ""):lower():match("^%s*(.-)%s*$")
+    local on
+    if argument == "on" then on = true
+    elseif argument == "off" then on = false
+    else on = ns.Config:Get("profitGoldAnHour") ~= true end
+    UI:SetGoldAnHour(on)
+    ns.Print(on and L["Gold an hour is on. The Profit tab shows whether buying the parts or making them earns more."]
+        or L["Gold an hour is off."])
+end)
+
 -- These delete data, so they are typed and never a Settings button.
+ns.RegisterCommand("mute", L["turn every Blackthornes sound off or back on (on/off)"], function(args)
+    local argument = (args or ""):lower():match("^%s*(.-)%s*$")
+    local on
+    if argument == "on" then on = true
+    elseif argument == "off" then on = false
+    else on = not (ns.Muted and ns.Muted()) end
+    UI:SetMuteSounds(on)
+    ns.Print(on and L["All Blackthornes sounds are off. /bts mute off turns them back on."]
+        or L["Blackthornes sounds are back on."])
+end)
+
 ns.RegisterCommand("clearprices", L["delete every saved price on this realm (add confirm)"], function(args)
     if not Confirmed(args) then
         ns.Print(L["This deletes every saved price on this realm. Type /bts clearprices confirm to do it."])
@@ -2678,7 +2961,13 @@ if ns.SharedChoices then
             if ns.Travel then ns.Travel:SetOn(value and true or false) end
         elseif choice == "arrowSize" then
             if ns.WayArrowUI then ns.WayArrowUI:SetSize(value) end
+        elseif choice == "muteSounds" then
+            ns.Config:Set("muteSounds", value == true)
+            ns.Config:Set("muteSoundsAt", ns.SharedChoices.board.mute and ns.SharedChoices.board.mute.at)
         end
         if ns.UI and ns.UI.RefreshActiveTab then pcall(ns.UI.RefreshActiveTab, ns.UI) end
+    end, function()
+        if not ns.db or not ns.db.settings then return nil end
+        return ns.db.settings.muteSounds == true, ns.db.settings.muteSoundsAt
     end)
 end

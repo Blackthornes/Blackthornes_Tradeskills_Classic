@@ -113,11 +113,12 @@ ItemTooltip.SHIFT_SETTINGS = {
     enchant = "tooltipEnchantShift",
     crate   = "tooltipCrateShift",
     disenchant = "tooltipDisenchantShift",
+    bought  = "tooltipBoughtShift",
 }
 
 local TooltipShift = ns.TooltipShift
 if TooltipShift then
-    TooltipShift.KEYS = { "value", "sales", "trend", "recipe", "enchant", "crate", "disenchant" }
+    TooltipShift.KEYS = { "value", "sales", "trend", "recipe", "enchant", "crate", "disenchant", "bought" }
 
     function TooltipShift.Read(key)
         local name = ItemTooltip.SHIFT_SETTINGS[key]
@@ -136,7 +137,7 @@ end
 if TooltipShift then
     local anyShift = TooltipShift.AnyShift
     function TooltipShift:AnyShift()
-        if ItemTooltip.crateHeld then return true end
+        if ItemTooltip.crateHeld or ItemTooltip.boughtHeld then return true end
         return anyShift(self)
     end
 end
@@ -365,6 +366,7 @@ function ItemTooltip:LinesFor(itemID, count, link)
         self:AddDisenchantResults(lines, itemID)
 
         self:AddCraftedLines(lines, itemID)
+        self:AddBoughtLines(lines, itemID)
         self:AddRecipeLines(lines, itemID)
         self:AddSealedLines(lines, itemID)
         self:AddCrateLines(lines, itemID)
@@ -420,6 +422,7 @@ function ItemTooltip:LinesFor(itemID, count, link)
     self:AddDisenchantResults(lines, itemID)
 
     self:AddCraftedLines(lines, itemID)
+    self:AddBoughtLines(lines, itemID)
     self:AddRecipeLines(lines, itemID)
     self:AddSealedLines(lines, itemID)
     self:AddCrateLines(lines, itemID)
@@ -557,6 +560,45 @@ function ItemTooltip:AddCraftedLines(lines, itemID)
     if not ok or type(crafted) ~= "table" then return end
 
     for _, line in ipairs(crafted) do lines[#lines + 1] = line end
+end
+
+--- What you paid for it on the auction house (a player asked, 2026-11-12):
+--- the newest buy each and when, and with Shift held the average over every
+--- buy still counted (Logic/MethodProfit.lua keeps the last 20, 60 days).
+--- Nothing for an item you never bought.
+function ItemTooltip:AddBoughtLines(lines, itemID)
+    self.boughtHeld = nil
+    if ns.Config and ns.Config:Get("tooltipBoughtFor") == false then return end
+    local profit = ns.MethodProfit
+    if not (profit and profit.BoughtSummary) then return end
+
+    local ok, bought = pcall(profit.BoughtSummary, profit, itemID)
+    if not ok or type(bought) ~= "table" or not bought.each then return end
+
+    if not ItemTooltip.Shows("bought") then
+        lines.held = true
+        return
+    end
+
+    local ago = ""
+    if type(bought.at) == "number" then
+        ago = "  (" .. Util.FormatAgeAgo(math.max(0, time() - bought.at)) .. ")"
+    end
+    lines[#lines + 1] = { L["Bought for"],
+        L.Format("%s each", Util.FormatMoney(bought.each, { short = true })) .. ago }
+
+    -- One buy has no average worth saying.
+    if (bought.buys or 0) < 2 then return end
+
+    local shift = ns.TooltipShift
+    if shift and not shift.ShiftDown() then
+        lines.held = true
+        self.boughtHeld = true
+        return
+    end
+    lines[#lines + 1] = { L["Average paid"],
+        Util.FormatMoney(bought.average, { short = true }) .. "  "
+            .. L.Format("(%d in %d buys)", bought.units, bought.buys) }
 end
 
 --- How well it sells (Logic/Demand.lua), coloured by level. Nothing when

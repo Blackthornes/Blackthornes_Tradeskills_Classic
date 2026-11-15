@@ -187,4 +187,27 @@ table.insert(ns.db.queueBuys, { itemID = BAR, count = 8, forRecipe = GAUNTLETS_R
 check("another character's line is left alone", Queue:QueueLearned() == 0 and #ns.db.queueBuys == 1)
 ns.db.characters = nil
 
+ns.db.queue, ns.db.queueBuys = {}, {}
+print("\nEquipment's Queue It: a pattern still to learn")
+
+-- Equipment lists the materials for one craft, tied to the recipe, so
+-- learning it queues the craft (a player found nothing in the queue).
+local upgrade = { recipeID = GAUNTLETS_RECIPE, name = "Gauntlets", crafts = 1 }
+Queue:EnsureBuy(BAR, 8, GAUNTLETS, upgrade)
+Queue:EnsureBuy(STONE, 2, GAUNTLETS, upgrade)
+check("the materials are listed for the recipe", ns.db.queueBuys[1].forRecipe == GAUNTLETS_RECIPE
+    and ns.db.queueBuys[1].forRecipeCrafts == 1)
+check("the gear reads as on the list, asked with its recipe",
+    Queue:ForUpgrade(GAUNTLETS, GAUNTLETS_RECIPE) == "buy")
+check("an older ask without the recipe still finds nothing", Queue:ForUpgrade(GAUNTLETS) == nil)
+check("queued by hand, the craft reads as queued", Queue:Ensure(GAUNTLETS_RECIPE, 1) == true
+    and Queue:ForUpgrade(GAUNTLETS, GAUNTLETS_RECIPE) == "craft")
+check("and its listed materials come off, so nothing is bought twice", #ns.db.queueBuys == 0)
+
+ns.db.queueBuys, ns.db.queue = {}, {}
+Queue:EnsureBuy(BAR, 40, nil, learnNext)
+Queue:Ensure(GAUNTLETS_RECIPE, 1)
+check("a Learn next line with no crafts stays when the craft is queued", #ns.db.queueBuys == 1)
+ns.db.queueBuys, ns.db.queue = {}, {}
+
 print(("\n%d checks passed"):format(checks))

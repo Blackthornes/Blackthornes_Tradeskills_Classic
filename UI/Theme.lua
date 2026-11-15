@@ -50,6 +50,12 @@ Theme.colors = {
     rested    = { 0.435, 0.659, 1.000 },
     xp        = { 0.541, 0.361, 0.839 },
 
+    -- Profit source tags (2026-11-12): "(AH)", "(Vendor)" and "(DE)" after
+    -- a profit number, each in its own colour so they tell apart at once.
+    way_auction    = { 0.490, 0.690, 1.000 },   -- #7DB0FF
+    way_vendor     = { 0.910, 0.800, 0.560 },   -- #E8CC8F
+    way_disenchant = { 0.776, 0.580, 0.957 },   -- #C694F4
+
     text      = { 0.902, 0.910, 0.925 },   -- #E6E8EC
     -- Secondary text, a step brighter than Farmer's so the small print in
     -- the dense tables (ages, column headings, hints) is readable.
@@ -361,11 +367,18 @@ end
 --- a narrow cell never ends in "..." halfway through an amount. A label that
 --- cannot be measured gets every coin.
 function Theme.SetMoneyText(label, copper, opts)
+    -- opts.suffix (2026-11-12) rides after the money, such as a profit's
+    -- "(AH)" source tag; the money gives up its smaller coins first.
+    local suffix = opts and opts.suffix
     local function Format(parts)
         local options = {}
-        for key, value in pairs(opts or {}) do options[key] = value end
+        for key, value in pairs(opts or {}) do
+            if key ~= "suffix" then options[key] = value end
+        end
         options.parts = parts
-        return ns.Util.FormatMoney(copper, options)
+        local text = ns.Util.FormatMoney(copper, options)
+        if copper ~= nil and suffix and suffix ~= "" then text = text .. " " .. suffix end
+        return text
     end
 
     label:SetText(Format(nil))

@@ -36,6 +36,31 @@ local CITIES = {
     H = { ["Orgrimmar"] = true, ["Thunder Bluff"] = true, ["Undercity"] = true },
 }
 
+-- Thunder Bluff and Darnassus trainers are kept under the zone around them
+-- (Mulgore, Teldrassil) with that zone's map spot, so a spot inside the
+-- city's box counts as the city when picking one. The zone itself stays as
+-- it is, since the map pin reads the spot on that zone's map.
+local CITY_BOXES = {
+    { zone = "Mulgore", city = "Thunder Bluff", x1 = 28, x2 = 46, y1 = 14, y2 = 36 },
+    { zone = "Teldrassil", city = "Darnassus", x1 = 22, x2 = 43, y1 = 38, y2 = 64 },
+    -- The Apothecarium's trainers are placed on Silverpine's map.
+    { zone = "Silverpine Forest", city = "Undercity", x1 = 70, x2 = 76, y1 = 6, y2 = 12 },
+}
+
+local function CityOf(place)
+    local x, y = tonumber(place.x), tonumber(place.y)
+    if x and y then
+        for _, box in ipairs(CITY_BOXES) do
+            if place.zone == box.zone and x >= box.x1 and x <= box.x2
+                and y >= box.y1 and y <= box.y2 then
+                return box.city
+            end
+        end
+    end
+    return place.zone
+end
+LearnNext.CityOf = CityOf
+
 local function Spots()
     return ns.LEARN_SPOTS or {}
 end
@@ -235,15 +260,21 @@ function LearnNext:Place(record)
 end
 
 --- The nearest trainer of the player's side for a profession who teaches
---- up to a skill, for Road to 300's trainer steps (2026-10-20).
+--- a rank, for Road to 300's trainer steps (2026-10-20).
+-- A trainer's number is the highest recipe it teaches, not the rank's cap,
+-- so a trainer teaches the rank whose cap is `needs` when its recipes go
+-- past the rank before (needs - 75): Expert (225) wants recipes over 150.
+-- Comparing it with the cap sent a 145 Alchemist past Undercity's Expert
+-- to Stonard's Artisan (2026-11-13).
 -- @param line   the Classic skill line
--- @param needs  the skill they must teach to
--- @return { kind = "trainer", name, zone, x, y } or nil
+-- @param needs  the cap of the rank to train (150, 225 or 300)
+-- @return { kind = "trainer", name, zone, x, y, mapID } or nil
 function LearnNext:TrainerFor(line, needs)
     local side = Side()
+    local from = (needs or 0) - 75
     local trainers = {}
     for _, row in ipairs((Spots().TRAINERS or {})[line] or {}) do
-        if OnSide(row[5], side) and (row[6] or 0) >= (needs or 0) then
+        if OnSide(row[5], side) and (row[6] or 0) > from then
             -- Where the game saw the trainer stand wins over Classic's spot.
             local seen = SeenAt(row[1], row[2], "trainer")
             trainers[#trainers + 1] = {

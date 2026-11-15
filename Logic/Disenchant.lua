@@ -1280,7 +1280,7 @@ function Disenchant:AnnounceDeals()
     -- Settings: Sound when a scan finishes.
     if (not ns.Config or ns.Config:Get("scanSounds") ~= false) and type(PlaySound) == "function" then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-        if kits.UI_EPICLOOT_TOAST then pcall(PlaySound, kits.UI_EPICLOOT_TOAST, "Master") end
+        if kits.UI_EPICLOOT_TOAST then pcall(ns.PlaySound or PlaySound, kits.UI_EPICLOOT_TOAST, "Master") end
     end
 
     return #rows

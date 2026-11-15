@@ -32,6 +32,19 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
 local GoldGoal = ns.NewModule("GoldGoal")
 
 local COPPER_PER_GOLD = 10000
@@ -137,7 +150,7 @@ function GoldGoal:Members(now, everyone)
     now = now or time()
     local selfKey = ns.Config and ns.Config:GetCharacterKey()
     local realm, faction = self:Here()
-    realm, faction = Fold(realm), Fold(faction)
+    realm, faction = RealmKey(realm), Fold(faction)
     local onlyHere = not everyone and self:OnlyThisCharacter()
 
     -- GUID keys first, so a character's GUID record is the one counted and
@@ -157,7 +170,7 @@ function GoldGoal:Members(now, everyone)
         local record = ns.db.characters[key]
         local isCurrent = key == selfKey
         local here = isCurrent or (not onlyHere and realm ~= nil and faction ~= nil
-            and Fold(record.realm) == realm and Fold(record.faction) == faction)
+            and RealmKey(record.realm) == realm and Fold(record.faction) == faction)
 
         if here then
             local counted = false

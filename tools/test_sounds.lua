@@ -108,6 +108,36 @@ do
 end
 
 print("")
+print("Mute All Sounds")
+
+do
+    -- The same helpers as Core/Init.lua: every call goes through them.
+    local muted = false
+    ns.Muted = function() return muted end
+    ns.PlaySound = function(...)
+        if ns.Muted and ns.Muted() then return false end
+        return PlaySound(...)
+    end
+    played = {}
+    free = { [0] = 1, [1] = 0 }
+    ns.BagsFull:Check()
+    muted = true
+    free = { [0] = 0, [1] = 0 }
+    local lines = #printed
+    ns.BagsFull:Check()
+    check("muted: no sound", #played, 0)
+    check("but chat still says so", #printed, lines + 1)
+
+    bags = { [2996] = 5 }
+    ns.Crafting:AnnounceRunDone({ requested = 5, outputItemID = 2996, before = 0 })
+    check("muted: no chime either", #played, 0)
+    muted = false
+    ns.Crafting:AnnounceRunDone({ requested = 5, outputItemID = 2996, before = 0 })
+    check("back on: the chime plays", #played, 1)
+    ns.Muted, ns.PlaySound = nil, nil
+end
+
+print("")
 print("every sound starts on")
 
 do

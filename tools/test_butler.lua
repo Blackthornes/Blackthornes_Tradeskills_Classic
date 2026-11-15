@@ -237,6 +237,9 @@ ns.db.characters[ALT].inventory = { [1] = 2, ["x"] = 5 }
 ns.db.characters[ALT].inventoryAt = 50
 ns.db.characters[ALT].mail = { [4] = 1 }
 ns.db.characters[ALT].mailAt = 60
+ns.db.characters[ALT].mailExpiry = { count = 4, soonest = 1.5, soon = 3, returns = 1, gone = 2 }
+ns.db.characters[ALT].mailMoney = 700
+ns.db.characters[ALT].clearedAt = 40
 ns.Inventory.GetBagCounts = function() return { [1] = 3, [5] = 1 } end
 ns.Recipes.GetCharacters = function()
   return {
@@ -263,16 +266,45 @@ check("when the bags were read", held[2].bagsAt, 50)
 check("its mail", held[2].mail[4], 1)
 check("when the mail was read", held[2].mailAt, 60)
 check("never read is nil", held[2].bankAt, nil)
+check("how many mails in the box", held[2].mailCount, 4)
+check("the soonest a mail runs out", held[2].mailSoonest, 1.5)
+check("how many run out soon", held[2].mailSoonCount, 3)
+check("how many go back", held[2].mailReturns, 1)
+check("how many are gone for good", held[2].mailGone, 2)
+check("never read this way is nil", held[1].mailSoonest, nil)
 check("another account's character says so", held[3].linked, "other")
 check("the short name", held[2].short, "Ana")
 check("an alt's gold as last seen", held[2].gold, 1234)
 check("when it was seen", held[2].goldAt, 50)
 check("never seen is nil", held[3].gold, nil)
 check("the character playing's purse is live", held[1].gold, 99999)
+check("gold waiting in an alt's mailbox", held[2].mailMoney, 700)
+check("when its items were cleared", held[2].clearedAt, 40)
+check("never read this way: no mail gold", held[3].mailMoney, nil)
 held[2].bags[1] = 1000
 check("a copy: the save is untouched", ns.db.characters[ALT].inventory[1], 2)
 ns.Recipes.GetCharacters = function() error("boom") end
 check("an error gives nil", Butler:Holdings(), nil)
+
+print("\nold bags and Clear Items")
+local DAY = 86400
+check("bags seen 31 days ago are old", Butler.Stale({ inventoryAt = 0 }, 31 * DAY), true)
+check("bags seen 29 days ago are not", Butler.Stale({ inventoryAt = 0 }, 29 * DAY), false)
+check("never stamped stays as it was", Butler.Stale({}, 31 * DAY), false)
+local cleared
+ns.Recipes.ClearItems = function(_, key) cleared = key return true end
+ns.Recipes.GetCharacterName = function(_, key) return ns.db.characters[key].name .. " Smith" end
+local okClear, clearedName = Butler:ClearHoldings("ana smith")
+check("an alt is cleared by its full name", okClear, true)
+check("the alt's key", cleared, ALT)
+check("its full name comes back", clearedName, "Ana Smith")
+cleared = nil
+check("never the character playing", select(2, Butler:ClearHoldings(SELF)), "playing")
+check("nothing cleared for it", cleared, nil)
+check("a name not on record", select(2, Butler:ClearHoldings("Zed")), "unknown")
+ns.Recipes.ClearItems = function() error("boom") end
+check("never raises", Butler:ClearHoldings(ALT), false)
+ns.Recipes.ClearItems, ns.Recipes.GetCharacterName = nil, nil
 
 print("\nfilling mail and taking from the bank")
 local filled

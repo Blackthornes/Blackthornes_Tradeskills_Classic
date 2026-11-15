@@ -692,6 +692,54 @@ function UI.PositionFactor(saved, now)
     return saved / now
 end
 
+--- Every window Tradeskills keeps a place for goes back to where it starts
+--- (a player's window slid off the screen, 2026-11-11): the main window's
+--- everyday and auction house spots, the gold bar, My Auctions, the arrow
+--- and Your Way There. Sizes are kept. The auction sell list keeps no place
+--- of its own; left up away from the auction house it is put away, and at
+--- the auction house it docks beside the game's window again.
+function UI:ResetWindowPlaces()
+    if not ns.db then return end
+    ns.db.windowPosition, ns.db.auctionWindowPosition = nil, nil
+    ns.db.postPanelSpot = nil
+    if ns.PostPanel then ns.PostPanel.dockedTo = nil end
+    if self.window and not TSTabs.area then pcall(self.RestorePosition, self) end
+
+    if ns.GoldGoalUI and ns.GoldGoalUI.ResetPlace then pcall(ns.GoldGoalUI.ResetPlace, ns.GoldGoalUI) end
+    if ns.AuctionTrackerUI and ns.AuctionTrackerUI.ResetPlace then
+        pcall(ns.AuctionTrackerUI.ResetPlace, ns.AuctionTrackerUI)
+    end
+
+    ns.db.wayArrowX, ns.db.wayArrowY = nil, nil
+    if ns.WayArrowUI and ns.WayArrowUI.frame then pcall(ns.WayArrowUI.RestorePosition, ns.WayArrowUI) end
+
+    ns.db.travelCardX, ns.db.travelCardY = nil, nil
+    if ns.TravelCard and ns.TravelCard.frame then pcall(ns.TravelCard.RestorePlace, ns.TravelCard) end
+
+    local panel = ns.PostPanel
+    if panel and panel.frame then
+        if ns.Scanner and ns.Scanner.isAuctionHouseOpen then
+            if panel.Attach then pcall(panel.Attach, panel) end
+        elseif panel.Hide then
+            pcall(panel.Hide, panel)
+        end
+    end
+end
+
+--- Window Spots: Set Default (a player asked, the owner said build it,
+--- 2026-11-12): every Blackthornes window loaded goes back where it started,
+--- through the shared window's ResetAllSpots, which runs each addon's own
+--- reset. Without it, only Tradeskills' windows.
+function UI:ResetAllWindows()
+    local shared = ns.SharedWindow
+    if shared and shared.ResetAllSpots then shared.ResetAllSpots()
+    else self:ResetWindowPlaces() end
+    ns.Print(L["Every window is back in its first spot."])
+end
+if ns.SharedWindow and ns.SharedWindow.AddSpotReset then
+    ns.SharedWindow.AddSpotReset("Tradeskills", function() UI:ResetWindowPlaces() end)
+end
+
 --------------------------------------------------------------------------------
 -- Window size
 --------------------------------------------------------------------------------
@@ -929,6 +977,16 @@ if ns.RegisterCommand then
         local now = UI:SetWindowScale(scale)
         ns.Print(L.Format("window size: %s.", UI.ScaleText(now)))
     end)
+
+    ns.RegisterCommand("windows", L["put every Blackthornes window back where it started (reset)"], function(arg)
+        arg = ((arg or ""):match("^%s*(.-)%s*$") or ""):lower()
+        if arg == "reset" then UI:ResetAllWindows()
+        else ns.Print(L["Type /bts windows reset to put every window back in its first spot."]) end
+    end)
+    -- The older word still works.
+    ns.RegisterCommand("resetwindows", L["put every Blackthornes window back where it started (reset)"], function()
+        UI:ResetAllWindows()
+    end)
 end
 
 --------------------------------------------------------------------------------
@@ -936,6 +994,7 @@ end
 --------------------------------------------------------------------------------
 
 function UI:Show()
+    UI:AskedAtAuction()
     -- With "One Window:" ticked, the one window opens on Tradeskills
     -- instead, and lays this window in.
     if TSTabs:Route() then return end
@@ -1229,7 +1288,7 @@ function UI:CelebrateScan(result)
 
     if (not ns.Config or ns.Config:Get("scanSounds") ~= false) and type(PlaySound) == "function" then
         local kits = type(_G.SOUNDKIT) == "table" and _G.SOUNDKIT or {}
-        pcall(PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
+        pcall(ns.PlaySound or PlaySound, kits.IG_QUEST_LIST_COMPLETE or 878, "Master")
     end
 end
 
@@ -1239,6 +1298,10 @@ end
 -- Scanning only works while the auction house is open, so the control belongs
 -- where the player already is rather than only inside our own window.
 function UI:AttachToAuctionHouse()
+    -- "Open at AH:" unticked: nothing comes up until the player opens
+    -- Tradeskills on this visit (UI:AskedAtAuction).
+    if not UI.AuctionWanted() then return end
+
     local auctionFrame, frameName = self:FindAuctionFrame()
     local bar = self:GetAuctionBar()
 
@@ -1563,6 +1626,27 @@ end
 -- Transfer dialog
 --------------------------------------------------------------------------------
 
+--- Shows one part of a prices export in the dialog.
+function UI:ShowPricePart(index)
+    local dialog = self.transferDialog
+    local parts = dialog and dialog.parts
+    if not parts then return end
+
+    dialog.partIndex = index
+    if #parts > 1 then
+        dialog.hint:SetText(L.Format("%d price(s). Part %d of %d. Press Ctrl+C to copy it, then press Next Part for the next one. Import every part on the other computer.",
+            dialog.count or 0, index, #parts))
+        dialog.action:SetText(L["Next Part"])
+        dialog.action:Show()
+    else
+        dialog.hint:SetText(L.Format("%d price(s). Press Ctrl+C to copy, then paste it into Import Prices on the other computer.",
+            dialog.count or 0))
+        dialog.action:Hide()
+    end
+    dialog.editBox:SetText(parts[index])
+    dialog.editBox:HighlightText()
+end
+
 --- A selectable text box for copying an export code out, or pasting one in.
 --
 -- WoW chat cannot be selected, so a code has to live in an edit box for Ctrl+C
@@ -1666,7 +1750,16 @@ function UI:ShowTransferDialog(mode)
         dialog.scrollTo = ScrollTo
 
         dialog.action = Widgets.CreateButton(dialog, L["Import"], function()
-            local ok, message = ns.Transfer:Import(dialog.editBox:GetText())
+            if dialog.mode == "exportPrices" then
+                -- Next Part: the next piece of a long prices code.
+                local parts = dialog.parts or {}
+                local index = (dialog.partIndex or 1) % math.max(1, #parts) + 1
+                UI:ShowPricePart(index)
+                return
+            end
+
+            local importer = dialog.mode == "importPrices" and ns.PriceTransfer or ns.Transfer
+            local ok, message = importer:Import(dialog.editBox:GetText())
 
             ns.Print(message)
             if ok then dialog:Hide() end
@@ -1674,9 +1767,31 @@ function UI:ShowTransferDialog(mode)
         dialog.action:SetPoint("BOTTOMRIGHT", -20, 18)
 
         self.transferDialog = dialog
+        if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(dialog, "ts.transfer") end
     end
 
-    if mode == "export" then
+    dialog.mode = mode
+    dialog.action:SetText(L["Import"])
+    dialog.parts = nil
+
+    if mode == "exportPrices" then
+        local parts, count = ns.PriceTransfer:Export()
+        dialog.title:SetText(L["Export Prices"])
+        if not parts then
+            dialog.hint:SetText(count or "")
+            dialog.editBox:SetText("")
+            dialog.action:Hide()
+        else
+            dialog.parts = parts
+            dialog.count = count
+            UI:ShowPricePart(1)
+        end
+    elseif mode == "importPrices" then
+        dialog.title:SetText(L["Import Prices"])
+        dialog.hint:SetText(L["Paste a prices code with Ctrl+V, then press Import. Only prices newer than yours are used, and nothing of yours is replaced by an older one."])
+        dialog.editBox:SetText("")
+        dialog.action:Show()
+    elseif mode == "export" then
         local code = ns.Transfer:Export()
         local queued, settings, limits = ns.Transfer:Describe()
 
@@ -2226,6 +2341,35 @@ end
 --- as either opens and closes again as it closes (a player's request,
 --- 2026-10-02). Only a window opened this way is closed: one the player
 --- already had open stays open.
+--- "Open at AH:" on the Auction page (`openAtAuction`, on unless unticked;
+--- a player's request, 2026-11-05). Unticked, Tradeskills stays shut at the
+--- auction house until the player opens it there; then the sell list and
+--- the one window's Auction House tab come up as usual for that visit.
+function UI.OpensAtAuction()
+    return ns.Config:Get("openAtAuction") ~= false
+end
+
+--- True while Tradeskills may come up at the auction house: ticked, or the
+--- player opened it on this visit.
+function UI.AuctionWanted()
+    return UI.OpensAtAuction() or UI.ahAsked == true
+end
+
+--- The player opened Tradeskills (UI:Show, or its button in the one
+--- window) while the auction house is open with "Open at AH:" unticked:
+--- what it would have shown by itself comes up now, once a visit.
+function UI:AskedAtAuction()
+    if UI.ahAsked or UI.OpensAtAuction() then return end
+    if not (ns.Scanner and ns.Scanner.isAuctionHouseOpen) then return end
+    UI.ahAsked = true
+    C_Timer.After(0, function()
+        if ns.Scanner.isAuctionHouseOpen then
+            UI:AttachToAuctionHouse()
+            TSTabs:AuctionOpened()
+        end
+    end)
+end
+
 function UI:OpenWithShop(which)
     if ns.Config:Get("openWithShops") ~= true then return end
     self:Build()
@@ -2298,6 +2442,8 @@ function UI:OnEnable()
 
     ns.RegisterEvent(self, "AUCTION_HOUSE_SHOW", function()
         UI:UpdateHeader()
+        -- A new visit asks again whether Tradeskills opens by itself.
+        UI.ahAsked = false
         UI:AttachToAuctionHouse()
         -- With "One Window:" ticked, the drawer goes inside it instead.
         TSTabs:AuctionOpened()
@@ -2520,6 +2666,7 @@ function TSTabs:Enter(area)
     if not area then return end
     self.area = area
     UI:Build()
+    UI:AskedAtAuction()
     TSTabs:LayIn()
     TSTabs:Grow()
     local key = self.wanted
@@ -2601,6 +2748,9 @@ function TSTabs:AuctionOpened()
     local One = TSTabs.One()
     if not (One and One.Hosts and One.Hosts("tradeskills")) then return end
     if self.atAuction and self.area then return end
+    -- "Open at the Auction House:" unticked, the window stays shut unless
+    -- it is already up on Tradeskills.
+    if not self.area and not UI.AuctionWanted() then return end
     self.atAuction = true
     if self.area then
         self.beforeAuction = UI.activeTab

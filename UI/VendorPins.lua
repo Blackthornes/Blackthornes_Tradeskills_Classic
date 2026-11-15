@@ -432,6 +432,23 @@ function VendorPinsUI.Light(pin)
     end
 end
 
+--- Cut an icon round with a mask texture. SetMask on the icon itself
+--- drew it as dark stripes on Forever, so it is only the fallback for a
+--- client with no mask textures (Farmer's MapMarkers.RoundIcon does the same).
+function VendorPinsUI.RoundIcon(frame, icon)
+    if type(frame.CreateMaskTexture) == "function" and type(icon.AddMaskTexture) == "function" then
+        local ok, mask = pcall(frame.CreateMaskTexture, frame, nil, "ARTWORK")
+        if ok and mask then
+            pcall(mask.SetTexture, mask, ROUND, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(icon)
+            pcall(icon.AddMaskTexture, icon, mask)
+            return mask
+        end
+    end
+    pcall(icon.SetMask, icon, ROUND)
+    return nil
+end
+
 function VendorPinsUI.CreatePin(parent)
     local size = VendorPinsUI.SIZE
     local pin = CreateFrame("Frame", nil, parent)
@@ -467,7 +484,7 @@ function VendorPinsUI.CreatePin(parent)
     icon:SetPoint("BOTTOMRIGHT", -5, 5)
     icon:SetTexture(BAG)
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    pcall(icon.SetMask, icon, ROUND)
+    VendorPinsUI.RoundIcon(pin, icon)
 
     local gem = pin:CreateTexture(nil, "OVERLAY")
     gem:SetSize(11, 11)
@@ -512,10 +529,19 @@ function VendorPinsUI.CreatePin(parent)
     return pin
 end
 
+--- The pin's face: the icon of the material that costs the most there
+--- (the card's top line, For sorts them so), else the plain bag.
+function VendorPinsUI.IconFor(vendor)
+    local first = vendor and vendor.items and vendor.items[1]
+    local icon = first and first.itemID and Util.GetItemIcon and Util.GetItemIcon(first.itemID)
+    return icon or BAG
+end
+
 --- Dress a pin for one vendor and its look.
 function VendorPinsUI.Dress(pin, vendor, look)
     pin.vendor = vendor
     pin.pinned = look.pinned
+    pin.icon:SetTexture(VendorPinsUI.IconFor(vendor))
     pin.count:SetText(look.count > 0 and tostring(look.count) or "")
     pin.badge:SetShown(look.count > 0)
     pin.count:SetShown(look.count > 0)

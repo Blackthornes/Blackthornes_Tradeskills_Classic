@@ -58,6 +58,20 @@ Forever addon. So:
   the quick full scan when the game allows it, else page by page (see
   `docs/CLASSIC_DIFFERENCES.md`). Buying, your auctions and the drawer's
   other views are still to come.
+- The week's ideas (the owner, 2026-11-15) came over from Forever:
+  "Mute All Sounds:" (`muteSounds`, `muteSoundsAt`, shared through
+  `UI/SharedChoices.lua`; every sound goes through `ns.PlaySound` and
+  `ns.PlaySoundFile`), windows that remember where they were dragged
+  (`windowSpots[key]`, `SharedWindow.KeepSpot`, `UI/SharedWindow.lua`
+  FILE_VERSION 9, the same in all five) with "Window Spots:" Set Default
+  and `/bts resetwindows`, "TSM Price Source:" and "TSM BoE Price Source:"
+  (`tsmPriceSource`, `tsmGearPriceSource`, nil for the usual), and for
+  Butler each character's mail running out (`Butler:Holdings()` adds
+  `mailCount`, `mailSoonest`, `mailSoonCount`, `mailReturns`, `mailGone`,
+  `mailMoney`, `clearedAt`) and Clear Items (`Butler:ClearHoldings(who)`,
+  never the character playing). Never rename any of these. The rest of
+  Forever main up to `d5455e9` came too; see `docs/FOREVER_SYNC.md` for
+  what was taken and left out.
 - Calls to the other Blackthornes addons stay inside a pcall, and
   Tradeskills works on its own without them.
 - Not yet seen in an Era client. Read client calls in a pcall as everywhere

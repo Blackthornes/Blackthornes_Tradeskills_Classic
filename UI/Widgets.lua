@@ -578,6 +578,20 @@ function Widgets.ShowItemOnly(owner, itemID, fallback)
     GameTooltip:Show()
 end
 
+--- Let a material line show its item's own tooltip on hover. The line keeps
+--- `itemID` and `itemName`, set each time it is filled; a line with no item
+--- (the "and N more" line) shows nothing.
+function Widgets.HoverItemLine(line)
+    if not line or not line.EnableMouse then return line end
+    line:EnableMouse(true)
+    line:SetScript("OnEnter", function(self)
+        local itemID = rawget(self, "itemID")
+        if itemID then Widgets.ShowItemOnly(self, itemID, rawget(self, "itemName")) end
+    end)
+    line:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return line
+end
+
 --------------------------------------------------------------------------------
 -- Checkbox
 --------------------------------------------------------------------------------
@@ -909,6 +923,17 @@ function Widgets.CreateNumberBox(parent, opts)
 
     editBox:SetScript("OnEnterPressed", Commit)
     editBox:SetScript("OnEditFocusLost", Commit)
+    -- Tab saves like Enter and moves to container.tabNext; Shift-Tab goes to
+    -- container.tabPrev. A box with neither just saves and keeps focus out.
+    editBox:SetScript("OnTabPressed", function()
+        local target = IsShiftKeyDown() and container.tabPrev or container.tabNext
+        Commit()
+        if target then
+            local edit = target.editBox or target
+            if edit.SetFocus then edit:SetFocus() end
+            if edit.HighlightText then edit:HighlightText() end
+        end
+    end)
     editBox:SetScript("OnEscapePressed", function(self)
         container:SetValue(container.value, true)
         self:ClearFocus()
@@ -1044,8 +1069,19 @@ function Widgets.CreateDropdown(parent, options, onSelect, opts)
                 entry.mark:Hide()
 
                 local function Light(value) entry.highlight:SetAlpha(value) end
-                entry:SetScript("OnEnter", function(self) Motion:Blend(self, "hover", 1, 0.08, Light) end)
-                entry:SetScript("OnLeave", function(self) Motion:Blend(self, "hover", 0, 0.15, Light) end)
+                -- An option may carry a hover of its own (`option.tooltip`).
+                entry:SetScript("OnEnter", function(self)
+                    Motion:Blend(self, "hover", 1, 0.08, Light)
+                    if self.tip and GameTooltip then
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetText(self.tip, 1, 1, 1, 1, true)
+                        GameTooltip:Show()
+                    end
+                end)
+                entry:SetScript("OnLeave", function(self)
+                    Motion:Blend(self, "hover", 0, 0.15, Light)
+                    if self.tip and GameTooltip then GameTooltip:Hide() end
+                end)
 
                 entries[index] = entry
             end
@@ -1064,6 +1100,7 @@ function Widgets.CreateDropdown(parent, options, onSelect, opts)
                 entry.label:SetTextColor(Theme.Unpack(color))
                 entry.mark:SetShown(IsOn(option))
                 entry:EnableMouse(not option.header)
+                entry.tip = option.tooltip
                 entry:Show()
             else
                 entry:Hide()

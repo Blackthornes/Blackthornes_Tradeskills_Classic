@@ -134,4 +134,39 @@ check("the other ID being learned keeps the crafts", not Recipes:IsDropped(robe)
 ns.db.characters[SELF].professionLines = { [197] = false, [2948] = false, [186] = true }
 check("both unlearned still hides them", Recipes:IsDropped(robe))
 
+print("\nevery profession dropped")
+-- A player's priest once had Enchanting and dropped it; the saved list
+-- kept it, so Butler still named her the enchanter to mail gear to.
+levels[197], levels[2942], levels[186], levels[2950] = 150, 150, 150, 150
+Recipes:RefreshProfessions()
+local function anyLearned()
+    for _, p in ipairs(ns.db.characters[SELF].professions or {}) do
+        if p.learned then return true end
+    end
+    return false
+end
+check("both professions saved as learned", anyLearned())
+Recipes.loginSettled = nil
+levels[197], levels[2942], levels[186], levels[2950] = 0, 0, 0, 0
+Recipes:RefreshProfessions()
+check("a read during the login retries keeps them", anyLearned())
+Recipes.loginSettled = true
+GetProfessions, GetProfessionInfo = function() return 1 end, function() return "Mining", nil, nil, nil, nil, nil, 186 end
+Recipes:RefreshProfessions()
+check("a book that still names one keeps them", anyLearned())
+GetProfessions = function() return nil end
+Recipes:RefreshProfessions()
+check("an empty book once login settled lets them go", not anyLearned())
+check("and the crafts are hidden", Recipes:IsDropped(robe))
+levels[197], levels[2942], levels[186], levels[2950] = 150, 150, 150, 150
+Recipes:RefreshProfessions()
+check("learning again brings them back", anyLearned())
+levels[197], levels[2942], levels[186], levels[2950] = 0, 0, 0, 0
+GetProfessions, GetProfessionInfo = nil, nil
+Recipes:RefreshProfessions()
+check("a client with no book lets them go once settled", not anyLearned())
+Recipes.loginSettled = nil
+levels[197], levels[2942], levels[186], levels[2950] = 1, 1, 150, 150
+Recipes:RefreshProfessions()
+
 print(("\n%d check(s) passed\n"):format(checks))

@@ -17,6 +17,19 @@
 local _, ns = ...
 local L = ns.L or setmetatable({ Format = string.format }, { __index = function(_, key) return key end })
 
+--- One key for a realm name, the same on every account of one player.
+--- Forever's GetRealmName names the server behind the realm, and each of a
+--- player's accounts can sit on a different one ("CAMWOW US2 Realm 7 PvE"
+--- on one, "CAMWOW US2 Realm 3 PvE" on the other), so the key drops spaces,
+--- case and the "Realm N" part. The same few lines are in Tab_Characters,
+--- Queue, QueueMail, Butler, GoldGoal and GoldLog.
+local function RealmKey(name)
+    if type(name) ~= "string" or name == "" or name == "?" then return nil end
+    local key = name:lower():gsub("%s", ""):gsub("realm%d+", "")
+    if key == "" then return nil end
+    return key
+end
+
 local Theme = ns.Theme
 local Widgets = ns.Widgets
 local Util = ns.Util
@@ -147,11 +160,11 @@ local function RestMost()
     return ns.CharacterNotes and ns.CharacterNotes.REST_MOST or 150
 end
 
---- A realm's name to compare by: case and spaces left out, as the game
---- writes some names with spaces and some without.
+--- A realm's name to compare by: case, spaces and Forever's "Realm N"
+--- server number left out (Util.RealmKey), so every account's characters
+--- on one realm list together.
 local function FoldRealm(name)
-    if type(name) ~= "string" or name == "" then return nil end
-    return (name:gsub("%s", ""):lower())
+    return RealmKey(name)
 end
 
 --- The realm of the character playing: its own record's, else the game's.
@@ -239,7 +252,7 @@ end
 
 local function Disarm(button)
     button.armed = false
-    button:SetText(L["Forget character"])
+    button:SetText(button.label or L["Forget character"])
     button:SetConfirming(false)
 end
 
@@ -306,6 +319,36 @@ local function BuildCard(row)
     end, { width = 140, height = 20,
            tooltip = L["Delete this character's saved recipes and inventory"] })
     card.forget:SetPoint("BOTTOMRIGHT", 0, 0)
+    card.forget.label = L["Forget character"]
+
+    -- Clear Items (2026-11-10): forget only what the character carried,
+    -- its saved bags, bank, mail and gold, so old counts stop sending
+    -- jobs there. Arms first like Forget character.
+    card.clear = Widgets.CreateButton(card, L["Clear Items"], function()
+        local button = card.clear
+        local key = card.key
+        if not key then return end
+
+        if button.armed and button.armed == key then
+            local name = ns.Recipes:GetCharacterName(key)
+            if ns.Recipes:ClearItems(key) then
+                ns.Print(L.Format("Cleared saved items for %s.", name))
+            end
+            Disarm(button)
+            UI:RefreshActiveTab()
+            return
+        end
+
+        button.armed = key
+        button:SetText(L["Click Again"])
+        button:SetConfirming(true)
+        C_Timer.After(4, function()
+            if button.armed == key then Disarm(button) end
+        end)
+    end, { width = 140, height = 20,
+           tooltip = L["Forget this character's saved bags, bank, mail and gold. Log in on them to read it again."] })
+    card.clear.label = L["Clear Items"]
+    card.clear:SetPoint("RIGHT", card.forget, "LEFT", -8, 0)
 
     row.card = card
 end
@@ -375,6 +418,8 @@ local function FillCard(card, entry)
     -- Only an alt can be forgotten; never the character you're on.
     card.forget:SetShown(not entry.isCurrent)
     if card.forget.armed and card.forget.armed ~= entry.key then Disarm(card.forget) end
+    card.clear:SetShown(not entry.isCurrent)
+    if card.clear.armed and card.clear.armed ~= entry.key then Disarm(card.clear) end
 end
 
 --------------------------------------------------------------------------------
@@ -613,7 +658,13 @@ local function ShowRowTooltip(row, entry)
     if character.class then about[#about + 1] = character.class end
     if #about > 0 then GameTooltip:AddLine(table.concat(about, " "), 0.7, 0.7, 0.7) end
     if character.realm then GameTooltip:AddLine(character.realm, 0.7, 0.7, 0.7) end
-    if character.linkedFrom then GameTooltip:AddLine(L["Other account"], 0.7, 0.7, 0.7) end
+    if character.linkedFrom then
+        GameTooltip:AddLine(L["Other account"], 0.7, 0.7, 0.7)
+        local at = ns.AccountLink and ns.AccountLink.LastSynced and ns.AccountLink:LastSynced(character.linkedFrom)
+        if at then
+            GameTooltip:AddLine(L.Format("Synced %s", Util.FormatAgeAgo(math.max(0, time() - at))), 0.7, 0.7, 0.7)
+        end
+    end
 
     local learned = Learned(character)
     if #learned > 0 then

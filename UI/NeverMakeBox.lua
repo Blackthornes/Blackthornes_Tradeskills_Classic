@@ -84,6 +84,7 @@ function NeverMakeBox:Build()
     self.keep:SetPoint("LEFT", self.buy, "RIGHT", 8, 0)
 
     self.frame = frame
+    if ns.SharedWindow and ns.SharedWindow.KeepSpot then ns.SharedWindow.KeepSpot(frame, "ts.nevermake") end
     return frame
 end
 
