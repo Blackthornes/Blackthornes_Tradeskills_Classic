@@ -474,3 +474,19 @@ seen in game.
   Anyway:" (`postAnyway`, off unless ticked): ticked, nothing is held back
   or asked about (`RefusesEarly` returns before `AskAnyway`, and `Post`'s
   `anyway` is the box's List It or the tick box).
+
+## Forever catch-up of 2026-11-15
+
+- Buy Sets (`695619e`) is not here: it buys through the modern auction
+  house (`C_AuctionHouse`), which Era lacks.
+- Ignore Deposit (`3671228`) is not here: it sits on Forever's deposit
+  rework, which Classic never took.
+- The account link's craft queue, sales, lists and prices sit beside
+  Classic's Friends box; friends still only show on the Profit tab's
+  "Friends who can make it:" line. Share Craft Queue and Share Sales are
+  off unless ticked.
+- Profit by method has no "uncounted" count on Classic, so its rows and
+  profession rows leave it out.
+- Settings has no Enchant Window row (Classic has no enchant window);
+  "Disenchant Results:" sits under its own DISENCHANT heading on the Look
+  page.

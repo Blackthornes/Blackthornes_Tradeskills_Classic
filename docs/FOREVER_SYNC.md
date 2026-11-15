@@ -3,7 +3,7 @@
 Where this Classic Era copy stands against Forever Tradeskills
 (`Blackthornes/Blackthornes_Tradeskills`). Forever is only ever read from here.
 
-Last Forever commit copied over: `0df1229` (Forever testing, 2026-11-02).
+Last Forever commit copied over: `d5455e9` (Forever main, 2026-11-14).
 The first copy was made from `94517cf` (Forever main, the merge of its
 PR #964, 2026-10-24). This copy was made from it with its history on
 2026-10-24.
@@ -86,6 +86,26 @@ Copied over since, one at a time:
 - Picked fix (2026-11-07, the owner said yes): the folded One Window opens
   full after docking (Forever's shared `UI/SharedWindow.lua` fix, here at
   FILE_VERSION 8, the same in all five Classic repos).
+
+- Forever catch-up of 2026-11-15 (the owner said do the week's ideas):
+  about 60 commits from Forever main up to `d5455e9`, cherry-picked one at
+  a time with Classic's code kept where they met: money box Tab keys,
+  vendor pin icons, the second account's characters, whether Tradeskills
+  opens by itself at the auction house and professions, the Sell list's
+  skipped rows and Hidden Items window, Crafted Only and no greys on Sell,
+  the account link's craft queue, sales, shopping lists, prices and last
+  synced (kept beside Classic's Friends box), Road to 300 for Cooking,
+  First Aid and Fishing, price graphs in Recipes to Learn and Your Time,
+  the Sales tab's By Item view, Bought For on tooltips, Demand in Recipes
+  to Learn, queue cast time, Road to 300 skip and trainer, where profit
+  comes from, gold an hour, Disenchant Results in chat, Export and Import
+  Prices, bind on pickup material costs, dropped professions, Profit by
+  method by profession and character, Goblin Gold's goal window, Craft
+  Next skipping crafts away from a tool, queue pause and moves, and Craft
+  Cost and Profit. Missing words came from Forever's locale files by key.
+  Not taken: `695619e` Buy Sets (the modern auction house) and `3671228`
+  Ignore Deposit (Forever's deposit rework). Snipe, My Auctions, Auction
+  Tracker, Legacy, writs and data refreshes were left out on purpose.
 
 Every catch-up reads `docs/CLASSIC_DIFFERENCES.md` first, and the PR that
 brings Forever commits over updates the line above to the newest one it took.
