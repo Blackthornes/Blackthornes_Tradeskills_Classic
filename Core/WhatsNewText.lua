@@ -5,6 +5,15 @@
 local _, ns = ...
 
 ns.WHATS_NEW = {
+    { version = "0.11.0", lines = {
+        "Road to 300 now covers Cooking, First Aid and Fishing.",
+        "The Sales tab has a By Item view.",
+        "The Sell list can hide items.",
+        "Item tooltips show what you paid.",
+        "Export and Import Prices.",
+        "Mute All Sounds quiets every Blackthornes sound at once.",
+        "Windows remember where you drag them.",
+    } },
     { version = "0.10.0", lines = {
         "The auction house tabs now match the other Blackthornes add-ons.",
         "Search All now opens the buy plan for the first item.",
@@ -17,9 +26,5 @@ ns.WHATS_NEW = {
         "All your Blackthornes add-ons now open in one window, with a button for each add-on down the side.",
         "The window moves beside the auction house, mailbox, vendor and trainer when you open them.",
         "The auction house now shows the price of the item you searched for.",
-    } },
-    { version = "0.8.0", lines = {
-        "Every window has a new look that matches the other Blackthornes add-ons.",
-        "The Disenchanting tab now has a Buy button for gear deals.",
     } },
 }

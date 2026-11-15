@@ -23,6 +23,19 @@ tell a friend: no hype, no questions to the reader, no exclamation marks
 outside the thanks line, no dashes as punctuation, no "now you can". The
 tool prints a note for a shipped line that reads like an advert.
 
+## 0.11.0
+
+- Road to 300 now covers Cooking, First Aid and Fishing.
+- The Sales tab has a By Item view.
+- The Sell list can hide items.
+- Item tooltips show what you paid.
+- Export and Import Prices.
+- Mute All Sounds quiets every Blackthornes sound at once.
+- Windows remember where you drag them.
+
+Fixes and changes:
+- Various bug fixes.
+
 ## 0.10.4
 
 Fixes and changes:
