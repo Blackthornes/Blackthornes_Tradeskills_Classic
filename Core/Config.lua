@@ -567,7 +567,7 @@ local DEFAULTS = {
         linkShareGold = true,
         linkShareAuctions = true,
         -- Each character's queued crafts' needs, for the other account's mail
-        -- suggestions. Off unless ticked (Trent, 2026-11-07); never rename it.
+        -- suggestions. Off unless ticked (the owner, 2026-11-07); never rename it.
         linkShareQueue = false,
         -- Each character's own auction sales, for the other account's Sales
         -- and Stats tabs. Off unless ticked (the owner, 2026-11-07); never

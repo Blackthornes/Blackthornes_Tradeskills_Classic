@@ -145,7 +145,7 @@ end
 
 --- The text to put beside the name, or nil to leave the row alone.
 function RecipeValue:TextFor(recipeID)
-    -- "Craft Cost and Profit:" (Trent, 2026-11-14): the craft's profit in
+    -- "Craft Cost and Profit:" (the owner, 2026-11-14): the craft's profit in
     -- place of what it sells for, "No price" when any price is missing.
     if self:ShowsProfit() and ns.CraftProfit then
         local figures = ns.CraftProfit:For(recipeID)

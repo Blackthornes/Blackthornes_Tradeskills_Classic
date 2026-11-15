@@ -1152,7 +1152,7 @@ end
 --   the Post tab wants; every caller that picks something to list on the
 --   player's behalf must not see them.
 --
--- @param opts.showNoted  the Sell tab's whole bag (Trent, 2026-11-06: only
+-- @param opts.showNoted  the Sell tab's whole bag (the owner, 2026-11-06: only
 --   what the player hid with the x stays off): an item it would leave out
 --   for a grey, a queued craft needing it all, no price yet or a vendor
 --   paying more stays on, dimmed, with why in line.held and line.noted set,
@@ -1216,7 +1216,7 @@ function Posting:GetPostable(opts)
             wanted = false
             skipped[itemID] = "ignored (Settings, Ignored items)"
         elseif IsGrey(itemID, slots[itemID]) then
-            -- Greys never show, not even dimmed (Trent, 2026-11-06).
+            -- Greys never show, not even dimmed (the owner, 2026-11-06).
             skipped[itemID] = "grey, sells to a vendor"
             wanted = false
         end

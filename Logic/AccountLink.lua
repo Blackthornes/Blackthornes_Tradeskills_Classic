@@ -46,7 +46,7 @@ AccountLink.SECTIONS = {
     { setting = "linkShareGold", fields = { "gold" } },
 }
 
--- Share Craft Queue (Trent, 2026-11-07, a player with three accounts):
+-- Share Craft Queue (the owner, 2026-11-07, a player with three accounts):
 -- each own character's queued crafts' materials it still needs, item IDs
 -- and counts only, so the other account's mail suggestions can send them.
 -- Off unless ticked on both sides (`linkShareQueue`); never relayed, since

@@ -1,4 +1,4 @@
--- Share Craft Queue (Trent, 2026-11-07, a player with three accounts):
+-- Share Craft Queue (the owner, 2026-11-07, a player with three accounts):
 -- one account's characters say what their queued crafts still need, and
 -- the other account's mail suggestions offer it.
 --
